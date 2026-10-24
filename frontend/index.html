@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<script>
+			var coverSupport = 'CSS' in window && typeof CSS.supports === 'function' && (CSS.supports('top: env(a)') ||
+				CSS.supports('top: constant(a)'))
+			document.write(
+				'<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0' +
+				(coverSupport ? ', viewport-fit=cover' : '') + '" />')
+		</script>
+		<title>人生档案</title>
+		<!--
+		  ★ 内联 SVG favicon，不发网络请求。
+		    之前每个会话都会有一条 `404 /favicon.ico`，
+		    它跟业务无关却长期占据控制台错误列表，
+		    会掩盖真正需要关注的问题（2026-10-05 全站巡检发现）。
+		    用 data URI 内联，零外部依赖、零请求。
+		-->
+		<link
+			rel="icon"
+			type="image/svg+xml"
+			href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%237FD4F2'/%3E%3Cg stroke='%23FFFFFF' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M16 6.5v19M6.5 16h19M9.3 9.3l13.4 13.4M22.7 9.3L9.3 22.7'/%3E%3C/g%3E%3C/svg%3E"
+		/>
+		<!--preload-links-->
+		<!--app-context-->
+	</head>
+	<body>
+		<div id="app"><!--app-html--></div>
+		<script type="module" src="/main"></script>
+	</body>
+</html>

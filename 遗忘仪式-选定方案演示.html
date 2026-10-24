@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>遗忘仪式 · 选定方案演示</title>
+<style>
+/* ==========================================================================
+   1. 设计令牌（整套取自《人生档案-产品概念原型.html》，与前作同源，保证视觉一致）
+   ========================================================================== */
+:root{
+  /* 品牌色 / 冰川蓝 */
+  --c-ink:#F2F7FC;
+  --c-body:#B9C9D9;
+  --c-muted:#7A8CA0;
+  --c-accent:#5AA9F0;
+  --c-accent-deep:#2A6FDB;
+  --c-glacier:#5AA9F0;
+  --c-glacier-tab:#3E8FE0;
+  --c-glacier-light:#8FC8F8;
+  --c-on-blue-2:#D6E9FA;
+
+  /* 屏幕背景 */
+  --bg:linear-gradient(225deg,#050A12 0%,#0A1420 100%);
+  --frame-bg:
+    linear-gradient(to bottom, rgba(90,169,240,.20), rgba(0,0,0,0) 52%),
+    linear-gradient(to top, rgba(42,111,219,.16), rgba(0,0,0,0) 48%),
+    linear-gradient(to left, rgba(90,169,240,.18), rgba(0,0,0,0) 55%),
+    linear-gradient(to right, rgba(42,111,219,.22), rgba(0,0,0,0) 55%),
+    linear-gradient(225deg,#050A12 0%,#0A1420 100%);
+  --bg-2:#0E1B2E;
+  --card:rgba(255,255,255,.06);
+  --card-2:rgba(255,255,255,.04);
+  --line:rgba(255,255,255,.1);
+  --text:#F2F7FC;
+  --text-dim:#B9C9D9;
+  --text-faint:#7A8CA0;
+
+  /* 四种情绪星色 */
+  --red:#e0685f;
+  --red-deep:#b04a44;
+  --red-glow:rgba(224,104,95,.42);
+  --amber:#e8b96a;
+  --amber-soft:rgba(232,185,106,.14);
+  --amber-line:rgba(232,185,106,.32);
+  --sage:#7fc8a8;
+  --sage-soft:rgba(127,200,168,.14);
+  --sage-line:rgba(127,200,168,.32);
+  --blue:#5AA9F0;
+  --blue-soft:rgba(90,169,240,.16);
+  --blue-line:rgba(90,169,240,.36);
+
+  --shadow:0 14px 40px -14px rgba(0,0,0,.6);
+
+  /* 圆角 */
+  --r:16px;
+  --r-capsule:36px;
+  --r-card-lg:26px;
+  --r-card:24px;
+  --r-card-md:22px;
+  --r-card-sm:20px;
+  --r-inner:16px;
+  --r-icon:14px;
+  --r-pill:999px;
+  --r-tab:26px;
+
+  /* 字体 */
+  --font:'Noto Sans SC','PingFang SC','Hiragino Sans GB','Microsoft YaHei',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+
+  /* Liquid Glass */
+  --glass-bg:rgba(255,255,255,.06);
+  --glass-bg-2:rgba(255,255,255,.04);
+  --glass-warm:rgba(90,169,240,.1);
+  --glass-hi:rgba(255,255,255,.1);
+  --glass-lo:rgba(0,0,0,.32);
+  --glass-border:rgba(255,255,255,.1);
+  --glass-blur:blur(14px) saturate(150%);
+  --tt-bg:rgba(10,20,32,.82);
+
+  /* 天空 / 图谱 */
+  --sky-bg:linear-gradient(180deg,#0A1830,#10254A);
+  --sky-inner:rgba(0,0,0,.3);
+  --sky-text:rgba(226,232,240,.66);
+  --mm-bg:
+    radial-gradient(420px 300px at 50% 46%, rgba(90,169,240,.2), transparent 70%),
+    linear-gradient(160deg,#10233F 0%,#0A1830 100%);
+
+  /* 冰川蓝渐变卡 */
+  --blue-grad:linear-gradient(160deg,#5AA9F0 0%,#2A6FDB 100%);
+  --blue-bd:rgba(255,255,255,.16);
+
+  /* 背景光晕 / 雪点 */
+  --spot-1:rgba(90,169,240,.14);
+  --spot-2:rgba(90,169,240,.1);
+  --spot-3:rgba(143,200,248,.08);
+  --spot-4:rgba(42,111,219,.1);
+  --snow-dot:rgba(255,255,255,.5);
+  --snow-dot-2:rgba(255,255,255,.3);
+}
+
+/* ==========================================================================
+   2. 基础与布局
+   ========================================================================== */
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  min-height:100vh;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font);
+  font-size:15px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(680px 420px at 12% -8%, var(--spot-1), transparent 62%),
+    radial-gradient(560px 380px at 92% 8%, var(--spot-2), transparent 60%),
+    radial-gradient(520px 420px at 78% 96%, var(--spot-3), transparent 62%),
+    radial-gradient(480px 360px at 8% 88%, var(--spot-4), transparent 60%);
+}
+.page{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:28px 20px 56px;}
+
+/* hidden 必须压过 display:flex 等布局声明 */
+[hidden]{display:none !important;}
+
+/* 全局按钮重置：清掉浏览器默认浅灰底 / 边框 / 内边距，防止未显式声明的按钮样式穿透。
+   注意：本文件内每一个会产生 <button> 的类，都必须自己写清 background 与 border。 */
+button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0;}
+:focus-visible{outline:2px solid var(--c-glacier-light);outline-offset:2px;border-radius:6px;}
+
+.sr-only{
+  position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0;
+}
+
+/* 顶部 */
+.hd{max-width:780px;margin:0 auto 22px;text-align:center;}
+.hd h1{margin:0 0 10px;font-size:26px;font-weight:700;letter-spacing:.5px;color:var(--c-ink);}
+.hd-lead{margin:0;font-size:13.5px;color:var(--c-body);line-height:1.85;}
+.hd-lead b{color:var(--c-glacier-light);font-weight:600;}
+.hd-note{margin:8px 0 0;font-size:12px;color:var(--text-faint);letter-spacing:.4px;}
+
+/* 舞台 */
+.stage{display:flex;justify-content:center;}
+.phone-wrap{width:100%;max-width:420px;}
+
+/* ==========================================================================
+   3. 手机外框 / 通用内构件
+   ========================================================================== */
+.phone{
+  position:relative;width:100%;border-radius:42px;overflow:hidden;
+  background:var(--frame-bg);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--shadow), 0 0 0 8px rgba(255,255,255,.02) inset;
+}
+.ph-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px 8px;
+}
+.ph-brand{font-size:13px;letter-spacing:2px;color:var(--c-muted);}
+.ph-stat{
+  font-size:11.5px;padding:3px 10px;border-radius:var(--r-pill);
+  background:var(--glass-bg);border:1px solid var(--glass-border);color:var(--text-dim);
+}
+.ph-body{position:relative;padding:0 16px 6px;}
+.ph-dock{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:12px 18px 20px;
+}
+.dock-item{
+  width:52px;height:34px;border-radius:var(--r-capsule);
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+}
+.dock-item.on{background:var(--blue-grad);border-color:var(--blue-bd);}
+.ph-layer{position:absolute;inset:0;pointer-events:none;}
+.ph-layer > *{pointer-events:auto;}
+
+/* 标题计数行 */
+.ttl-row{display:flex;align-items:baseline;justify-content:space-between;padding:2px 4px 8px;}
+.ttl{font-size:17px;font-weight:700;color:var(--c-ink);letter-spacing:.6px;}
+.cnt{font-size:11.5px;color:var(--text-faint);letter-spacing:.4px;}
+
+/* 星空带 */
+.sky{
+  position:relative;display:flex;align-items:center;justify-content:center;gap:26px;
+  height:56px;margin:0 0 8px;border-radius:var(--r-inner);
+  background:var(--sky-bg);border:1px solid var(--line);
+  box-shadow:inset 0 0 26px var(--sky-inner);
+}
+.sky::after{
+  content:"";position:absolute;left:14px;right:14px;bottom:8px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent);
+}
+/* 情绪星色挂在槽位上，星与星尘都吃 currentColor */
+.slot-blue{color:var(--blue);}
+.slot-amber{color:var(--amber);}
+.slot-red{color:var(--red);}
+.star-slot{position:relative;width:20px;height:20px;flex:0 0 auto;}
+.star{
+  position:absolute;left:0;top:0;width:20px;height:20px;background:currentColor;
+  clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+  filter:drop-shadow(0 0 6px currentColor);
+  animation:twinkle 3.2s ease-in-out var(--tw-delay,.4s) infinite;
+}
+@keyframes twinkle{0%,100%{opacity:.45;transform:scale(.92);}50%{opacity:1;transform:scale(1.06);}}
+
+/* 淡忘：星星由亮变暗，并走一次「暗下去」的过渡动画（不是凭空消失） */
+.star-slot.faded .star{
+  opacity:.35;filter:drop-shadow(0 0 2px currentColor);
+  animation:dimDown .62s cubic-bezier(.4,0,.25,1) both;
+}
+@keyframes dimDown{
+  0%{opacity:1;transform:scale(1.14);filter:drop-shadow(0 0 12px currentColor);}
+  40%{opacity:.62;transform:scale(.98);filter:drop-shadow(0 0 5px currentColor);}
+  100%{opacity:.35;transform:scale(.92);filter:drop-shadow(0 0 2px currentColor);}
+}
+/* 还原：星星重新亮起 */
+.star-slot.relight .star{animation:relightUp .68s cubic-bezier(.3,.9,.3,1) both;}
+@keyframes relightUp{
+  0%{opacity:.35;transform:scale(.92);filter:drop-shadow(0 0 2px currentColor);}
+  45%{opacity:1;transform:scale(1.16);filter:drop-shadow(0 0 14px currentColor);}
+  100%{opacity:1;transform:scale(1);filter:drop-shadow(0 0 6px currentColor);}
+}
+/* 彻底遗忘：星星炸成星尘后永久消失 */
+.dust{position:absolute;left:10px;top:10px;width:0;height:0;pointer-events:none;}
+.dust i{
+  position:absolute;left:0;top:0;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;
+  background:currentColor;opacity:0;box-shadow:0 0 8px currentColor;
+}
+/* 持久兜底放在 burst 之前声明：两条规则特异性相同，靠源码顺序让 burst 的星尘动画胜出。
+   这里同时写 animation:none —— 万一 burst 不在，.star 的 twinkle（动画源）会盖掉普通
+   opacity 声明让星复活，animation:none 是最后一道保险。
+   用 opacity 而不是 display:none，是为了不取消「炸成星尘」那一帧。 */
+.star-slot.gone .star,.star-slot.gone .dust i{opacity:0;animation:none;}
+
+/* burst 是「持久状态类」，不是一次性动画类：由 Render.star 按 stage 持久 toggle，
+   绝不交给 playOnce（否则 animationend 冒泡触发 cleanup 摘掉它，twinkle 会复活）。
+   forwards 让最后一帧（opacity:0）一直挂着，星尘飘散后星就停在看不见的状态。 */
+.star-slot.burst .star{animation:starBurst .92s ease-out forwards;}
+@keyframes starBurst{
+  0%{opacity:1;transform:scale(1);filter:drop-shadow(0 0 14px currentColor);}
+  22%{opacity:1;transform:scale(1.42);filter:drop-shadow(0 0 20px currentColor);}
+  100%{opacity:0;transform:scale(.18);filter:drop-shadow(0 0 0 currentColor);}
+}
+.star-slot.burst .dust i{animation:dustFly .92s ease-out var(--dd,0s) forwards;}
+@keyframes dustFly{
+  0%{opacity:0;transform:translate(0,0) scale(.35);}
+  16%{opacity:1;transform:translate(calc(var(--dx) * .22),calc(var(--dy) * .22)) scale(1);}
+  100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.2);}
+}
+
+/* 图谱 */
+.field{position:relative;height:322px;border-radius:var(--r-card-lg);
+  background:var(--mm-bg);border:1px solid var(--line);overflow:hidden;}
+.field .glines{position:absolute;inset:0;width:100%;height:100%;}
+.field .glines line{stroke:rgba(143,200,248,.32);stroke-width:1.2;transition:stroke .3s ease;}
+.field .glines line.dim{stroke:rgba(143,200,248,.14);stroke-dasharray:3 4;}
+/* 彻底遗忘后指向的是空位，连线要跟着一起消失（淡忘态仍保留 dim 虚线） */
+.field .glines line.gone{display:none;}
+.gcenter{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:46px;height:46px;border-radius:50%;
+  background:var(--blue-grad);border:1px solid var(--blue-bd);
+  box-shadow:0 0 24px rgba(90,169,240,.45);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:#fff;letter-spacing:1px;
+}
+.leaf{
+  position:absolute;transform:translate(-50%,-50%);
+  width:124px;padding:10px 12px;border-radius:var(--r-card-sm);
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  box-shadow:0 10px 24px -16px rgba(0,0,0,.8);
+  transition:transform .3s ease, opacity .3s ease, background .3s ease;
+}
+.leaf .lf-tag{display:block;font-size:10.5px;letter-spacing:.6px;color:var(--text-faint);}
+.leaf .lf-name{display:block;margin-top:2px;font-size:13px;font-weight:600;color:var(--c-ink);line-height:1.4;}
+.leaf.blue{border-color:var(--blue-line);background:var(--blue-soft);}
+.leaf.blue .lf-tag{color:var(--blue);}
+.leaf.amber{border-color:var(--amber-line);background:var(--amber-soft);}
+.leaf.amber .lf-tag{color:var(--amber);}
+.leaf.red{border-color:rgba(196,69,59,.45);background:var(--red-glow);}
+.leaf.red .lf-tag{color:var(--red);}
+.leaf-x{
+  position:absolute;top:-8px;right:-8px;width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(10,20,32,.9);border:1px solid var(--line);
+  color:var(--text-dim);font-size:13px;line-height:1;padding:0;
+  transition:color .18s ease, border-color .18s ease, background .18s ease;
+}
+.leaf-x:hover{color:#fff;border-color:rgba(255,255,255,.34);background:rgba(224,104,95,.4);}
+.leaf-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.leaf-actions:empty{display:none;}
+.mini{
+  padding:3px 9px;border-radius:var(--r-pill);font-size:11px;
+  background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--text-dim);
+  transition:background .18s ease,color .18s ease,border-color .18s ease;
+}
+.mini:hover{color:#fff;background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.28);}
+.mini.warn:hover{background:var(--red-glow);border-color:var(--red);}
+.mini[disabled]{opacity:.38;cursor:not-allowed;}
+.leaf-note{margin-top:7px;font-size:10.5px;color:var(--text-faint);line-height:1.5;}
+.leaf-note:empty{display:none;}
+
+/* 状态：淡忘下沉 6px，仍留在图谱里 */
+.leaf--faded{opacity:.55;transform:translate(-50%,calc(-50% + 6px));}
+.leaf--gone{display:none;}
+
+/* 已淡忘清单（降权说明） */
+.faded-box{
+  margin:10px 2px 4px;padding:10px 12px;border-radius:var(--r-inner);
+  background:var(--card);border:1px solid var(--line);
+}
+.fb-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+  font-size:11px;color:var(--text-faint);letter-spacing:.4px;}
+.fb-n{color:var(--c-glacier-light);white-space:nowrap;}
+.fb-body{margin:8px 0 0;display:flex;flex-direction:column;gap:6px;}
+.fb-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:11.5px;color:var(--text-dim);}
+.fb-row .fb-name{color:var(--c-ink);font-weight:600;}
+.fb-row .fb-day{font-size:10.5px;color:var(--text-faint);}
+.fb-empty{margin:8px 0 0;font-size:11.5px;color:var(--text-faint);}
+.fb-foot{margin-top:8px;font-size:10.5px;color:var(--text-faint);line-height:1.5;}
+
+/* ==========================================================================
+   4. 浮层：提示条 / 回声卡 / 撤销回执 / 告别仪式
+   ========================================================================== */
+.notice{
+  position:absolute;left:16px;right:16px;top:10px;
+  display:flex;align-items:center;gap:10px;padding:9px 12px;
+  border-radius:var(--r-inner);
+  background:rgba(10,20,32,.86);border:1px solid var(--blue-line);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  box-shadow:0 14px 30px -18px rgba(0,0,0,.9);
+  animation:floatIn .28s ease both;
+}
+.notice.hot{border-color:rgba(224,104,95,.42);}
+.notice .n-txt{flex:1;font-size:11.5px;color:var(--text-dim);line-height:1.55;}
+.u-close{
+  flex:0 0 auto;width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.08);border:1px solid var(--line);
+  color:var(--text-dim);font-size:12px;line-height:1;
+  transition:color .18s ease,background .18s ease,border-color .18s ease;
+}
+.u-close:hover{color:#fff;background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.28);}
+/* 提示条里的「重置演示」：显式声明 background + border，不吃浏览器默认样式 */
+.n-btn{
+  flex:0 0 auto;padding:4px 10px;border-radius:var(--r-pill);font-size:11px;
+  background:var(--blue-grad);border:1px solid var(--blue-bd);color:#fff;
+  transition:filter .18s ease;
+}
+.n-btn:hover{filter:brightness(1.12);}
+@keyframes floatIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:none;}}
+
+/* 回声卡（二期 · pull） */
+.echo{
+  position:absolute;left:16px;right:16px;bottom:84px;
+  padding:13px 14px 14px;border-radius:var(--r-card-md);
+  background:linear-gradient(160deg,rgba(22,44,74,.94),rgba(10,22,38,.94));
+  border:1px solid var(--amber-line);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  box-shadow:0 18px 36px -20px rgba(0,0,0,.92), 0 0 26px -10px rgba(232,185,106,.24);
+  animation:echoIn .34s ease both;
+}
+@keyframes echoIn{from{opacity:0;transform:translateY(12px);}to{opacity:1;transform:none;}}
+.echo-tag{display:flex;align-items:center;gap:7px;font-size:10.5px;letter-spacing:1.2px;color:var(--amber);}
+.echo-tag i{display:block;width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);}
+.echo-body{margin:8px 0 0;font-size:13px;line-height:1.75;color:var(--c-ink);}
+.echo-body b{color:var(--amber);font-weight:600;}
+.echo-src{margin-top:7px;font-size:10.5px;line-height:1.55;color:var(--text-faint);}
+.echo-row{display:flex;gap:8px;margin-top:12px;}
+.echo-act{
+  flex:1;padding:8px 0;border-radius:var(--r-pill);font-size:12.5px;
+  background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--text-dim);
+  transition:color .18s ease,background .18s ease,border-color .18s ease;
+}
+.echo-act.primary{background:var(--blue-grad);border-color:var(--blue-bd);color:#fff;}
+.echo-act.primary:hover{color:#fff;background:linear-gradient(160deg,#6FB4F5,#3179E4);border-color:rgba(255,255,255,.28);}
+.echo-act.danger{background:var(--amber-soft);border-color:var(--amber-line);color:var(--amber);}
+.echo-act.danger:hover{color:#fff;background:rgba(232,185,106,.24);border-color:var(--amber);}
+.echo-close{
+  position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(255,255,255,.07);border:1px solid var(--line);
+  color:var(--text-faint);font-size:12px;line-height:1;
+  transition:color .18s ease,background .18s ease,border-color .18s ease;
+}
+.echo-close:hover{color:#fff;background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.28);}
+
+/* 撤销回执条（永久可逆，不自动消失） */
+.undo{
+  position:absolute;left:16px;right:16px;bottom:16px;
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  border-radius:var(--r-capsule);
+  background:var(--tt-bg);border:1px solid var(--blue-line);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  box-shadow:0 16px 34px -18px rgba(0,0,0,.9);
+  animation:undoIn .32s ease both;
+}
+@keyframes undoIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+.undo .u-txt{flex:1;font-size:11.5px;color:var(--text-dim);line-height:1.55;}
+.undo .u-txt b{color:var(--c-ink);font-weight:600;}
+.undo .u-btn{
+  flex:0 0 auto;padding:5px 13px;border-radius:var(--r-pill);font-size:12px;
+  background:var(--blue-grad);border:1px solid var(--blue-bd);color:#fff;
+  transition:filter .18s ease;
+}
+.undo .u-btn:hover{filter:brightness(1.12);}
+
+/* 告别仪式面板 */
+.mask{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(5,10,18,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  animation:fadeIn .22s ease both;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+.panel{
+  width:min(320px,86%);padding:20px 18px;border-radius:var(--r-card);
+  background:linear-gradient(160deg,rgba(20,38,64,.96),rgba(10,22,38,.96));
+  border:1px solid var(--glass-border);box-shadow:var(--shadow);text-align:center;
+  animation:panelIn .28s ease both;
+}
+@keyframes panelIn{from{opacity:0;transform:translateY(12px) scale(.97);}to{opacity:1;transform:none;}}
+.panel h3{margin:0 0 8px;font-size:15.5px;font-weight:700;color:var(--c-ink);}
+.panel p{margin:0 0 14px;font-size:12.5px;color:var(--text-dim);line-height:1.75;}
+.p-sub b{color:var(--c-ink);font-weight:600;}
+.p-tip{margin:0 0 14px;font-size:11px;color:var(--text-faint);line-height:1.6;min-height:1px;}
+.p-tip.lit{color:var(--amber);}
+.panel .row{display:flex;gap:10px;justify-content:center;}
+.p-act{
+  flex:1;padding:9px 0;border-radius:var(--r-pill);font-size:12.5px;
+  background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--text-dim);
+  transition:color .18s ease,background .18s ease,border-color .18s ease;
+}
+.p-act:hover{color:#fff;background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.28);}
+.panel .row button{
+  flex:1;padding:9px 0;border-radius:var(--r-pill);font-size:12.5px;
+  background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--text-dim);
+  transition:color .18s ease,background .18s ease,border-color .18s ease;
+}
+.panel .row button:hover{color:#fff;background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.28);}
+.panel .row button.primary{background:var(--blue-grad);border-color:var(--blue-bd);color:#fff;}
+.panel .row button.primary:hover{background:linear-gradient(160deg,#6FB4F5,#3179E4);border-color:rgba(255,255,255,.3);}
+.panel .row button.primary[disabled]{opacity:.4;cursor:not-allowed;background:rgba(255,255,255,.08);border-color:var(--line);color:var(--text-faint);}
+
+/* 待点的灯 */
+.lamp-row{display:flex;justify-content:center;margin:0 0 12px;}
+.lamp{
+  display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:9px 18px 8px;border-radius:var(--r-card-sm);
+  background:rgba(255,255,255,.04);border:1px dashed rgba(232,185,106,.42);
+  color:var(--amber);
+  transition:background .3s ease,border-color .3s ease,color .3s ease;
+}
+.lamp:hover{background:rgba(232,185,106,.1);border-color:var(--amber-line);}
+.lamp[data-lit="1"]{background:var(--amber-soft);border:1px solid var(--amber-line);}
+.lamp-cap{font-size:11px;letter-spacing:.6px;color:var(--amber);}
+.lamp .lp-glass{opacity:.16;transition:opacity .4s ease;}
+.lamp .lp-flame{opacity:.1;transform-box:fill-box;transform-origin:center;transition:opacity .4s ease;}
+.lamp .lp-cap2{opacity:.5;transition:opacity .4s ease;}
+.lamp[data-lit="1"] .lp-glass{opacity:.34;}
+.lamp[data-lit="1"] .lp-cap2{opacity:.85;}
+.lamp[data-lit="1"] .lp-flame{opacity:1;filter:drop-shadow(0 0 10px var(--amber));animation:flamePulse 2.6s ease-in-out infinite;}
+@keyframes flamePulse{0%,100%{opacity:.72;transform:scale(.94);}50%{opacity:1;transform:scale(1.08);}}
+
+/* ==========================================================================
+   5. 页下：方案说明 / 路线 / 判词
+   ========================================================================== */
+.below{max-width:760px;margin:26px auto 0;}
+.sect{
+  margin:0 0 16px;padding:16px 18px 18px;border-radius:var(--r-card);
+  background:var(--card);border:1px solid var(--line);
+}
+.sect-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+.sect-k{
+  font-size:11px;letter-spacing:1.4px;padding:2px 9px;border-radius:var(--r-pill);
+  background:var(--blue-soft);border:1px solid var(--blue-line);color:var(--c-glacier-light);
+}
+.sect-t{font-size:14.5px;font-weight:700;color:var(--c-ink);letter-spacing:.5px;}
+.sect-tag{
+  margin-left:auto;font-size:11px;padding:2px 10px;border-radius:var(--r-pill);
+  background:var(--sage-soft);border:1px solid var(--sage-line);color:var(--sage);
+}
+.sect-tag.wait{background:rgba(255,255,255,.05);border-color:var(--line);color:var(--text-faint);}
+.sect-list{margin:0;padding:0 0 0 18px;}
+.sect-list li{font-size:12.5px;color:var(--text-dim);line-height:1.9;}
+.sect-list li.muted{color:var(--text-faint);}
+.sect-list li b{color:var(--c-ink);font-weight:600;}
+.pull-line{
+  margin:0 0 12px;padding:8px 12px;border-radius:var(--r-inner);
+  background:var(--amber-soft);border:1px solid var(--amber-line);
+  font-size:12px;line-height:1.7;color:var(--amber);text-align:center;letter-spacing:.3px;
+}
+.ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;}
+.ctrl .hint{flex:1 1 220px;font-size:11.5px;color:var(--text-faint);line-height:1.6;}
+.ctrl-btn{
+  padding:6px 13px;border-radius:var(--r-pill);font-size:12px;
+  background:var(--glass-bg);border:1px solid var(--glass-border);color:var(--text-dim);
+  transition:color .18s ease,background .18s ease,border-color .18s ease;
+}
+.ctrl-btn:hover{color:#fff;background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.24);}
+.act{
+  padding:8px 16px;border-radius:var(--r-pill);font-size:12.5px;
+  background:var(--glass-bg);border:1px solid var(--glass-border);color:var(--text-dim);
+  transition:color .18s ease,background .18s ease,border-color .18s ease;
+}
+.act:hover{color:#fff;background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.26);}
+.act.on{color:#fff;background:var(--blue-grad);border-color:var(--blue-bd);}
+/* 开关胶囊：显式声明 background / border / radius / padding，避免浏览器默认浅灰底穿透 */
+.switch{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:5px 12px 5px 7px;border-radius:var(--r-pill);
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  font-size:12px;color:var(--text-dim);cursor:pointer;
+  transition:color .18s ease,background .18s ease,border-color .18s ease;
+}
+.switch:hover{color:#fff;background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.24);}
+.switch.on{color:var(--c-ink);background:var(--blue-soft);border-color:var(--blue-line);}
+.switch .track{position:relative;width:38px;height:20px;border-radius:var(--r-pill);flex:0 0 auto;
+  background:rgba(255,255,255,.12);border:1px solid var(--line);transition:background .2s ease;}
+.switch .track::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+  background:var(--c-body);transition:transform .2s ease, background .2s ease;}
+.switch.on .track{background:var(--blue-grad);}
+.switch.on .track::after{transform:translateX(18px);background:#fff;}
+
+/* 三期路线 */
+.road{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 0;}
+.road-item{
+  flex:1 1 200px;display:flex;align-items:center;gap:10px;
+  padding:12px 14px;border-radius:var(--r-inner);
+  background:var(--card-2);border:1px solid var(--line);
+}
+.road-item.is-done{border-color:var(--blue-line);background:var(--blue-soft);}
+.rd-k{font-size:11px;letter-spacing:1.2px;color:var(--text-faint);}
+.road-item.is-done .rd-k{color:var(--c-glacier-light);}
+.rd-t{flex:1;font-size:13px;font-weight:600;color:var(--c-ink);}
+.rd-s{
+  font-size:11px;padding:2px 9px;border-radius:var(--r-pill);
+  background:var(--sage-soft);border:1px solid var(--sage-line);color:var(--sage);
+}
+.road-item.is-wait .rd-s{background:rgba(255,255,255,.05);border-color:var(--line);color:var(--text-faint);}
+.verdict{
+  margin:18px 0 0;text-align:center;font-size:15px;font-weight:600;letter-spacing:.6px;
+  color:var(--c-ink);line-height:1.9;
+}
+.verdict span{color:var(--c-glacier-light);}
+.foot{margin:20px 0 0;text-align:center;}
+.ghost{
+  padding:9px 22px;border-radius:var(--r-pill);font-size:13px;
+  background:var(--glass-bg);border:1px solid var(--glass-border);color:var(--text-dim);
+  transition:color .18s ease,background .18s ease,border-color .18s ease;
+}
+.ghost:hover{color:#fff;background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.26);}
+
+/* ==========================================================================
+   6. 动效降级：直接切状态
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none !important;transition:none !important;}
+  .star-slot.faded .star{opacity:.35;filter:drop-shadow(0 0 2px currentColor);}
+  .star-slot.burst .star{opacity:0;}
+  .star-slot.burst .dust i{opacity:0;}
+  .lamp[data-lit="1"] .lp-flame{opacity:1;filter:drop-shadow(0 0 10px var(--amber));}
+}
+
+/* ==========================================================================
+   7. 响应式
+   ========================================================================== */
+@media (max-width:520px){
+  .page{padding:20px 12px 40px;}
+  .hd h1{font-size:22px;}
+  .phone{border-radius:34px;}
+  .stage{display:block;}
+  .phone-wrap{margin:0 auto;}
+  .leaf{width:110px;padding:9px 10px;}
+  .field{height:302px;}
+  .road-item{flex-basis:100%;}
+  .verdict{font-size:13.5px;}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="hd">
+    <h1>遗忘仪式 · 选定方案</h1>
+    <p class="hd-lead"><b>B（三重遗忘）做底座</b>，<b>C（守夜人 · 回声）做插件</b>；回声为 pull 触发，永不自动推送</p>
+    <p class="hd-note">当前演示范围：一期 B 底座 + 二期 C 回声插件（三期沉睡档本期不做）</p>
+  </header>
+
+  <section class="stage">
+    <div class="phone-wrap">
+      <div class="phone">
+
+        <div class="ph-bar">
+          <span class="ph-brand">冰川记忆</span>
+          <span class="ph-stat" id="stat">淡忘 0 · 放下 0</span>
+        </div>
+
+        <div class="ph-body">
+          <div class="ttl-row">
+            <span class="ttl">我懂你多少</span>
+            <span class="cnt" id="cnt">3 件在念</span>
+          </div>
+
+          <!-- 星空带：三颗情绪星 + 预先渲染的星尘粒子（不用定时器，全靠 CSS 动画） -->
+          <div class="sky" id="sky" aria-hidden="true">
+            <div class="star-slot slot-blue" data-slot="work">
+              <span class="star"></span>
+              <span class="dust">
+                <i style="--dx:34px;--dy:-6px;--dd:0s"></i>
+                <i style="--dx:26px;--dy:-26px;--dd:.04s"></i>
+                <i style="--dx:4px;--dy:-36px;--dd:.08s"></i>
+                <i style="--dx:-22px;--dy:-28px;--dd:.03s"></i>
+                <i style="--dx:-34px;--dy:-4px;--dd:.07s"></i>
+                <i style="--dx:-24px;--dy:24px;--dd:.05s"></i>
+                <i style="--dx:2px;--dy:34px;--dd:.09s"></i>
+                <i style="--dx:26px;--dy:26px;--dd:.02s"></i>
+              </span>
+            </div>
+            <div class="star-slot slot-amber" data-slot="run">
+              <span class="star" style="--tw-delay:1.1s"></span>
+              <span class="dust">
+                <i style="--dx:34px;--dy:-6px;--dd:0s"></i>
+                <i style="--dx:26px;--dy:-26px;--dd:.04s"></i>
+                <i style="--dx:4px;--dy:-36px;--dd:.08s"></i>
+                <i style="--dx:-22px;--dy:-28px;--dd:.03s"></i>
+                <i style="--dx:-34px;--dy:-4px;--dd:.07s"></i>
+                <i style="--dx:-24px;--dy:24px;--dd:.05s"></i>
+                <i style="--dx:2px;--dy:34px;--dd:.09s"></i>
+                <i style="--dx:26px;--dy:26px;--dd:.02s"></i>
+              </span>
+            </div>
+            <div class="star-slot slot-red" data-slot="quarrel">
+              <span class="star" style="--tw-delay:2.1s"></span>
+              <span class="dust">
+                <i style="--dx:34px;--dy:-6px;--dd:0s"></i>
+                <i style="--dx:26px;--dy:-26px;--dd:.04s"></i>
+                <i style="--dx:4px;--dy:-36px;--dd:.08s"></i>
+                <i style="--dx:-22px;--dy:-28px;--dd:.03s"></i>
+                <i style="--dx:-34px;--dy:-4px;--dd:.07s"></i>
+                <i style="--dx:-24px;--dy:24px;--dd:.05s"></i>
+                <i style="--dx:2px;--dy:34px;--dd:.09s"></i>
+                <i style="--dx:26px;--dy:26px;--dd:.02s"></i>
+              </span>
+            </div>
+          </div>
+
+          <!-- 放射状图谱 -->
+          <div class="field" id="field">
+            <svg class="glines" aria-hidden="true" focusable="false">
+              <line x1="50%" y1="50%" x2="22%" y2="24%" data-gline="work"></line>
+              <line x1="50%" y1="50%" x2="78%" y2="24%" data-gline="run"></line>
+              <line x1="50%" y1="50%" x2="50%" y2="72%" data-gline="quarrel"></line>
+            </svg>
+            <div class="gcenter" aria-hidden="true">我</div>
+
+            <div class="leaf blue" data-leaf="work" style="left:22%;top:24%">
+              <span class="lf-tag">工作</span>
+              <span class="lf-name">工作反复改方案</span>
+              <div class="leaf-actions" data-actions="work"></div>
+              <div class="leaf-note" data-note="work"></div>
+              <button class="leaf-x" data-x="work" type="button" aria-label="把「工作反复改方案」降为淡忘">×</button>
+            </div>
+
+            <div class="leaf amber" data-leaf="run" style="left:78%;top:24%">
+              <span class="lf-tag">身体</span>
+              <span class="lf-name">夜跑少了</span>
+              <div class="leaf-actions" data-actions="run"></div>
+              <div class="leaf-note" data-note="run"></div>
+              <button class="leaf-x" data-x="run" type="button" aria-label="把「夜跑少了」降为淡忘">×</button>
+            </div>
+
+            <div class="leaf red" data-leaf="quarrel" style="left:50%;top:72%">
+              <span class="lf-tag">关系</span>
+              <span class="lf-name">和阿哲的争执</span>
+              <div class="leaf-actions" data-actions="quarrel"></div>
+              <div class="leaf-note" data-note="quarrel"></div>
+              <button class="leaf-x" data-x="quarrel" type="button" aria-label="把「和阿哲的争执」降为淡忘">×</button>
+            </div>
+          </div>
+
+          <!-- 淡忘清单：降权说明 -->
+          <div class="faded-box">
+            <div class="fb-hd">
+              <span>已淡忘 · 不再出现在推荐与首页</span>
+              <span class="fb-n" id="letGo">已真正放下 0 件</span>
+            </div>
+            <div class="fb-body" id="fbBody"></div>
+            <div class="fb-foot">沉睡档属三期，本期不做 · 淡忘永久可逆，随时可以点回来</div>
+          </div>
+
+          <!-- 浮层：提示条 / 回声卡 / 撤销回执 / 告别仪式 -->
+          <div class="ph-layer" id="layer">
+            <div class="notice" id="notice" hidden>
+              <span class="n-txt" id="noticeTxt"></span>
+              <button class="n-btn" id="noticeReset" type="button" hidden>重置演示</button>
+              <button class="u-close" id="noticeClose" type="button" aria-label="关闭提示">×</button>
+            </div>
+
+            <div class="echo" id="echo" hidden role="group" aria-label="守夜人回声">
+              <div class="echo-tag"><i aria-hidden="true"></i><span>守夜人 · 回声</span></div>
+              <p class="echo-body" id="echoBody"></p>
+              <div class="echo-src" id="echoSrc"></div>
+              <div class="echo-row">
+                <button class="echo-act primary" id="echoRecall" type="button">再记起</button>
+                <button class="echo-act danger" id="echoRelease" type="button">让它走</button>
+              </div>
+              <button class="echo-close" id="echoClose" type="button" aria-label="关闭回声">×</button>
+            </div>
+
+            <div class="undo" id="undo" hidden>
+              <span class="u-txt" id="undoTxt"></span>
+              <button class="u-btn" id="undoRestore" type="button">点回来</button>
+              <button class="u-close" id="undoClose" type="button" aria-label="关闭回执">×</button>
+            </div>
+
+            <div class="mask" id="mask" hidden>
+              <div class="panel" role="dialog" aria-modal="true" aria-labelledby="pTitle">
+                <h3 id="pTitle">最后一次想起它</h3>
+                <p class="p-sub" id="pSub"></p>
+                <div class="lamp-row">
+                  <button class="lamp" id="lamp" type="button" data-lit="0" aria-label="点亮告别灯">
+                    <svg width="46" height="56" viewBox="0 0 48 58" aria-hidden="true" focusable="false">
+                      <path d="M24 3v7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path>
+                      <path class="lp-cap2" d="M14 10h20l2.5 5h-25z" fill="currentColor"></path>
+                      <path class="lp-glass" d="M11.5 15h25l3.5 27a7 7 0 0 1-7 8H15a7 7 0 0 1-7-8z" fill="currentColor"></path>
+                      <circle class="lp-flame" cx="24" cy="34" r="7" fill="currentColor"></circle>
+                      <path class="lp-cap2" d="M15 50h18v3H15z" fill="currentColor"></path>
+                    </svg>
+                    <span class="lamp-cap" id="lampCap">点亮这盏灯</span>
+                  </button>
+                </div>
+                <p class="p-tip" id="pTip"></p>
+                <div class="row">
+                  <button class="p-act" id="pNo" type="button">再想想</button>
+                  <button id="pYes" class="primary" type="button" disabled>送它走</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ph-dock" aria-hidden="true">
+          <div class="dock-item on"></div>
+          <div class="dock-item"></div>
+          <div class="dock-item"></div>
+          <div class="dock-item"></div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <div class="below">
+
+    <section class="sect">
+      <div class="sect-hd">
+        <span class="sect-k">一期</span>
+        <span class="sect-t">B · 三重遗忘（底座）</span>
+        <span class="sect-tag">已定</span>
+      </div>
+      <ul class="sect-list">
+        <li>点 <b>×</b> <b>不删除</b>，只降档到「淡忘」：星星由亮变暗并走一次暗下去的动画，节点半透明下沉 6px，仍留在图谱里</li>
+        <li>淡忘即<b>降权</b>：<b>不再出现在推荐与首页</b></li>
+        <li><b>永久可逆</b>：「点回来」随时还原，星星重新亮起</li>
+        <li>「彻底遗忘」要走<b>告别仪式</b>：点亮那盏灯，才送得走</li>
+        <li class="muted">沉睡档属三期，本期不做</li>
+      </ul>
+      <div class="ctrl">
+        <button class="ctrl-btn" id="btnJump" type="button">跳到 30 天后</button>
+        <span class="hint" id="clockHint">虚拟时钟：第 0 天 · 回声门槛是「已淡忘满 30 天」</span>
+      </div>
+    </section>
+
+    <section class="sect">
+      <div class="sect-hd">
+        <span class="sect-k">二期</span>
+        <span class="sect-t">C · 守夜人回声（插件）</span>
+        <span class="sect-tag">已定</span>
+      </div>
+      <p class="pull-line">回声只在你主动进入场景时出现 · 本方案不做任何自动推送</p>
+      <div class="ctrl">
+        <button class="act" id="btnWrite" type="button">写下新情绪</button>
+        <button class="act" id="btnBrowse" type="button">翻看旧档案</button>
+        <button class="switch" id="swEcho" type="button" role="switch" aria-checked="false">
+          <span class="track" aria-hidden="true"></span>
+          <span>不再让回声出现</span>
+        </button>
+      </div>
+      <ul class="sect-list">
+        <li>只有上面两个场景按钮被<b>你主动点开</b>，回声才可能浮上来；页面里不存在任何定时弹出逻辑</li>
+        <li><b>频控</b>：同一件内容每次会话最多出现一次</li>
+        <li><b>门槛</b>：只对「已淡忘满 30 天」的内容触发；用「跳到 30 天后」演示这个门槛</li>
+        <li>回声里的「让它走」是<b>第二次放手</b>，仍需走一次告别仪式才真删</li>
+      </ul>
+    </section>
+
+    <section class="road">
+      <div class="road-item is-done">
+        <span class="rd-k">一期</span><span class="rd-t">淡忘底座</span><span class="rd-s">已定</span>
+      </div>
+      <div class="road-item is-done">
+        <span class="rd-k">二期</span><span class="rd-t">回声插件</span><span class="rd-s">已定</span>
+      </div>
+      <div class="road-item is-wait">
+        <span class="rd-k">三期</span><span class="rd-t">沉睡档 + 打捞</span><span class="rd-s">待定</span>
+      </div>
+    </section>
+
+    <p class="verdict"><span>C</span> 能让用户多回来几次，<span>B</span> 能让用户相信我们说的是真的</p>
+
+    <div class="foot">
+      <button class="ghost" id="btnReset" type="button">重置演示</button>
+    </div>
+
+  </div>
+
+  <div class="sr-only" id="live" aria-live="polite"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ======================================================================
+     0. 动效降级探测
+     ====================================================================== */
+  var Motion = {
+    reduced: function () {
+      try {
+        return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      } catch (err) {
+        return false;
+      }
+    }
+  };
+
+  /* ======================================================================
+     1. 固定数据（演示用，不接后端）
+     ====================================================================== */
+  var RAW = [
+    { id: 'work',    tag: '工作', name: '工作反复改方案', slot: 'slot-blue',  quote: '半年前的你，曾为「工作反复改方案」反复失眠。' },
+    { id: 'run',     tag: '身体', name: '夜跑少了',       slot: 'slot-amber', quote: '三个月前的你，曾为「夜跑少了」难过过。' },
+    { id: 'quarrel', tag: '关系', name: '和阿哲的争执',   slot: 'slot-red',   quote: '很久以前的你，曾为「和阿哲的争执」耿耿于怀。' }
+  ];
+  var ECHO_MIN_DAYS = 30;
+
+  /* ======================================================================
+     2. 状态（两个模块各自独立，只通过 App.render 同步到界面）
+     ====================================================================== */
+  var S = {
+    items: {},      // id -> item
+    order: [],      // 稳定顺序
+    letGo: 0,       // 已真正放下件数
+    echoOff: false, // 二期：用户是否关闭回声
+    days: 0,        // 虚拟时钟（天）
+    scene: ''       // 当前进入的场景名，仅由用户点击写入
+  };
+
+  function freshItem(raw) {
+    return {
+      id: raw.id,
+      tag: raw.tag,
+      name: raw.name,
+      slot: raw.slot,
+      quote: raw.quote,
+      stage: 'active',   // active | faded | gone
+      fadedAtDay: null,  // 进入淡忘时的虚拟天数
+      echoSeen: false    // 本次会话是否已出现过回声（频控）
+    };
+  }
+
+  /* ======================================================================
+     3. DOM 工具
+     ====================================================================== */
+  var El = {};
+
+  function gid(id) {
+    return document.getElementById(id);
+  }
+
+  function elx(tag, cls, text) {
+    var node = document.createElement(tag);
+    if (cls) { node.className = cls; }
+    if (text !== undefined && text !== null) { node.textContent = text; }
+    return node;
+  }
+
+  function mkBtn(cls, label, handler) {
+    var b = elx('button', cls, label);
+    b.setAttribute('type', 'button');
+    if (handler) { b.addEventListener('click', handler); }
+    return b;
+  }
+
+  function indexBy(selector, attr) {
+    var map = {};
+    var nodes = document.querySelectorAll(selector);
+    var i = 0;
+    for (i = 0; i < nodes.length; i++) {
+      map[nodes[i].getAttribute(attr)] = nodes[i];
+    }
+    return map;
+  }
+
+  /* 播放一次性 CSS 动画，播完自己摘掉 class；降级模式下直接不播，保证状态即时切换 */
+  function playOnce(node, cls) {
+    if (!node || Motion.reduced()) { return; }
+    function cleanup() {
+      node.removeEventListener('animationend', cleanup);
+      node.classList.remove(cls);
+    }
+    node.removeEventListener('animationend', cleanup);
+    node.classList.remove(cls);
+    void node.offsetWidth;           // 强制回流，保证同名动画可重播
+    node.addEventListener('animationend', cleanup);
+    node.classList.add(cls);
+  }
+
+  function clear(node) {
+    if (!node) { return; }
+    while (node.firstChild) { node.removeChild(node.firstChild); }
+  }
+
+  function announce(msg) {
+    if (El.live) { El.live.textContent = msg; }
+  }
+
+  /* ======================================================================
+     4. 一期 · B 底座
+     ====================================================================== */
+  var Base = {
+    init: function () {
+      this.reset();
+    },
+
+    reset: function () {
+      S.items = {};
+      S.order = [];
+      var i = 0;
+      for (i = 0; i < RAW.length; i++) {
+        S.order.push(RAW[i].id);
+        S.items[RAW[i].id] = freshItem(RAW[i]);
+      }
+      S.letGo = 0;
+      S.days = 0;
+      S.scene = '';
+    },
+
+    item: function (id) {
+      return S.items[id] || null;
+    },
+
+    list: function () {
+      var out = [];
+      var i = 0;
+      for (i = 0; i < S.order.length; i++) { out.push(S.items[S.order[i]]); }
+      return out;
+    },
+
+    /* 已淡忘天数；非淡忘态返回 -1 */
+    daysFaded: function (it) {
+      if (!it || it.stage !== 'faded' || it.fadedAtDay === null) { return -1; }
+      return S.days - it.fadedAtDay;
+    },
+
+    /* 点 × ：不删除，降档到淡忘 */
+    fade: function (id) {
+      var it = this.item(id);
+      if (!it || it.stage !== 'active') { return false; }
+      it.stage = 'faded';
+      it.fadedAtDay = S.days;
+      UI.showUndo(it);
+      App.render();
+      announce('「' + it.name + '」已降为淡忘，星星暗下去了，随时可以点回来');
+      return true;
+    },
+
+    /* 点回来：永久可逆 */
+    restore: function (id) {
+      var it = this.item(id);
+      if (!it || it.stage !== 'faded') { return false; }
+      it.stage = 'active';
+      it.fadedAtDay = null;
+      playOnce(El.slots[id], 'relight');
+      UI.syncUndo(it);
+      App.render();
+      announce('「' + it.name + '」已还原，星星重新亮起');
+      return true;
+    },
+
+    /* 告别仪式确认之后，才真正删除 */
+    erase: function (id) {
+      var it = this.item(id);
+      if (!it) { return false; }
+      if (it.stage === 'gone') { return false; }
+      it.stage = 'gone';
+      it.fadedAtDay = null;
+      S.letGo += 1;
+      // burst / gone 都是持久状态类，统一由下面的 App.render -> Render.star 按 stage 设置。
+      // 这里刻意不走 playOnce：一次性动画机制播完会把类摘掉，星星会复活。
+      UI.syncUndo(it);
+      App.render();
+      announce('「' + it.name + '」已彻底遗忘，星星炸成星尘，不可再唤回。已真正放下 ' + S.letGo + ' 件');
+      return true;
+    }
+  };
+
+  /* ======================================================================
+     5. 告别仪式（最后一次想起它 · 点灯才能送走）
+     ====================================================================== */
+  var Ritual = {
+    targetId: '',
+    lit: false,
+
+    init: function () {
+      this.targetId = '';
+      this.lit = false;
+      El.lamp.addEventListener('click', function () {
+        Ritual.toggleLamp();
+      });
+      El.pNo.addEventListener('click', function () {
+        Ritual.close();
+      });
+      El.pYes.addEventListener('click', function () {
+        Ritual.confirm();
+      });
+      El.mask.addEventListener('click', function (ev) {
+        if (ev.target === El.mask) { Ritual.close(); }
+      });
+    },
+
+    open: function (id) {
+      var it = Base.item(id);
+      if (!it) { return false; }
+      this.targetId = id;
+      this.lit = false;
+      El.pSub.textContent = '';
+      El.pSub.appendChild(elx('b', null, '「' + it.name + '」'));
+      El.pSub.appendChild(document.createTextNode('就要被送走了。最后一次想起它，然后替它点一盏灯。'));
+      El.lamp.setAttribute('data-lit', '0');
+      El.lamp.setAttribute('aria-pressed', 'false');
+      El.lampCap.textContent = '点亮这盏灯';
+      El.pTip.textContent = '灯还没亮 · 先点亮，才送得走';
+      El.pTip.className = 'p-tip';
+      El.pYes.setAttribute('disabled', 'disabled');
+      El.mask.hidden = false;
+      return true;
+    },
+
+    close: function () {
+      El.mask.hidden = true;
+      this.targetId = '';
+      this.lit = false;
+      El.lamp.setAttribute('data-lit', '0');
+      El.pYes.setAttribute('disabled', 'disabled');
+    },
+
+    toggleLamp: function () {
+      if (this.lit) { return; }
+      this.lit = true;
+      El.lamp.setAttribute('data-lit', '1');
+      El.lamp.setAttribute('aria-pressed', 'true');
+      El.lampCap.textContent = '灯已点亮';
+      El.pTip.textContent = '灯亮了 · 现在可以送它走。这一步之后不可再唤回';
+      El.pTip.className = 'p-tip lit';
+      El.pYes.removeAttribute('disabled');
+      announce('告别灯已点亮，现在可以送它走');
+    },
+
+    /* 兜底判断：未点灯一律不执行删除 */
+    confirm: function () {
+      if (!this.lit) { return false; }
+      if (!this.targetId) { return false; }
+      var id = this.targetId;
+      this.close();
+      return Base.erase(id);
+    }
+  };
+
+  /* ======================================================================
+     6. 二期 · C 回声插件（pull：只由用户点击场景触发）
+     ====================================================================== */
+  var Echo = {
+    currentId: '',
+
+    init: function () {
+      this.currentId = '';
+      El.echoRecall.addEventListener('click', function () {
+        Echo.recall();
+      });
+      El.echoRelease.addEventListener('click', function () {
+        Echo.release();
+      });
+      El.echoClose.addEventListener('click', function () {
+        Echo.hide();
+      });
+    },
+
+    reset: function () {
+      this.currentId = '';
+      El.echo.hidden = true;
+    },
+
+    /* 候选条件：回声未被关闭 + 已淡忘 + 满 30 天 + 本次会话未出现过 */
+    candidate: function () {
+      if (S.echoOff) { return null; }
+      var list = Base.list();
+      var i = 0;
+      for (i = 0; i < list.length; i++) {
+        var it = list[i];
+        if (it.stage === 'faded' && !it.echoSeen && Base.daysFaded(it) >= ECHO_MIN_DAYS) {
+          return it;
+        }
+      }
+      return null;
+    },
+
+    /* 没有回声浮上来时，把原因说清楚：
+       写代码 closed / young / seen / none，避免被误判成「功能坏了」 */
+    reason: function () {
+      var list = Base.list();
+      var i = 0;
+      var youngCount = 0;   // 已淡忘但还没满 30 天
+      var seenCount = 0;    // 已淡忘且满 30 天，但本次会话已经回声过
+      var youngName = '';
+      var seenName = '';
+      var youngDays = 0;
+      for (i = 0; i < list.length; i++) {
+        var it = list[i];
+        if (it.stage !== 'faded') { continue; }
+        if (Base.daysFaded(it) < ECHO_MIN_DAYS) {
+          youngCount += 1;
+          if (!youngName) { youngName = it.name; youngDays = Base.daysFaded(it); }
+        } else if (it.echoSeen) {
+          seenCount += 1;
+          if (!seenName) { seenName = it.name; }
+        }
+      }
+      if (youngCount > 0) {
+        return {
+          code: 'young',
+          text: '没有回声浮上来：「' + youngName + '」淡忘才 ' + youngDays +
+                ' 天，还没满 ' + ECHO_MIN_DAYS + ' 天。点「跳到 ' + ECHO_MIN_DAYS + ' 天后」再试试。'
+        };
+      }
+      if (seenCount > 0) {
+        return {
+          code: 'seen',
+          text: '没有回声浮上来：「' + seenName + '」本次会话已经浮现过一次 —— 同一件内容每次会话最多一次，这是频控，不是坏了。'
+        };
+      }
+      return {
+        code: 'none',
+        text: '没有回声浮上来：现在没有「已淡忘」的内容。先点节点右上角的 × 试试。'
+      };
+    },
+
+    /* 唯一入口：只能由用户的场景点击调用 */
+    enterScene: function (sceneName) {
+      S.scene = sceneName;
+      UI.markScene(sceneName);
+
+      if (S.echoOff) {
+        // closed：把开关开回来即可，不需要重置
+        UI.notice('没有回声浮上来：你打开了「不再让回声出现」。本方案不会自己把旧事推到你面前 —— 关掉它，回声才会回来。', true, false);
+        return null;
+      }
+
+      var it = this.candidate();
+      if (!it) {
+        var r = this.reason();
+        // 只有 seen（会话级频控）才给「重置演示」出口；
+        // young / none 用户自己点「跳到 30 天后」或点 × 就能解决，给重置会掩盖真正原因。
+        UI.notice(r.text, true, r.code === 'seen');
+        return null;
+      }
+
+      it.echoSeen = true;   // 频控：同一件内容本次会话最多一次
+      this.show(it, sceneName);
+      return it;
+    },
+
+    show: function (it, sceneName) {
+      this.currentId = it.id;
+      El.echoBody.textContent = it.quote;
+      El.echoSrc.textContent = '来自你主动打开的「' + sceneName + '」· 不是我们推给你的 · 本次会话仅此一次';
+      El.echo.hidden = false;
+      announce('回声浮现：' + it.quote);
+    },
+
+    hide: function () {
+      this.currentId = '';
+      El.echo.hidden = true;
+    },
+
+    /* 再记起：完整恢复节点与星星 */
+    recall: function () {
+      var id = this.currentId;
+      if (!id) { return false; }
+      this.hide();
+      var ok = Base.restore(id);
+      if (ok) {
+        UI.notice('已重新记起「' + Base.item(id).name + '」· 它回到图谱里了，星星重新亮起。', false);
+      }
+      return ok;
+    },
+
+    /* 让它走：第二次放手，仍需走一次告别仪式才真删 */
+    release: function () {
+      var id = this.currentId;
+      if (!id) { return false; }
+      this.hide();
+      return Ritual.open(id);
+    }
+  };
+
+  /* ======================================================================
+     7. 虚拟时钟（只由「跳到 30 天后」按钮推进）
+     ====================================================================== */
+  var Clock = {
+    jump: function (n) {
+      S.days += n;
+      App.render();
+      UI.notice('虚拟时钟前进 ' + n + ' 天 · 现在是第 ' + S.days + ' 天。淡忘满 ' + ECHO_MIN_DAYS + ' 天的内容才有资格被回声记起。', false);
+      announce('虚拟时钟前进 ' + n + ' 天，现在是第 ' + S.days + ' 天');
+      return S.days;
+    }
+  };
+
+  /* ======================================================================
+     8. UI 杂项（撤销回执 / 提示条 / 场景高亮）
+     ====================================================================== */
+  var UI = {
+    undoId: '',
+
+    init: function () {
+      this.undoId = '';
+      El.undoClose.addEventListener('click', function () {
+        UI.hideUndo();
+      });
+      El.undoRestore.addEventListener('click', function () {
+        if (!UI.undoId) { return; }
+        Base.restore(UI.undoId);
+      });
+      El.noticeClose.addEventListener('click', function () {
+        El.notice.hidden = true;
+      });
+      El.noticeReset.addEventListener('click', function () {
+        App.reset();
+      });
+    },
+
+    showUndo: function (it) {
+      this.undoId = it.id;
+      El.undoTxt.textContent = '';
+      El.undoTxt.appendChild(elx('b', null, '「' + it.name + '」'));
+      El.undoTxt.appendChild(document.createTextNode('已淡忘 · 不再出现在推荐与首页，随时点回来'));
+      El.undo.hidden = false;
+    },
+
+    syncUndo: function (it) {
+      if (this.undoId !== it.id) { return; }
+      if (it.stage === 'faded') { return; }
+      this.hideUndo();
+    },
+
+    hideUndo: function () {
+      this.undoId = '';
+      El.undo.hidden = true;
+    },
+
+    /* withReset：这类提示的原因是「会话级」的（频控 / 已关闭），
+       给一个就地开新会话的出口，免得看起来像功能坏了 */
+    notice: function (msg, hot, withReset) {
+      El.noticeTxt.textContent = msg;
+      El.notice.className = hot ? 'notice hot' : 'notice';
+      El.notice.hidden = false;
+      El.noticeReset.hidden = !withReset;
+    },
+
+    markScene: function (sceneName) {
+      El.btnWrite.className = sceneName === '写下新情绪' ? 'act on' : 'act';
+      El.btnBrowse.className = sceneName === '翻看旧档案' ? 'act on' : 'act';
+    },
+
+    clearScene: function () {
+      El.btnWrite.className = 'act';
+      El.btnBrowse.className = 'act';
+    }
+  };
+
+  /* ======================================================================
+     9. 渲染
+     ====================================================================== */
+  var Render = {
+    leaf: function (it) {
+      var leaf = El.leaves[it.id];
+      var actions = El.actions[it.id];
+      var note = El.note[it.id];
+      var gline = El.glines[it.id];
+
+      leaf.classList.toggle('leaf--faded', it.stage === 'faded');
+      leaf.classList.toggle('leaf--gone', it.stage === 'gone');
+      gline.classList.toggle('dim', it.stage === 'faded');
+      gline.classList.toggle('gone', it.stage === 'gone');
+
+      clear(actions);
+      clear(note);
+
+      if (it.stage === 'faded') {
+        actions.appendChild(mkBtn('mini', '点回来', function () {
+          Base.restore(it.id);
+        }));
+        actions.appendChild(mkBtn('mini warn', '彻底遗忘', function () {
+          Ritual.open(it.id);
+        }));
+        note.appendChild(document.createTextNode('已淡忘 · 不再出现在推荐与首页'));
+      }
+    },
+
+    star: function (it) {
+      var slot = El.slots[it.id];
+      slot.classList.toggle('faded', it.stage === 'faded');
+      slot.classList.toggle('burst', it.stage === 'gone');
+      // 持久态：彻底遗忘的星永久不再亮。burst 是一次性动画类，播完会被 playOnce 摘掉，
+      // 所以「不再亮」必须靠这个持久的 gone 类来兜底，不能只依赖 burst。
+      slot.classList.toggle('gone', it.stage === 'gone');
+    },
+
+    counts: function () {
+      var list = Base.list();
+      var active = 0;
+      var faded = 0;
+      var i = 0;
+      for (i = 0; i < list.length; i++) {
+        if (list[i].stage === 'active') { active += 1; }
+        if (list[i].stage === 'faded') { faded += 1; }
+      }
+      El.cnt.textContent = active + ' 件在念';
+      El.stat.textContent = '淡忘 ' + faded + ' · 放下 ' + S.letGo;
+      El.letGo.textContent = '已真正放下 ' + S.letGo + ' 件';
+    },
+
+    fadedBox: function () {
+      var body = El.fbBody;
+      clear(body);
+      var list = Base.list();
+      var i = 0;
+      var hit = 0;
+      for (i = 0; i < list.length; i++) {
+        var it = list[i];
+        if (it.stage !== 'faded') { continue; }
+        hit += 1;
+        var row = elx('div', 'fb-row');
+        row.appendChild(elx('span', 'fb-name', it.name));
+        row.appendChild(elx('span', 'fb-day', '淡忘 ' + Base.daysFaded(it) + ' 天'));
+        row.appendChild(mkBtn('mini', '点回来', function (item) {
+          return function () { Base.restore(item.id); };
+        }(it)));
+        body.appendChild(row);
+      }
+      if (hit === 0) {
+        body.appendChild(elx('div', 'fb-empty', '暂无淡忘内容 · 试试点图谱节点右上角的 ×'));
+      }
+    },
+
+    clock: function () {
+      El.clockHint.textContent = '虚拟时钟：第 ' + S.days + ' 天 · 回声门槛是「已淡忘满 ' + ECHO_MIN_DAYS + ' 天」';
+    },
+
+    echoSwitch: function () {
+      El.swEcho.classList.toggle('on', S.echoOff);
+      El.swEcho.setAttribute('aria-checked', S.echoOff ? 'true' : 'false');
+    },
+
+    all: function () {
+      var list = Base.list();
+      var i = 0;
+      for (i = 0; i < list.length; i++) {
+        this.leaf(list[i]);
+        this.star(list[i]);
+      }
+      this.counts();
+      this.fadedBox();
+      this.clock();
+      this.echoSwitch();
+    }
+  };
+
+  /* ======================================================================
+     10. 启动
+     ====================================================================== */
+  var App = {
+    render: function () {
+      Render.all();
+    },
+
+    reset: function () {
+      Base.reset();
+      Echo.reset();
+      Ritual.close();
+      UI.hideUndo();
+      UI.clearScene();
+      El.notice.hidden = true;
+      El.noticeReset.hidden = true;
+      S.echoOff = false;
+      this.render();
+      announce('演示已重置');
+    },
+
+    bindOnce: function () {
+      // 一期：叶子节点的 × —— 降档到淡忘，不删除
+      (function () {
+        var keys = Object.keys(El.buttonX);
+        var i = 0;
+        for (i = 0; i < keys.length; i++) {
+          (function (id) {
+            El.buttonX[id].addEventListener('click', function () {
+              Base.fade(id);
+            });
+          }(keys[i]));
+        }
+      }());
+
+      // 二期：只有这两个用户主动场景可以唤出回声
+      El.btnWrite.addEventListener('click', function () {
+        Echo.enterScene('写下新情绪');
+      });
+      El.btnBrowse.addEventListener('click', function () {
+        Echo.enterScene('翻看旧档案');
+      });
+
+      El.swEcho.addEventListener('click', function () {
+        S.echoOff = !S.echoOff;
+        if (S.echoOff) { Echo.hide(); }
+        App.render();
+        UI.notice(S.echoOff ? '已关闭回声 · 从此不会再有旧事被端到你面前' : '回声已重新打开 · 仍然只在你主动进入场景时出现', false);
+      });
+
+      El.btnJump.addEventListener('click', function () {
+        Clock.jump(ECHO_MIN_DAYS);
+      });
+
+      El.btnReset.addEventListener('click', function () {
+        App.reset();
+      });
+    },
+
+    boot: function () {
+      El.stat = gid('stat');
+      El.cnt = gid('cnt');
+      El.letGo = gid('letGo');
+      El.fbBody = gid('fbBody');
+      El.clockHint = gid('clockHint');
+      El.btnWrite = gid('btnWrite');
+      El.btnBrowse = gid('btnBrowse');
+      El.btnJump = gid('btnJump');
+      El.btnReset = gid('btnReset');
+      El.swEcho = gid('swEcho');
+      El.live = gid('live');
+
+      El.notice = gid('notice');
+      El.noticeTxt = gid('noticeTxt');
+      El.noticeClose = gid('noticeClose');
+      El.noticeReset = gid('noticeReset');
+
+      El.undo = gid('undo');
+      El.undoTxt = gid('undoTxt');
+      El.undoRestore = gid('undoRestore');
+      El.undoClose = gid('undoClose');
+
+      El.echo = gid('echo');
+      El.echoBody = gid('echoBody');
+      El.echoSrc = gid('echoSrc');
+      El.echoRecall = gid('echoRecall');
+      El.echoRelease = gid('echoRelease');
+      El.echoClose = gid('echoClose');
+
+      El.mask = gid('mask');
+      El.pSub = gid('pSub');
+      El.pTip = gid('pTip');
+      El.pYes = gid('pYes');
+      El.pNo = gid('pNo');
+      El.lamp = gid('lamp');
+      El.lampCap = gid('lampCap');
+
+      El.leaves = indexBy('[data-leaf]', 'data-leaf');
+      El.actions = indexBy('[data-actions]', 'data-actions');
+      El.note = indexBy('[data-note]', 'data-note');
+      El.slots = indexBy('[data-slot]', 'data-slot');
+      El.glines = indexBy('[data-gline]', 'data-gline');
+      El.buttonX = indexBy('[data-x]', 'data-x');
+
+      UI.init();
+      Ritual.init();
+      Echo.init();
+      Base.init();
+      this.bindOnce();
+      this.render();
+    }
+  };
+
+  App.boot();
+
+  // 供自验证脚本使用的只读句柄
+  try {
+    window.__demo = {
+      state: S,
+      Base: Base,
+      Echo: Echo,
+      Ritual: Ritual,
+      Clock: Clock,
+      App: App,
+      El: El
+    };
+  } catch (err) {
+    /* 无 window 环境时忽略 */
+  }
+}());
+</script>
+</body>
+</html>

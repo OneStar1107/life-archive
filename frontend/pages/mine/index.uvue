@@ -1,0 +1,870 @@
+<!--
+  pages/mine/index.uvue
+  ══════════════════════════════════════════════════════════════
+  Tab 5「你」
+  ══════════════════════════════════════════════════════════════
+
+  这一页是「我了解你什么」的入口，所以它的核心义务是**透明**：
+    1. 数据来源的授权状态必须一眼看得见，且能点进去改；
+    2. 边界入口（我读得懂这些 / 我不碰这些）要放在显眼位置，
+       而不是藏进设置的最深处——边界是用户的安全感来源；
+    3. 统计只说「有多少」，不加评价（「你已记录 300 条」是事实，
+       「你真勤奋」是评价，后者我们不说）。
+
+  数据来源：
+    usersService.detail()          账号信息（手机号 / 邮箱已脱敏）
+    profilesService.get()          资料 + dataSourceConsent 授权状态
+    memoriesService.list()        记忆条数
+    feelingsService.list()         感受条数
+    journeysService.list()         旅途条数
+    healthService.overview()       连续记录天数
+
+  ★ 统计用 pageSize:1 只取 total，不把整列表拉回来 ——
+    为了显示一个数字下载几百条数据是浪费。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="你" :show-back="false">
+      <template #right>
+        <view class="nav-gear" @click="goSettings">
+          <text class="nav-gear-icon">⚙</text>
+        </view>
+      </template>
+    </AppNavBar>
+
+    <scroll-view
+      class="body"
+      scroll-y
+      :refresher-enabled="true"
+      :refresher-triggered="refreshing"
+      @refresherrefresh="onRefresh"
+    >
+      <view class="body-inner">
+        <!-- ── 失败态 ── -->
+        <AppEmpty
+          v-if="errorText != ''"
+          title="没能读到你的资料"
+          :description="errorText"
+          action-text="再试一次"
+          @action="loadAll"
+        />
+        <!-- ★ 认证类失败（未登录/登录失效）：给出明确的登录入口，
+             不依赖冷启动自动跳转（启动早期跳转可能静默失败，已踩坑） -->
+        <view v-if="needLogin" class="login-entry">
+          <AppButton variant="primary" size="md" text="去登录 / 注册" @click="goLogin" />
+        </view>
+
+        <!-- ── 首屏加载 ── -->
+        <AppLoading v-else-if="firstLoading" type="skeleton" :rows="4" />
+
+        <template v-else>
+          <!-- 头像 + 昵称 + 账号 -->
+          <view class="profile">
+            <view class="avatar">
+              <text class="avatar-text">{{ avatarInitial }}</text>
+            </view>
+            <view class="profile-main">
+              <text class="profile-name">{{ displayName }}</text>
+              <text v-if="accountLine != ''" class="profile-account">{{ accountLine }}</text>
+              <text v-if="sinceText != ''" class="profile-since">{{ sinceText }}</text>
+            </view>
+          </view>
+
+          <text class="profile-note">我还不够懂你——你每次真心说出口的事，都会让我更像你。</text>
+
+          <!-- ★ 边界入口：产品态度的核心，必须显眼 -->
+          <view class="entry entry--strong" @click="goBoundary">
+            <view class="entry-main">
+              <text class="entry-title">我读得懂这些 · 我不碰那些</text>
+              <text class="entry-desc">{{ boundaryLine }}</text>
+            </view>
+            <text class="entry-arrow">›</text>
+          </view>
+
+          <view class="entry" @click="goProfile">
+            <view class="entry-main">
+              <text class="entry-title">基本资料</text>
+              <text class="entry-desc">{{ basicsLine }}</text>
+            </view>
+            <text class="entry-arrow">›</text>
+          </view>
+
+          <!-- 资料完整度：缺什么直接说中文名（后端已给） -->
+          <AppCard v-if="showCompleteness" variant="glass" padding="md" radius="md" class="complete">
+            <view class="complete-head">
+              <text class="complete-title">资料完整度</text>
+              <text class="complete-value">{{ completenessText }}</text>
+            </view>
+            <view class="complete-track">
+              <view class="complete-fill" :style="completenessStyle" />
+            </view>
+            <text v-if="missingText != ''" class="complete-missing">{{ missingText }}</text>
+          </AppCard>
+
+          <!-- ── 统计 ── -->
+          <view class="section-head">
+            <text class="section-title">你留下的</text>
+          </view>
+
+          <view class="stat-grid">
+            <view class="stat">
+              <text class="stat-num">{{ statMemory }}</text>
+              <text class="stat-label">个记忆</text>
+            </view>
+            <view class="stat">
+              <text class="stat-num">{{ statFeeling }}</text>
+              <text class="stat-label">次感受</text>
+            </view>
+            <view class="stat">
+              <text class="stat-num">{{ statJourney }}</text>
+              <text class="stat-label">段旅途</text>
+            </view>
+            <view class="stat">
+              <text class="stat-num">{{ statStreak }}</text>
+              <text class="stat-label">天连续记录</text>
+            </view>
+          </view>
+
+          <!-- ── 数据来源 ── -->
+          <view class="section-head">
+            <text class="section-title">数据来源</text>
+          </view>
+
+          <AppCard variant="solid" padding="lg" radius="lg">
+            <view class="src-row">
+              <view class="src-dot" :class="consentOn ? 'src-dot--on' : ''" />
+              <view class="src-main">
+                <text class="src-name">你授权的数据来源</text>
+                <text class="src-desc">{{ consentOn ? '已开启 · 我会按你划的边界去读' : '未开启 · 我不读取任何外部数据' }}</text>
+              </view>
+            </view>
+
+            <view class="src-row src-row--sub">
+              <text class="src-sub-text">读取中</text>
+              <text class="src-list">{{ readableLine }}</text>
+            </view>
+
+            <view class="src-row src-row--sub">
+              <text class="src-sub-text">不读取</text>
+              <text class="src-list">{{ offLimitLine }}</text>
+            </view>
+
+            <text class="src-note">你随时能关掉任何一项。关掉之后，我真的会忘掉——不是「隐藏起来」，是从我的记忆里移除。</text>
+          </AppCard>
+
+          <view class="entry" @click="goBoundary">
+            <view class="entry-main">
+              <text class="entry-title">改边界</text>
+              <text class="entry-desc">哪些能读、哪些永远不碰，都由你定</text>
+            </view>
+            <text class="entry-arrow">›</text>
+          </view>
+
+          <view class="entry" @click="goSettings">
+            <view class="entry-main">
+              <text class="entry-title">设置</text>
+              <text class="entry-desc">主题、隐私政策、导出数据、注销账号</text>
+            </view>
+            <text class="entry-arrow">›</text>
+          </view>
+        </template>
+      </view>
+    </scroll-view>
+
+    <AppTabBar current="mine" />
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppCard from '@/components/AppCard.uvue'
+import AppEmpty from '@/components/AppEmpty.uvue'
+import AppButton from '@/components/AppButton.uvue'
+import AppLoading from '@/components/AppLoading.uvue'
+import AppTabBar from '@/components/AppTabBar.uvue'
+import { usersService } from '@/services/users.service'
+import { profilesService } from '@/services/profiles.service'
+import { memoriesService } from '@/services/memories.service'
+import { feelingsService } from '@/services/feelings.service'
+import { journeysService } from '@/services/journeys.service'
+import { healthService } from '@/services/health.service'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+import { useAuthStore } from '@/stores/auth'
+import type { HealthOverview, Profile, ProfileCompleteness, UserProfile } from '@/services/types'
+import type { PageResult } from '@/core/http/types'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 与 pages.json 的 path 一致 */
+const PAGE_KEY: string = 'pages/mine/index'
+
+/** 页面是否已卸载 */
+let disposed = false
+
+const authStore = useAuthStore()
+
+const account = ref<UserProfile | null>(null)
+const profile = ref<Profile | null>(null)
+const completeness = ref<ProfileCompleteness | null>(null)
+
+const statMemory = ref<number>(0)
+const statFeeling = ref<number>(0)
+const statJourney = ref<number>(0)
+const statStreak = ref<number>(0)
+
+const firstLoading = ref<boolean>(true)
+const refreshing = ref<boolean>(false)
+const errorText = ref<string>('')
+/** ★ 最近一次失败是否为认证类（未登录/登录失效）——决定是否显示「去登录」入口 */
+const needLogin = ref<boolean>(false)
+const pending = ref<number>(0)
+
+// ────────────────────────────────────────────────────────────
+// 取值
+// ────────────────────────────────────────────────────────────
+
+/** 昵称优先取本地 store（秒开），取不到再退回接口数据 */
+const displayName = computed<string>(() => {
+  const local = authStore.displayName
+  if (local.length > 0 && local != '还没有名字') return local
+  const a = account.value
+  if (a != null && a.nickname != null && a.nickname!.length > 0) return a.nickname!
+  return '还没有名字'
+})
+
+/** 头像用昵称首字兜底：不引入图片资源，也不额外请求 */
+const avatarInitial = computed<string>(() => {
+  const name = displayName.value
+  if (name.length == 0) return '你'
+  return name.substring(0, 1)
+})
+
+/** 账号信息：手机号与邮箱后端已脱敏，可直接展示 */
+const accountLine = computed<string>(() => {
+  const a = account.value
+  if (a == null) return ''
+  const parts: string[] = []
+  if (a.phone != null && a.phone!.length > 0) parts.push(a.phone!)
+  if (a.email != null && a.email!.length > 0) parts.push(a.email!)
+  return parts.join('·')
+})
+
+const sinceText = computed<string>(() => {
+  const a = account.value
+  if (a == null || a.createdAt.length < 10) return ''
+  return a.createdAt.substring(0, 7) + ' 起'
+})
+
+const consentOn = computed<boolean>(() => {
+  const p = profile.value
+  return p != null ? p.dataSourceConsent : false
+})
+
+const readableLine = computed<string>(() => {
+  const p = profile.value
+  if (p == null || p.readableTopics.length == 0) return '还没有'
+  return p.readableTopics.join(' · ')
+})
+
+const offLimitLine = computed<string>(() => {
+  const p = profile.value
+  if (p == null || p.offLimitTopics.length == 0) return '还没有'
+  return p.offLimitTopics.join(' · ')
+})
+
+const boundaryLine = computed<string>(() => {
+  const p = profile.value
+  if (p == null) return '告诉我边界，我才知道该不该问'
+  const readable = p.readableTopics.length
+  const offLimit = p.offLimitTopics.length
+  return '读 ' + readable.toString() + ' 项· 不碰 ' + offLimit.toString() + ' 项'
+})
+
+/** 基本资料摘要：只说填了几项，不评价 */
+const basicsLine = computed<string>(() => {
+  const c = completeness.value
+  if (c == null) return '还没填'
+  return c.completed.toString() + '/' + c.total.toString() + ' 项已填'
+})
+
+/**
+ * 完整度区块是否展示。
+ * ★ 刻意不显示 0% 的空进度条：
+ *   「0%」看起来像被打了分，而新用户只是还没填而已。
+ */
+const showCompleteness = computed<boolean>(() => {
+  const c = completeness.value
+  return c != null && c.total > 0 && c.completed > 0
+})
+
+const completenessText = computed<string>(() => {
+  const c = completeness.value
+  return c != null ? c.percent.toString() + '%' : '0%'
+})
+
+/** 进度条宽度：百分比随数据变化，只能内联 */
+const completenessStyle = computed<string>(() => {
+  const c = completeness.value
+  const p = c != null ? c.percent : 0
+  return 'width:' + p.toString() + '%;'
+})
+
+const missingText = computed<string>(() => {
+  const c = completeness.value
+  if (c == null || c.missing.length == 0) return ''
+  return '还差' + c.missing.join('、')
+})
+
+// ────────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(PAGE_KEY)
+  loadAll()
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  disposed = true
+  cancelByKey(PAGE_KEY)
+})
+
+// ────────────────────────────────────────────────────────────
+// 数据加载
+// ────────────────────────────────────────────────────────────
+
+function loadAll(): void {
+  if (disposed) return
+  firstLoading.value = true
+  errorText.value = ''
+  needLogin.value = false
+
+  loadAccount()
+  loadProfile()
+  loadCompleteness()
+  loadStats()
+}
+
+function onRefresh(): void {
+  if (disposed) return
+  refreshing.value = true
+  errorText.value = ''
+  needLogin.value = false
+
+  loadAccount()
+  loadProfile()
+  loadCompleteness()
+  loadStats()
+}
+
+function settleOne(): void {
+  if (disposed) return
+  if (pending.value > 0) pending.value -= 1
+  if (pending.value == 0) refreshing.value = false
+}
+
+function loadAccount(): void {
+  usersService
+    .detail()
+    .then((res: UserProfile) => {
+      if (disposed) return
+      account.value = res
+      // 昵称变了就同步给 store，「你」页和导航栏显示一致
+      if (res.nickname != null) authStore.patchUser({ nickname: res.nickname })
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[mine] 账号资料失败', e)
+      firstLoading.value = false
+      markError(e)
+      settleOne()
+    })
+}
+
+function loadProfile(): void {
+  profilesService
+    .get()
+    .then((res: Profile) => {
+      if (disposed) return
+      profile.value = res
+      firstLoading.value = false
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      // ★ 40010「资料尚未建立」是**空态**不是错误：
+      //   新用户就是没有资料，要展示引导而不是红色报错。
+      if (isProfileMissing(e)) {
+        profile.value = null
+        firstLoading.value = false
+        settleOne()
+        return
+      }
+      console.error('[mine] 资料失败', e)
+      firstLoading.value = false
+      markError(e)
+      settleOne()
+    })
+}
+
+function loadCompleteness(): void {
+  profilesService
+    .completeness()
+    .then((res: ProfileCompleteness) => {
+      if (disposed) return
+      completeness.value = res
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[mine] 完整度失败', e)
+      // 完整度只是一条辅助信息，取不到就让这块不显示
+      settleOne()
+    })
+}
+
+/**
+ * 四个计数并行。
+ * ★ pageSize 传 1：只要 total，不需要把列表拉回来。
+ * ★ 某个计数失败不影响其他计数——分别catch，不让一个拖垮全部。
+ */
+function loadStats(): void {
+  pending.value += 4
+
+  memoriesService
+    .list({ page: 1, pageSize: 1 })
+    .then((res: PageResult<unknown>) => {
+      if (disposed) return
+      statMemory.value = res.total
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[mine] 记忆计数失败', e)
+      settleOne()
+    })
+
+  feelingsService
+    .list({ page: 1, pageSize: 1 })
+    .then((res: PageResult<unknown>) => {
+      if (disposed) return
+      statFeeling.value = res.total
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[mine] 感受计数失败', e)
+      settleOne()
+    })
+
+  journeysService
+    .list({ page: 1, pageSize: 1 })
+    .then((res: PageResult<unknown>) => {
+      if (disposed) return
+      statJourney.value = res.total
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[mine] 旅途计数失败', e)
+      settleOne()
+    })
+
+  healthService
+    .overview({ days: 7 })
+    .then((res: HealthOverview) => {
+      if (disposed) return
+      statStreak.value = res.streakDays
+      firstLoading.value = false
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[mine] 连续记录失败', e)
+      firstLoading.value = false
+      settleOne()
+    })
+}
+
+// ────────────────────────────────────────────────────────────
+// 跳转
+// ────────────────────────────────────────────────────────────
+
+function goProfile(): void {
+  navigate('/pages/mine/profile')
+}
+
+function goBoundary(): void {
+  navigate('/pages/mine/boundary')
+}
+
+function goSettings(): void {
+  navigate('/pages/mine/settings')
+}
+
+function navigate(url: string): void {
+  uni.navigateTo({
+    url: url,
+    fail: () => {
+      // 跳转失败要留痕，不能静默失败让用户以为是自己点错了
+      console.error('[mine] 跳转失败：' + url)
+      uni.showToast({ title: '页面没打开，稍后再试', icon: 'none' })
+    },
+  })
+}
+
+// ────────────────────────────────────────────────────────────
+// 辅助
+// ────────────────────────────────────────────────────────────
+
+/** 40010 = 资料尚未建立，是空态不是错误 */
+/** ★ 标记失败：写错误文案，同时记录是否认证类错误（2xxxx）——决定是否显示「去登录」入口 */
+function markError(e: unknown): void {
+  errorText.value = describe(e)
+  const err = e as ErrorLike
+  needLogin.value = err != null && typeof err.code === 'number' && err.code >= 20000 && err.code < 30000
+}
+
+/** 认证类失败的手动出口：用户手点时页面早已就绪，跳转必然可靠 */
+function goLogin(): void {
+  uni.reLaunch({
+    url: '/pages/login/login',
+    fail: () => {
+      console.error('[mine] 跳转登录页失败')
+      uni.showToast({ title: '页面没打开，稍后再试', icon: 'none' })
+    },
+  })
+}
+
+function isProfileMissing(e: unknown): boolean {
+  if (e == null) return false
+  const err = e as ErrorLike
+  return err.code == 40010
+}
+
+/** 只需要 code 字段 */
+type ErrorLike = {
+  code: number
+}
+
+/** 把任意异常转成能展示的中文 */
+function describe(e: unknown): string {
+  if (e == null) return '出了点问题，稍后再试试'
+  const err = e as HttpErrorLike
+  if (err != null && typeof err.message === 'string' && err.message.length > 0) {
+    return err.message
+  }
+  return '出了点问题，稍后再试试'
+}
+
+/** 只取 message */
+type HttpErrorLike = {
+  message: string
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  width: 100%;
+  flex-direction: column;
+  background-color: var(--color-bg);
+}
+
+// ── 导航栏齿轮 ────────────────────────────────────────────
+.nav-gear {
+  @include m.tap-target;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-gear-icon {
+  font-size: t.$font-lg;
+  color: var(--color-text-2);
+}
+
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+.body-inner {
+  flex-direction: column;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-sm;
+  // ★ 让开固定底栏 + Home Indicator
+  padding-bottom: calc(#{t.$tabbar-height} + env(safe-area-inset-bottom));
+}
+
+// ── 头像与昵称 ────────────────────────────────────────────
+.profile {
+  flex-direction: row;
+  align-items: center;
+  padding-top: t.$space-md;
+  padding-bottom: t.$space-sm;
+}
+
+.avatar {
+  width: t.$space-xxxl;
+  height: t.$space-xxxl;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-primary-soft);
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-text {
+  font-size: t.$font-xl;
+  font-weight: t.$weight-semibold;
+  color: var(--color-primary);
+}
+
+.profile-main {
+  flex: 1;
+  flex-direction: column;
+  margin-left: t.$space-md;
+}
+
+.profile-name {
+  font-size: t.$font-xl;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.profile-account {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+}
+
+.profile-since {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+}
+
+.profile-note {
+  margin-bottom: t.$space-md;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 入口行 ────────────────────────────────────────────────
+.entry {
+  @include m.tap-target;
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: t.$space-sm;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-md;
+  padding-bottom: t.$space-md;
+  border-radius: t.$radius-lg;
+  background-color: var(--color-bg-elevated);
+}
+
+// ★ 边界入口加重：它是产品态度的核心，不该和普通设置项长得一样
+.entry--strong {
+  background-color: var(--color-primary-soft);
+}
+
+.entry-main {
+  flex: 1;
+  flex-direction: column;
+}
+
+.entry-title {
+  font-size: t.$font-md;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-1);
+}
+
+.entry-desc {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+.entry-arrow {
+  font-size: t.$font-xl;
+  color: var(--color-text-3);
+  margin-left: t.$space-sm;
+}
+
+// ── 完整度 ────────────────────────────────────────────────
+.complete {
+  margin-top: t.$space-sm;
+  margin-bottom: t.$space-sm;
+}
+
+.complete-head {
+  flex-direction: row;
+  align-items: center;
+}
+
+.complete-title {
+  flex: 1;
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+}
+
+.complete-value {
+  font-size: t.$font-sm;
+  color: var(--color-text-1);
+  @include m.tabular-nums;
+}
+
+.complete-track {
+  margin-top: t.$space-xs;
+  height: t.$space-xxs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-track);
+  overflow: hidden;
+}
+
+.complete-fill {
+  height: 100%;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-primary);
+}
+
+.complete-missing {
+  margin-top: t.$space-xs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+// ── 区块标题 ──────────────────────────────────────────────
+.section-head {
+  flex-direction: column;
+  padding-top: t.$space-lg;
+  padding-bottom: t.$space-sm;
+}
+
+.section-title {
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+// ── 统计 ──────────────────────────────────────────────────
+// ★ 只给数字，不给评价（「你真勤奋」这类话不能说）
+.stat-grid {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.stat {
+  // ★ 用百分比宽度而不是固定像素：平板上不会挤成一行
+  width: 50%;
+  flex-direction: column;
+  align-items: center;
+  padding-top: t.$space-md;
+  padding-bottom: t.$space-md;
+  margin-bottom: t.$space-sm;
+  border-radius: t.$radius-lg;
+  background-color: var(--color-bg-elevated);
+}
+
+.stat-num {
+  font-size: t.$font-xxl;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+  @include m.tabular-nums;
+}
+
+.stat-label {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-xs;
+  color: var(--color-text-2);
+}
+
+// ── 数据来源 ──────────────────────────────────────────────
+.src-row {
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+.src-dot {
+  width: t.$space-sm;
+  height: t.$space-sm;
+  margin-top: t.$space-xs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-track);
+}
+
+.src-dot--on {
+  background-color: var(--color-success);
+}
+
+.src-main {
+  flex: 1;
+  flex-direction: column;
+  margin-left: t.$space-sm;
+}
+
+.src-name {
+  font-size: t.$font-md;
+  font-weight: t.$weight-medium;
+  color: var(--color-text-1);
+}
+
+.src-desc {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+.src-row--sub {
+  flex-direction: row;
+  align-items: flex-start;
+  margin-top: t.$space-sm;
+}
+
+.src-sub-text {
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+  width: t.$space-xxxl;
+}
+
+.src-list {
+  flex: 1;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+.src-note {
+  margin-top: t.$space-md;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+/* ── 认证失败的登录入口 ── */
+.login-entry {
+  margin-top: var(--space-md);
+  align-items: center;
+}
+</style>

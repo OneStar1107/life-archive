@@ -1,0 +1,120 @@
+{
+	"name": "人生档案",
+	"appid": "__UNI__1510C02",
+	"description": "记录你的感受、记忆与身体信号，长出一份只属于你的人生档案图谱",
+	"versionName": "1.0.0",
+	"versionCode": 100,
+	"transformPx": false,
+	"uni-app-x": {},
+	"app-plus": {
+		"usingComponents": true,
+		"nvueStyleCompiler": "uni-app",
+		"compilerVersion": 3,
+		"nvueLaunchMode": "fast",
+		"splashscreen": {
+			"alwaysShowBeforeRender": true,
+			"waiting": true,
+			"autoclose": true,
+			"delay": 0
+		},
+		"modules": {},
+		"distribute": {
+			"android": {
+				"packagename": "com.lifearchive.app",
+				"versionName": "1.0.0",
+				"versionCode": 100,
+				"minSdkVersion": 21,
+				"targetSdkVersion": 34,
+				"abiFilters": [
+					"armeabi-v7a",
+					"arm64-v8a",
+					"x86_64"
+				],
+				"permissions": [
+					"<uses-permission android:name=\"android.permission.INTERNET\"/>",
+					"<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>"
+				],
+				"usesCleartextTraffic": true,
+				"schemes": "lifearchive"
+			},
+			"ios": {
+				"bundleid": "com.lifearchive.app",
+				"versionName": "1.0.0",
+				"versionCode": 100,
+				"minIosVersion": "12.0",
+				"idfa": false,
+				"UIBackgroundModes": [],
+				"dSYMs": false,
+				"schemes": "lifearchive"
+			},
+			"sdkConfigs": {},
+			"icons": {
+				"android": {
+					"ldpi": "unpackage/res/icons/36x36.png",
+					"mdpi": "unpackage/res/icons/48x48.png",
+					"hdpi": "unpackage/res/icons/72x72.png",
+					"xhdpi": "unpackage/res/icons/96x96.png",
+					"xxhdpi": "unpackage/res/icons/144x144.png",
+					"xxxhdpi": "unpackage/res/icons/192x192.png"
+				},
+				"ios": {}
+			}
+		},
+		"safearea": {
+			"background": "#F8FBFE",
+			"backgroundDark": "#081217",
+			"bottom": {
+				"offset": "auto"
+			}
+		},
+		"darkmode": true,
+		"themeLocation": "theme.json",
+		"splashscreen-adapter-plus": {
+			"alwaysShowBeforeRender": true,
+			"waiting": true,
+			"autoclose": true,
+			"delay": 0
+		}
+	},
+	"app-harmony": {
+		"bundleName": "com.lifearchive.app",
+		"versionName": "1.0.0",
+		"versionCode": 100,
+		"minAPIVersion": 14,
+		"targetAPIVersion": 14,
+		"safearea": {
+			"background": "#F8FBFE",
+			"backgroundDark": "#081217"
+		},
+		"distribute": {
+			"modules": {}
+		}
+	},
+	"vueVersion": "3",
+	"locale": "zh-Hans",
+	"fallbackLocale": "zh-Hans",
+	"h5": {
+		"title": "人生档案",
+		"router": {
+			"mode": "hash",
+			"base": "./"
+		},
+		"devServer": {
+			"proxy": {
+				"^/(auth|users|profiles|feelings|memories|health|journeys|todos|insights|files)": {
+					"target": "http://127.0.0.1:3000",
+					"changeOrigin": true
+				}
+			}
+		}
+	},
+	"__hbuilderx_channel_list": [
+		"huawei",
+		"oppo",
+		"vivo",
+		"xiaomi",
+		"honor",
+		"yyb",
+		"google"
+	]
+}

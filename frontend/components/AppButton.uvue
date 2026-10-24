@@ -1,0 +1,261 @@
+<!--
+  AppButton —— 基础按钮
+  ══════════════════════════════════════════════════════════════
+  职责：全工程唯一的按钮实现。三档视觉（主/次/文字）× 三档尺寸，
+        统一处理 loading / disabled / 占满宽度。
+
+  props：
+    variant  'primary' | 'secondary' | 'text'   视觉，默认 primary
+    size     'sm' | 'md' | 'lg'                 尺寸，默认 md
+    loading  boolean     是否转圈并禁止点击
+    disabled boolean     是否禁用（降低不透明度）
+    block    boolean     是否占满父容器宽度
+    text     string      按钮文案
+
+  emits：
+    click    () => void  仅在「可点」状态下才抛出
+
+  设计约束：
+    1. 最小可点击区域 88rpx —— @include m.tap-target（04 号硬约束）。
+    2. loading 指示器是纯 CSS 旋转圆环，不引图标字体、不引图片。
+    3. 文字必须包在 <text> 里，否则三端表现不一致（红线第 1 条）。
+    4. 所有颜色走 theme.json 的 CSS 变量，跟随深色模式自动切换。
+    5. 尺寸/圆角/字号/透明度全部走 tokens，组件内零字面量。
+    6. ★ 只用单类选择器，不用后代选择器（CSS 子集限制）。
+-->
+<template>
+  <view class="btn" :class="rootClass" @click="onClick">
+    <view v-if="loading" class="btn-spinner" :class="spinnerClass" />
+    <text class="btn-label" :class="labelClass">{{ text }}</text>
+  </view>
+</template>
+
+<script lang="uts" setup>
+/** 视觉样式 */
+type ButtonVariant = 'primary' | 'secondary' | 'text' | 'danger'
+/** 尺寸档位 */
+type ButtonSize = 'sm' | 'md' | 'lg'
+
+const props = withDefaults(
+  defineProps<{
+    variant?: ButtonVariant
+    size?: ButtonSize
+    loading?: boolean
+    disabled?: boolean
+    block?: boolean
+    text?: string
+  }>(),
+  {
+    variant: 'primary',
+    size: 'md',
+    loading: false,
+    disabled: false,
+    block: false,
+    text: '',
+  },
+)
+
+const emit = defineEmits<{
+  (e: 'click'): void
+}>()
+
+/** loading 与 disabled 都算「不可点」 */
+const isLocked = computed<boolean>(() => props.disabled || props.loading)
+
+/**
+ * 根节点class 一次性拼好。
+ * uni-app x 的 CSS 只支持 web 子集，后代选择器不可靠，
+ * 所以所有修饰类都平铺到同一个元素上。
+ */
+const rootClass = computed<string[]>(() => {
+  const list: string[] = ['btn--' + props.variant, 'btn--' + props.size]
+  if (props.block) {
+    list.push('btn--block')
+  }
+  if (isLocked.value) {
+    list.push('btn--locked')
+    // 顺带切一套弱化的配色，避免只靠不透明度区分禁用态
+    if (props.variant != 'text') {
+      list.push('btn--muted')
+    }
+  }
+  return list
+})
+
+/** 文案：配色随 variant，尺寸随 size */
+const labelClass = computed<string[]>(() => {
+  const list: string[] = ['btn-label--' + props.variant]
+  if (props.size != 'md') {
+    list.push('btn-label--' + props.size)
+  }
+  if (props.loading) {
+    // loading 期间文案留在原位只是淡出，避免按钮宽度塌陷跳动
+    list.push('btn-label--loading')
+  }
+  return list
+})
+
+/** 转圈颜色必须跟随 variant，否则深色/次按钮上会看不见 */
+const spinnerClass = computed<string>(() => {
+  return props.variant == 'primary' ? 'btn-spinner--primary' : 'btn-spinner--accent'
+})
+
+function onClick(): void {
+  if (isLocked.value) {
+    // loading / disabled 期间吞掉事件，绝不向外抛 click
+    return
+  }
+  emit('click')
+}
+</script>
+
+<style scoped lang="scss">
+@use '../styles/tokens.scss' as t;
+@use '../styles/mixins.scss' as m;
+
+.btn {
+  @include m.tap-target;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  border-radius: t.$radius-pill;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  transition-property: background-color, opacity;
+  transition-duration: t.$duration-fast;
+  transition-timing-function: t.$ease-standard;
+}
+
+// ── 占满宽度 ─────────────────────────────────────────────
+.btn--block {
+  width: 100%;
+}
+
+// ── 锁定态（loading / disabled 共用）─────────────────────
+.btn--locked {
+  opacity: t.$opacity-disabled;
+}
+
+// ── 尺寸 ─────────────────────────────────────────────────
+.btn--sm {
+  padding-left: t.$space-sm;
+  padding-right: t.$space-sm;
+}
+
+.btn--lg {
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+}
+
+// ── 视觉：主按钮 ─────────────────────────────────────────
+.btn--primary {
+  background-color: var(--color-primary);
+}
+
+.btn--primary.btn--muted {
+  background-color: var(--color-text-3);
+}
+
+// ── 视觉：次按钮（描边 + 淡底）──────────────────────────
+.btn--secondary {
+  background-color: var(--color-primary-soft);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-glass-border);
+}
+
+.btn--secondary.btn--muted {
+  background-color: var(--color-bg-sunken);
+}
+
+// ── 视觉：危险按钮（注销等破坏性操作）──────────────────
+//   软红底 + 红边 + 红字，与次按钮（蓝描边）拉开距离，
+//   避免用户把「注销」误当成普通按钮点掉。
+.btn--danger {
+  background-color: var(--color-danger-soft);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-danger);
+}
+
+.btn--danger.btn--muted {
+  background-color: var(--color-bg-sunken);
+}
+
+// ── 视觉：文字按钮 ───────────────────────────────────────
+.btn--text {
+  background-color: transparent;
+}
+
+// ── 文案 ─────────────────────────────────────────────────
+.btn-label {
+  font-size: t.$font-md;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-tight;
+  text-align: center;
+}
+
+.btn-label--sm {
+  font-size: t.$font-sm;
+}
+
+.btn-label--lg {
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+}
+
+.btn-label--primary {
+  color: var(--color-text-on-primary);
+}
+
+.btn-label--secondary {
+  color: var(--color-primary);
+}
+
+.btn-label--danger {
+  color: var(--color-danger);
+}
+
+.btn-label--text {
+  color: var(--color-primary);
+}
+
+// loading 期间文案仍在原位，只是淡出，避免按钮宽度塌陷跳动
+.btn-label--loading {
+  opacity: t.$opacity-disabled;
+}
+
+// ── loading 指示器（纯 CSS 圆环）──────────────────────────
+.btn-spinner {
+  width: t.$space-lg;
+  height: t.$space-lg;
+  border-radius: t.$radius-pill;
+  // 1px 边框是全项目唯一允许的 px 字面量
+  border-width: 1px;
+  border-style: solid;
+  border-top-color: transparent;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  animation-name: btn-spin;
+  animation-duration: t.$duration-slow;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.btn-spinner--primary {
+  border-left-color: var(--color-text-on-primary);
+}
+
+.btn-spinner--accent {
+  border-left-color: var(--color-primary);
+}
+
+@keyframes btn-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+</style>

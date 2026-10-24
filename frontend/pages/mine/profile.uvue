@@ -1,0 +1,706 @@
+<!--
+  pages/mine/profile.uvue
+  ══════════════════════════════════════════════════════════════
+  基本资料
+  ══════════════════════════════════════════════════════════════
+
+  设计要点：
+    1. ★ 九项里必填的是姓名 / 性别 / 生日 / 作息 / 饮食偏好五项
+       （与后端 completeness 的检查口径一致）。
+       MBTI、血型、身高、体重允许留空——「允许留空」必须是真的允许，
+       所以它们在界面上要明确写成「可以不填」。
+    2. 性别 / 血型 / MBTI / 作息 用选择器，不用输入框：
+       这几项的值域是封闭的，让用户手打只会产生脏数据。
+    3. ★ 完整度提示直接用后端错误码 50001 的文案
+       （「资料还没填完，先补齐 basics 我们就能开始了」），
+       前端不自己编一套说法，避免同一个问题三端显示不同。
+
+  接口注意：
+    profilesService.get() 在尚未建档时返回 40010，
+    那是**空态**（直接给空表单让人填），不是错误。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="基本资料" />
+
+    <scroll-view class="body" scroll-y>
+      <view class="body-inner">
+        <!-- ── 失败态（40010 已转成空表单，不会走到这里） ── -->
+        <AppEmpty
+          v-if="errorText != ''"
+          title="没能读到你的资料"
+          :description="errorText"
+          action-text="再试一次"
+          @action="load"
+        />
+
+        <!-- ── 首屏加载 ── -->
+        <AppLoading v-else-if="loading" type="skeleton" :rows="5" />
+
+        <template v-else>
+          <!-- 完整度：驱动引导式补齐 -->
+          <AppCard variant="glass" padding="md" radius="md" class="top">
+            <view class="top-head">
+              <text class="top-title">填了多少</text>
+              <text class="top-value">{{ percentText }}</text>
+            </view>
+            <view class="top-track">
+              <view class="top-fill" :style="percentStyle" />
+            </view>
+            <!-- ★ 未填完时的提示：文案取自后端错误码 50001，前端不自造 -->
+            <text v-if="incompleteHint != ''" class="top-hint">{{ incompleteHint }}</text>
+          </AppCard>
+
+          <!-- 姓名 -->
+          <view class="field">
+            <AppInput
+              v-model="realName"
+              label="姓名"
+              placeholder="我怎么称呼你"
+              :maxlength="20"
+              :disabled="saving"
+            />
+          </view>
+
+          <!-- 性别：选择器 -->
+          <view class="field">
+            <text class="field-label">性别</text>
+            <view class="seg">
+              <view
+                v-for="opt in genderOptions"
+                :key="opt.value"
+                class="seg-item"
+                :class="gender == opt.value ? 'seg-item--on' : ''"
+                @click="gender = opt.value"
+              >
+                <text class="seg-item-text" :class="gender == opt.value ? 'seg-text--on' : ''">{{ opt.label }}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 生日 -->
+          <view class="field">
+            <AppInput
+              v-model="birthday"
+              label="生日"
+              placeholder="YYYY-MM-DD"
+              hint="填了我才知道那天该问候你"
+              :maxlength="10"
+              :disabled="saving"
+              :error="birthdayError"
+            />
+          </view>
+
+          <!-- 作息：选择器（★ 必填项之一） -->
+          <view class="field">
+            <text class="field-label">作息</text>
+            <view class="seg">
+              <view
+                v-for="opt in sleepOptions"
+                :key="opt.value"
+                class="seg-item"
+                :class="sleepPattern == opt.value ? 'seg-item--on' : ''"
+                @click="sleepPattern = opt.value"
+              >
+                <text class="seg-item-text" :class="sleepPattern == opt.value ? 'seg-text--on' : ''">{{ opt.label }}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 饮食偏好（★ 必填项之一） -->
+          <view class="field">
+            <AppInput
+              v-model="dietPreference"
+              label="饮食偏好"
+              placeholder="比如：清淡 / 爱吃辣 / 素食"
+              :maxlength="30"
+              :disabled="saving"
+            />
+          </view>
+
+          <!-- 血型：选择器（可不填） -->
+          <view class="field">
+            <text class="field-label">血型（可以不填）</text>
+            <view class="seg">
+              <view
+                v-for="opt in bloodOptions"
+                :key="opt.value"
+                class="seg-item"
+                :class="bloodType == opt.value ? 'seg-item--on' : ''"
+                @click="bloodType = opt.value"
+              >
+                <text class="seg-item-text" :class="bloodType == opt.value ? 'seg-text--on' : ''">{{ opt.label }}</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- 身高体重：可不填 -->
+          <view class="field-row">
+            <view class="field-half">
+              <AppInput
+                v-model="heightCm"
+                label="身高 cm（可不填）"
+                type="number"
+                placeholder="175"
+                :disabled="saving"
+              />
+            </view>
+            <view class="field-gap" />
+            <view class="field-half">
+              <AppInput
+                v-model="weightKg"
+                label="体重 kg（可不填）"
+                type="number"
+                placeholder="63"
+                :disabled="saving"
+              />
+            </view>
+          </view>
+
+          <!-- MBTI：选择器（可不填，允许留空） -->
+          <view class="field">
+            <text class="field-label">MBTI（可以不填）</text>
+            <view class="seg seg--wrap">
+              <view
+                v-for="opt in mbtiOptions"
+                :key="opt.value"
+                class="seg-item"
+                :class="mbti == opt.value ? 'seg-item--on' : ''"
+                @click="toggleMbti(opt.value)"
+              >
+                <text class="seg-item-text" :class="mbti == opt.value ? 'seg-text--on' : ''">{{ opt.label }}</text>
+              </view>
+            </view>
+            <text class="field-hint">你自己填的标签。我会拿它和你实际的样子对照看，但不会说你测错了。</text>
+          </view>
+
+          <AppButton
+            block
+            :text="saving ? '正在保存' : '保存'"
+            :loading="saving"
+            @click="onSave"
+          />
+
+          <text class="footnote">这些资料只用来让我更懂你。不会拿去给任何人看。</text>
+        </template>
+      </view>
+    </scroll-view>
+
+    <AppSafeBottom />
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppCard from '@/components/AppCard.uvue'
+import AppButton from '@/components/AppButton.uvue'
+import AppInput from '@/components/AppInput.uvue'
+import AppEmpty from '@/components/AppEmpty.uvue'
+import AppLoading from '@/components/AppLoading.uvue'
+import AppSafeBottom from '@/components/AppSafeBottom.uvue'
+import { profilesService } from '@/services/profiles.service'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+import { messageOf, CODE } from '@/core/http/error-code'
+import type { Profile, ProfileCompleteness } from '@/services/types'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 与 pages.json 的 path 一致 */
+const PAGE_KEY: string = 'pages/mine/profile'
+
+let disposed = false
+
+// ────────────────────────────────────────────────────────────
+// 类型与选项
+// ────────────────────────────────────────────────────────────
+
+/** 选择器选项。空串代表「不选」 */
+type Option = {
+  value: string
+  label: string
+}
+
+const genderOptions: Option[] = [
+  { value: 'male', label: '男' },
+  { value: 'female', label: '女' },
+  { value: 'other', label: '其他' },
+  { value: '', label: '不填' },
+]
+
+const bloodOptions: Option[] = [
+  { value: 'A', label: 'A' },
+  { value: 'B', label: 'B' },
+  { value: 'O', label: 'O' },
+  { value: 'AB', label: 'AB' },
+  { value: '', label: '不填' },
+]
+
+const sleepOptions: Option[] = [
+  { value: '早睡型', label: '早睡型' },
+  { value: '晚睡型', label: '晚睡型' },
+  { value: '随机型', label: '随机型' },
+]
+
+/** 16 型全列：这是 MBTI 的封闭值域，不给自由输入 */
+const mbtiOptions: Option[] = [
+  { value: 'INTJ', label: 'INTJ' },
+  { value: 'INTP', label: 'INTP' },
+  { value: 'ENTJ', label: 'ENTJ' },
+  { value: 'ENTP', label: 'ENTP' },
+  { value: 'INFJ', label: 'INFJ' },
+  { value: 'INFP', label: 'INFP' },
+  { value: 'ENFJ', label: 'ENFJ' },
+  { value: 'ENFP', label: 'ENFP' },
+  { value: 'ISTJ', label: 'ISTJ' },
+  { value: 'ISFJ', label: 'ISFJ' },
+  { value: 'ESTJ', label: 'ESTJ' },
+  { value: 'ESFJ', label: 'ESFJ' },
+  { value: 'ISTP', label: 'ISTP' },
+  { value: 'ISFP', label: 'ISFP' },
+  { value: 'ESTP', label: 'ESTP' },
+  { value: 'ESFP', label: 'ESFP' },
+  { value: '', label: '不填' },
+]
+
+// ────────────────────────────────────────────────────────────
+// 状态
+// ────────────────────────────────────────────────────────────
+
+const loading = ref<boolean>(true)
+const saving = ref<boolean>(false)
+const errorText = ref<string>('')
+const birthdayError = ref<string>('')
+
+const completeness = ref<ProfileCompleteness | null>(null)
+
+/** 下拉没有，但两个请求并行，加载态要等两个都落地 */
+const pending = ref<number>(0)
+
+const realName = ref<string>('')
+const gender = ref<string>('')
+const birthday = ref<string>('')
+const bloodType = ref<string>('')
+const heightCm = ref<string>('')
+const weightKg = ref<string>('')
+const sleepPattern = ref<string>('')
+const dietPreference = ref<string>('')
+const mbti = ref<string>('')
+
+// ────────────────────────────────────────────────────────────
+// 取值
+// ────────────────────────────────────────────────────────────
+
+const percentText = computed<string>(() => {
+  const c = completeness.value
+  if (c == null) return '—'
+  return c.percent.toString() + '%'
+})
+
+/** 进度条宽度：百分比随数据变化，只能内联 */
+const percentStyle = computed<string>(() => {
+  const c = completeness.value
+  const p = c != null ? c.percent : 0
+  return 'width:' + p.toString() + '%;'
+})
+
+/**
+ * 未填完提示。
+ * ★ 文案取自后端错误码 50001（messageOf(CODE.PROFILE_INCOMPLETE)），
+ *   前端不自己编一套说法——同一个问题三端必须显示同一句话。
+ */
+const incompleteHint = computed<string>(() => {
+  const c = completeness.value
+  if (c == null || c.percent >= 100) return ''
+  return messageOf(CODE.PROFILE_INCOMPLETE)
+})
+
+// ────────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(PAGE_KEY)
+  load()
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  disposed = true
+  cancelByKey(PAGE_KEY)
+})
+
+// ────────────────────────────────────────────────────────────
+// 数据加载
+// ────────────────────────────────────────────────────────────
+
+function load(): void {
+  if (disposed) return
+  loading.value = true
+  errorText.value = ''
+  pending.value = 2
+
+  loadProfile()
+  loadCompleteness()
+}
+
+function settleOne(): void {
+  if (disposed) return
+  if (pending.value > 0) pending.value -= 1
+  if (pending.value == 0) loading.value = false
+}
+
+function loadProfile(): void {
+  profilesService
+    .get()
+    .then((res: Profile) => {
+      if (disposed) return
+      applyProfile(res)
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      // ★ 40010「资料尚未建立」是**空态**：
+      //   新用户直接看到空表单去填，而不是一条红色报错。
+      if (isProfileMissing(e)) {
+        clearForm()
+        settleOne()
+        return
+      }
+      console.error('[profile] 读取失败', e)
+      errorText.value = describe(e)
+      settleOne()
+    })
+}
+
+function loadCompleteness(): void {
+  profilesService
+    .completeness()
+    .then((res: ProfileCompleteness) => {
+      if (disposed) return
+      completeness.value = res
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[profile] 完整度读取失败', e)
+      // 空资料时后端也会返回完整度；取不到就让这条辅助信息不显示
+      settleOne()
+    })
+}
+
+/** 后端值回填表单 */
+function applyProfile(p: Profile): void {
+  realName.value = p.realName != null ? p.realName! : ''
+  gender.value = p.gender != null ? p.gender! : ''
+  birthday.value = p.birthday != null ? p.birthday! : ''
+  bloodType.value = p.bloodType != null ? p.bloodType! : ''
+  heightCm.value = p.heightCm != null ? p.heightCm.toString() : ''
+  weightKg.value = p.weightKg != null ? p.weightKg.toString() : ''
+  sleepPattern.value = p.sleepPattern != null ? p.sleepPattern! : ''
+  dietPreference.value = p.dietPreference != null ? p.dietPreference! : ''
+  mbti.value = p.mbti != null ? p.mbti! : ''
+}
+
+function clearForm(): void {
+  realName.value = ''
+  gender.value = ''
+  birthday.value = ''
+  bloodType.value = ''
+  heightCm.value = ''
+  weightKg.value = ''
+  sleepPattern.value = ''
+  dietPreference.value = ''
+  mbti.value = ''
+}
+
+// ────────────────────────────────────────────────────────────
+// 交互
+// ────────────────────────────────────────────────────────────
+
+/** 再点一次已选中的 MBTI 就取消选择——「可以不填」必须真的可以不填 */
+function toggleMbti(value: string): void {
+  mbti.value = mbti.value == value ? '' : value
+}
+
+function onSave(): void {
+  if (disposed) return
+  if (saving.value) return
+  birthdayError.value = ''
+
+  const bday = normalizeDate(birthday.value)
+  if (bday == null) {
+    birthdayError.value = '生日写成 YYYY-MM-DD，或者留空'
+    return
+  }
+
+  // ★ 身高体重是「可以不填」的项：
+  //   留空必须能保存，只有填了但填错才拦。
+  const height = parseOptionalNumber(heightCm.value)
+  if (height == null && heightCm.value.trim().length > 0) {
+    uni.showToast({ title: '身高填个数字，或者留空', icon: 'none' })
+    return
+  }
+  if (height != null && height < 0) {
+    uni.showToast({ title: '身高不能是负的', icon: 'none' })
+    return
+  }
+
+  const weight = parseOptionalNumber(weightKg.value)
+  if (weight == null && weightKg.value.trim().length > 0) {
+    uni.showToast({ title: '体重填个数字，或者留空', icon: 'none' })
+    return
+  }
+  if (weight != null && weight < 0) {
+    uni.showToast({ title: '体重不能是负的', icon: 'none' })
+    return
+  }
+
+  saving.value = true
+
+  profilesService
+    .update({
+      realName: realName.value.trim(),
+      gender: gender.value,
+      birthday: bday,
+      bloodType: bloodType.value,
+      heightCm: height,
+      weightKg: weight,
+      sleepPattern: sleepPattern.value,
+      dietPreference: dietPreference.value.trim(),
+      mbti: mbti.value,
+    })
+    .then((_res: Profile) => {
+      if (disposed) return
+      saving.value = false
+      uni.showToast({ title: '记下了', icon: 'none' })
+      // 保存后重拉完整度，进度条立刻反映最新状态
+      loadCompleteness()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      saving.value = false
+      console.error('[profile] 保存失败', e)
+      // 50001（资料未填完）等业务错误直接用后端文案
+      uni.showToast({ title: describe(e), icon: 'none' })
+    })
+}
+
+// ────────────────────────────────────────────────────────────
+// 辅助
+// ────────────────────────────────────────────────────────────
+
+/**
+ * 日期规整。
+ * 空串返回空串（表示清空），非法返回 null 让表单报错。
+ * ★ 不引Date 解析：uts 各端对 Date 的时区处理不一致，容易差一天。
+ */
+function normalizeDate(raw: string): string | null {
+  const s = raw.trim()
+  if (s.length == 0) return ''
+
+  const compact = s.replace(/-/g, '')
+  if (compact.length != 8) return null
+
+  const year = compact.substring(0, 4)
+  const month = compact.substring(4, 6)
+  const day = compact.substring(6, 8)
+
+  const m = parseInt(month)
+  const d = parseInt(day)
+  if (isNaN(m) || isNaN(d)) return null
+  if (m < 1 || m > 12) return null
+  if (d < 1 || d > 31) return null
+
+  return year + '-' + month + '-' + day
+}
+
+/** 空串 → null（表示「不填」）；非法也返回 null 但由调用方区分提示 */
+function parseOptionalNumber(raw: string): number | null {
+  const s = raw.trim()
+  if (s.length == 0) return null
+  const n = parseFloat(s)
+  if (isNaN(n)) return null
+  return n
+}
+
+/** 40010 = 资料尚未建立，是空态不是错误 */
+function isProfileMissing(e: unknown): boolean {
+  if (e == null) return false
+  const err = e as ErrorLike
+  return err.code == 40010
+}
+
+/** 只需要 code */
+type ErrorLike = {
+  code: number
+}
+
+/** 把任意异常转成能展示的中文 */
+function describe(e: unknown): string {
+  if (e == null) return '出了点问题，稍后再试试'
+  const err = e as HttpErrorLike
+  if (err != null && typeof err.message === 'string' && err.message.length > 0) {
+    return err.message
+  }
+  return '出了点问题，稍后再试试'
+}
+
+/** 只取 message */
+type HttpErrorLike = {
+  message: string
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  width: 100%;
+  flex-direction: column;
+  background-color: var(--color-bg);
+}
+
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+.body-inner {
+  flex-direction: column;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-md;
+  padding-bottom: t.$space-lg;
+}
+
+// ── 完整度 ────────────────────────────────────────────────
+.top {
+  margin-bottom: t.$space-lg;
+}
+
+.top-head {
+  flex-direction: row;
+  align-items: center;
+}
+
+.top-title {
+  flex: 1;
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+}
+
+.top-value {
+  font-size: t.$font-sm;
+  color: var(--color-text-1);
+  @include m.tabular-nums;
+}
+
+.top-track {
+  margin-top: t.$space-xs;
+  height: t.$space-xxs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-track);
+  overflow: hidden;
+}
+
+.top-fill {
+  height: 100%;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-primary);
+}
+
+.top-hint {
+  margin-top: t.$space-xs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+// ── 字段 ──────────────────────────────────────────────────
+.field {
+  flex-direction: column;
+  margin-bottom: t.$space-md;
+}
+
+.field-label {
+  font-size: t.$font-sm;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+  margin-bottom: t.$space-xs;
+}
+
+.field-hint {
+  margin-top: t.$space-xs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+// 双列字段：★ 用 flex:1 而不是固定像素，窄屏也不会挤
+.field-row {
+  flex-direction: row;
+  margin-bottom: t.$space-md;
+}
+
+.field-half {
+  flex: 1;
+}
+
+.field-gap {
+  width: t.$space-sm;
+}
+
+// ── 分段选择器 ────────────────────────────────────────────
+.seg {
+  flex-direction: row;
+  margin-bottom: t.$space-xxs;
+}
+
+// MBTI 有 17 个选项，必须能折行
+.seg--wrap {
+  flex-wrap: wrap;
+}
+
+.seg-item {
+  @include m.tap-target;
+  flex: 1;
+  margin-right: t.$space-xs;
+  margin-bottom: t.$space-xs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-bg-sunken);
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.seg-item--on {
+  background-color: var(--color-primary);
+}
+
+.seg-item-text {
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+}
+
+// ★ 不用后代选择器（uni-app x 的 CSS 只支持 web 子集）
+.seg-text--on {
+  color: var(--color-text-on-primary);
+}
+
+// ── 页脚说明 ──────────────────────────────────────────────
+.footnote {
+  margin-top: t.$space-md;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-3);
+  text-align: center;
+}
+</style>

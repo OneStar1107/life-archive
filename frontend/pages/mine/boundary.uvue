@@ -1,0 +1,672 @@
+<!--
+  pages/mine/boundary.uvue
+  ══════════════════════════════════════════════════════════════
+  我读得懂这些 · 我不碰那些
+  ══════════════════════════════════════════════════════════════
+
+  ★★ 这一页是整个产品的信任基础 ★★
+    它不是「权限管理」，是用户对「我会拿你的数据做什么」的唯一控制点。
+    所以设计上：
+
+      1. 顶部第一句就说清后果：「你随时可以改，这些边界会决定我永远不会问你什么」。
+         —— 边界不是设置项，是承诺。
+      2. 两个列表用**完全不同的视觉**（读取中=主色实心，不碰=中性描边），
+         一眼能分清哪个是「可以」哪个是「不可以」。
+      3. 「不碰」列表默认给几个高危项的预置标签（聊天记录、备忘录），
+         因为绝大多数用户不会主动想这件事，但默认就该是安全的。
+      4. 免打扰时段支持跨零点（22:00 → 08:00），这是最常见的用法。
+
+  接口：profilesService.get() / update()
+    ★ 40010（资料尚未建立）是空态，直接给空表单让人填。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="我读得懂这些 · 我不碰那些" />
+
+    <scroll-view class="body" scroll-y>
+      <view class="body-inner">
+        <!-- ── 失败态 ── -->
+        <AppEmpty
+          v-if="errorText != ''"
+          title="没能读到你的边界"
+          :description="errorText"
+          action-text="再试一次"
+          @action="load"
+        />
+
+        <!-- ── 首屏加载 ── -->
+        <AppLoading v-else-if="loading" type="skeleton" :rows="4" />
+
+        <template v-else>
+          <!-- ★ 顶部说明：把「改了会怎样」讲在前面 -->
+          <view class="head">
+            <text class="head-title">你随时可以改</text>
+            <text class="head-desc">这些边界会决定我永远不会问你什么。</text>
+          </view>
+
+          <!-- ── 我读得懂这些 ── -->
+          <view class="block">
+            <text class="block-title">我读得懂这些</text>
+            <text class="block-desc">这些是我会主动去看的地方。</text>
+
+            <view class="chips">
+              <view
+                v-for="tag in readableTopics"
+                :key="tag"
+                class="chip chip--read"
+                @click="removeReadable(tag)"
+              >
+                <text class="chip-text chip-text--read">{{ tag }}</text>
+                <text class="chip-x chip-x--read">✕</text>
+              </view>
+              <text v-if="readableTopics.length == 0" class="chips-empty">还没有添加</text>
+            </view>
+
+            <view class="add-row">
+              <view class="add-input">
+                <AppInput
+                  v-model="readableInput"
+                  placeholder="加一项，比如：相册定位"
+                  :maxlength="20"
+                  :disabled="saving"
+                />
+              </view>
+              <view class="add-gap" />
+              <view class="add-btn" @click="addReadable">
+                <text class="add-btn-text">加上</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- ── 我不碰这些 ── -->
+          <view class="block">
+            <text class="block-title">我不碰这些</text>
+            <text class="block-desc">这些我永远不会主动去看。关掉之后我真的会忘掉，不是「隐藏起来」。</text>
+
+            <view class="chips">
+              <view
+                v-for="tag in offLimitTopics"
+                :key="tag"
+                class="chip chip--off"
+                @click="removeOffLimit(tag)"
+              >
+                <text class="chip-text chip-text--off">{{ tag }}</text>
+                <text class="chip-x">✕</text>
+              </view>
+              <text v-if="offLimitTopics.length == 0" class="chips-empty">还没有划禁区</text>
+            </view>
+
+            <view class="add-row">
+              <view class="add-input">
+                <AppInput
+                  v-model="offLimitInput"
+                  placeholder="加一项，比如：聊天记录"
+                  :maxlength="20"
+                  :disabled="saving"
+                />
+              </view>
+              <view class="add-gap" />
+              <view class="add-btn" @click="addOffLimit">
+                <text class="add-btn-text">划掉</text>
+              </view>
+            </view>
+          </view>
+
+          <!-- ── 免打扰时段 ── -->
+          <view class="block">
+            <text class="block-title">免打扰时段</text>
+            <text class="block-desc">这段时间里我不主动说话。你随时来找我，我都在。</text>
+
+            <view v-if="quietEnabled" class="quiet">
+              <view class="quiet-row">
+                <view class="quiet-item">
+                  <text class="quiet-label">从</text>
+                  <!-- ★ 用内置 picker 组件（mode 设为 time）而不是 uni.showTimePicker：
+                       后者在三端的可用性不一致，自绘选择器又要处理三端差异。 -->
+                  <picker class="quiet-picker" mode="time" :value="quietStart" @change="onPickStart">
+                    <view class="quiet-pick">
+                      <text class="quiet-value">{{ quietStart }}</text>
+                    </view>
+                  </picker>
+                </view>
+                <view class="quiet-item">
+                  <text class="quiet-label">到</text>
+                  <picker class="quiet-picker" mode="time" :value="quietEnd" @change="onPickEnd">
+                    <view class="quiet-pick">
+                      <text class="quiet-value">{{ quietEnd }}</text>
+                    </view>
+                  </picker>
+                </view>
+              </view>
+
+              <!-- ★ 跨零点必须说清楚，否则「22:00 → 08:00」看着像填错了 -->
+              <text v-if="crossMidnight" class="quiet-cross">这段会跨过午夜，第二天 {{ quietEnd }} 才结束。</text>
+
+              <view class="quiet-off" @click="disableQuiet">
+                <text class="quiet-off-text">不需要免打扰</text>
+              </view>
+            </view>
+
+            <view v-else class="quiet-off-row">
+              <view class="quiet-add" @click="enableQuiet">
+                <text class="quiet-add-text">设一个免打扰时段</text>
+              </view>
+            </view>
+          </view>
+
+          <AppButton
+            block
+            :text="saving ? '正在保存' : '保存'"
+            :loading="saving"
+            @click="onSave"
+          />
+
+          <text class="footnote">改完就生效，不用等到下次打开。</text>
+        </template>
+      </view>
+    </scroll-view>
+
+    <AppSafeBottom />
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppButton from '@/components/AppButton.uvue'
+import AppInput from '@/components/AppInput.uvue'
+import AppEmpty from '@/components/AppEmpty.uvue'
+import AppLoading from '@/components/AppLoading.uvue'
+import AppSafeBottom from '@/components/AppSafeBottom.uvue'
+import { profilesService } from '@/services/profiles.service'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+import type { Profile } from '@/services/types'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 与 pages.json 的 path 一致 */
+const PAGE_KEY: string = 'pages/mine/boundary'
+
+let disposed = false
+
+const loading = ref<boolean>(true)
+const saving = ref<boolean>(false)
+const errorText = ref<string>('')
+
+const readableTopics = ref<string[]>([])
+const offLimitTopics = ref<string[]>([])
+
+const readableInput = ref<string>('')
+const offLimitInput = ref<string>('')
+
+/** 是否开启了免打扰。false 时不提交 quietHours，等于取消 */
+const quietEnabled = ref<boolean>(false)
+const quietStart = ref<string>('22:00')
+const quietEnd = ref<string>('08:00')
+
+// ────────────────────────────────────────────────────────────
+// 取值
+// ────────────────────────────────────────────────────────────
+
+/**
+ * ★ 是否跨午夜。
+ * 「不碰」的判断决定要不要提示用户 ——
+ * 用户设 22:00 → 08:00 时如果系统默默当成 6 小时，他会以为免打扰没生效。
+ */
+const crossMidnight = computed<boolean>(() => {
+  return toMinutes(quietStart.value) > toMinutes(quietEnd.value)
+})
+
+// ────────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(PAGE_KEY)
+  load()
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  disposed = true
+  cancelByKey(PAGE_KEY)
+})
+
+// ────────────────────────────────────────────────────────────
+// 数据加载
+// ────────────────────────────────────────────────────────────
+
+function load(): void {
+  if (disposed) return
+  loading.value = true
+  errorText.value = ''
+
+  profilesService
+    .get()
+    .then((res: Profile) => {
+      if (disposed) return
+      readableTopics.value = res.readableTopics.slice()
+      offLimitTopics.value = res.offLimitTopics.slice()
+
+      const q = res.quietHours
+      if (q != null && q.length > 0) {
+        quietEnabled.value = true
+        quietStart.value = q[0].start
+        quietEnd.value = q[0].end
+      } else {
+        quietEnabled.value = false
+      }
+      loading.value = false
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      // ★ 40010 是空态：给空表单让用户直接划边界
+      if (isProfileMissing(e)) {
+        readableTopics.value = []
+        offLimitTopics.value = []
+        quietEnabled.value = false
+        loading.value = false
+        return
+      }
+      console.error('[boundary] 读取失败', e)
+      errorText.value = describe(e)
+      loading.value = false
+    })
+}
+
+// ────────────────────────────────────────────────────────────
+// 标签增删
+// ────────────────────────────────────────────────────────────
+
+function addReadable(): void {
+  const tag = readableInput.value.trim()
+  if (tag.length == 0) return
+  // 同一个东西不重复加
+  if (readableTopics.value.indexOf(tag) >= 0) {
+    readableInput.value = ''
+    return
+  }
+  readableTopics.value = readableTopics.value.concat([tag])
+  readableInput.value = ''
+}
+
+function removeReadable(tag: string): void {
+  const list = readableTopics.value.slice()
+  const idx = list.indexOf(tag)
+  if (idx >= 0) list.splice(idx, 1)
+  readableTopics.value = list
+}
+
+function addOffLimit(): void {
+  const tag = offLimitInput.value.trim()
+  if (tag.length == 0) return
+  if (offLimitTopics.value.indexOf(tag) >= 0) {
+    offLimitInput.value = ''
+    return
+  }
+  offLimitTopics.value = offLimitTopics.value.concat([tag])
+  offLimitInput.value = ''
+}
+
+function removeOffLimit(tag: string): void {
+  const list = offLimitTopics.value.slice()
+  const idx = list.indexOf(tag)
+  if (idx >= 0) list.splice(idx, 1)
+  offLimitTopics.value = list
+}
+
+// ────────────────────────────────────────────────────────────
+// 免打扰
+// ────────────────────────────────────────────────────────────
+
+function enableQuiet(): void {
+  quietEnabled.value = true
+}
+
+/** 取消免打扰：提交时传 [] 表示清空（后端语义） */
+function disableQuiet(): void {
+  quietEnabled.value = false
+}
+
+/**
+ * 时间选择回调。
+ * ★ 内置 <picker> 的 value 已是 HH:mm 字符串，原样接住即可；
+ *   仍做一次长度校验，防止个别平台回传成别的格式。
+ */
+function onPickStart(e: UniPickerTimeChangeEvent): void {
+  const v = e.detail.value
+  if (v.length < 5) return
+  quietStart.value = v
+}
+
+function onPickEnd(e: UniPickerTimeChangeEvent): void {
+  const v = e.detail.value
+  if (v.length < 5) return
+  quietEnd.value = v
+}
+
+// ────────────────────────────────────────────────────────────
+// 保存
+// ────────────────────────────────────────────────────────────
+
+function onSave(): void {
+  if (disposed) return
+  if (saving.value) return
+
+  saving.value = true
+
+  profilesService
+    .update({
+      readableTopics: readableTopics.value,
+      offLimitTopics: offLimitTopics.value,
+      // ★ 传 [] 表示取消免打扰；传 null 也行，这里用 [] 更明确
+      quietHours: quietEnabled.value
+        ? [{ start: quietStart.value, end: quietEnd.value }]
+        : [],
+    })
+    .then((_res: Profile) => {
+      if (disposed) return
+      saving.value = false
+      uni.showToast({ title: '记下了', icon: 'none' })
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      saving.value = false
+      console.error('[boundary] 保存失败', e)
+      uni.showToast({ title: describe(e), icon: 'none' })
+    })
+}
+
+// ────────────────────────────────────────────────────────────
+// 辅助
+// ────────────────────────────────────────────────────────────
+
+/** HH:mm → 分钟数，便于比较先后 */
+function toMinutes(text: string): number {
+  if (text.length < 5) return 0
+  const h = parseInt(text.substring(0, 2))
+  const m = parseInt(text.substring(3, 5))
+  if (isNaN(h) || isNaN(m)) return 0
+  return h * 60 + m
+}
+
+/** 40010 = 资料尚未建立，是空态不是错误 */
+function isProfileMissing(e: unknown): boolean {
+  if (e == null) return false
+  const err = e as ErrorLike
+  return err.code == 40010
+}
+
+/** 只需要 code */
+type ErrorLike = {
+  code: number
+}
+
+/** 把任意异常转成能展示的中文 */
+function describe(e: unknown): string {
+  if (e == null) return '出了点问题，稍后再试试'
+  const err = e as HttpErrorLike
+  if (err != null && typeof err.message === 'string' && err.message.length > 0) {
+    return err.message
+  }
+  return '出了点问题，稍后再试试'
+}
+
+/** 只取 message */
+type HttpErrorLike = {
+  message: string
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  width: 100%;
+  flex-direction: column;
+  background-color: var(--color-bg);
+}
+
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+.body-inner {
+  flex-direction: column;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-md;
+  padding-bottom: t.$space-lg;
+}
+
+// ── 顶部说明 ──────────────────────────────────────────────
+.head {
+  flex-direction: column;
+  margin-bottom: t.$space-lg;
+}
+
+.head-title {
+  font-size: t.$font-xl;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.head-desc {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 区块 ──────────────────────────────────────────────────
+.block {
+  flex-direction: column;
+  margin-bottom: t.$space-xl;
+}
+
+.block-title {
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.block-desc {
+  margin-top: t.$space-xxs;
+  margin-bottom: t.$space-sm;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 标签 ──────────────────────────────────────────────────
+.chips {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.chips-empty {
+  font-size: t.$font-sm;
+  color: var(--color-text-3);
+}
+
+// ★ 两个列表视觉必须完全不同：
+//   「读」是主动的，用主色实心；「不碰」是被否定的，用中性描边。
+.chip {
+  @include m.tap-target;
+  flex-direction: row;
+  align-items: center;
+  padding-left: t.$space-sm;
+  padding-right: t.$space-sm;
+  margin-right: t.$space-xs;
+  margin-bottom: t.$space-xs;
+  border-radius: t.$radius-pill;
+}
+
+.chip--read {
+  background-color: var(--color-primary);
+}
+
+.chip--off {
+  background-color: transparent;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-divider-strong);
+}
+
+.chip-text {
+  font-size: t.$font-sm;
+}
+
+.chip-text--read {
+  color: var(--color-text-on-primary);
+}
+
+.chip-text--off {
+  color: var(--color-text-2);
+}
+
+.chip-x {
+  margin-left: t.$space-xs;
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+}
+
+// 实心标签上的 ✕ 必须是浅色，否则深色底上会看不见。
+// 挂在 ✕ 自己的类上，不用 `~` 兄弟选择器（CSS 子集不可靠）。
+.chip-x--read {
+  color: var(--color-text-on-primary);
+}
+
+// ── 添加行 ────────────────────────────────────────────────
+.add-row {
+  flex-direction: row;
+  align-items: center;
+  margin-top: t.$space-sm;
+}
+
+.add-input {
+  flex: 1;
+}
+
+.add-gap {
+  width: t.$space-sm;
+}
+
+.add-btn {
+  @include m.tap-target;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-primary-soft);
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-btn-text {
+  font-size: t.$font-sm;
+  color: var(--color-primary);
+}
+
+// ── 免打扰 ────────────────────────────────────────────────
+.quiet {
+  flex-direction: column;
+}
+
+.quiet-row {
+  flex-direction: row;
+  align-items: center;
+}
+
+.quiet-item {
+  flex: 1;
+  flex-direction: row;
+  align-items: center;
+}
+
+.quiet-label {
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+  margin-right: t.$space-xs;
+}
+
+.quiet-picker {
+  flex: 1;
+}
+
+.quiet-pick {
+  @include m.tap-target;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  border-radius: t.$radius-md;
+  background-color: var(--color-bg-elevated);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-divider);
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.quiet-value {
+  font-size: t.$font-md;
+  color: var(--color-text-1);
+  @include m.tabular-nums;
+}
+
+.quiet-cross {
+  margin-top: t.$space-xs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+.quiet-off {
+  @include m.tap-target;
+  align-items: flex-start;
+  margin-top: t.$space-xs;
+}
+
+.quiet-off-text {
+  font-size: t.$font-sm;
+  color: var(--color-text-3);
+}
+
+.quiet-off-row {
+  flex-direction: row;
+}
+
+.quiet-add {
+  @include m.tap-target;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-primary-soft);
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.quiet-add-text {
+  font-size: t.$font-sm;
+  color: var(--color-primary);
+}
+
+// ── 页脚 ──────────────────────────────────────────────────
+.footnote {
+  margin-top: t.$space-md;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-3);
+  text-align: center;
+}
+</style>

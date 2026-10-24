@@ -1,0 +1,860 @@
+<!--
+  pages/insight/index.uvue
+  ══════════════════════════════════════════════════════════════
+  「我是怎么一点点认识你的」
+  ══════════════════════════════════════════════════════════════
+
+  ★★ 本页最容易写错的是「语气」，不是技术 ★★
+    洞察是系统对用户的观察，不是命令、不是评价、不是成绩单。所以：
+
+      1. ★ 置信度只用细进度条表示，**绝不写「高/ 中 / 低」**。
+         写成文字就变成打分，用户会开始揣摩「为什么是高」，
+         然后开始管理我的输出而不是说真话——那就把产品做死了。
+      2. ★ 五类洞察各有不同的视觉隐喻，因为它们说的本来就是不同的话：
+           connection       潜在联系  → 两个节点被一根线连起来
+           emotion_granularity 情绪粒度 → 从粗词到细词的箭头
+           timeline_diff    时间对照 → 前后两个时间点
+           belief_conflict  信念矛盾 → 左右对立
+           self_distance    自我距离化 → 引用样式（旁观者的口气）
+      3. 反馈按钮是「有帮助 / 没帮助」，不是「点赞 / 踩」。
+         「没帮助」不代表说错了，只代表这次没说上。
+      4. 底部固定一句「这是我的猜测，你说了算」——
+         洞察的所有权在用户。
+
+  数据来源：
+    insightsService.list()    分页列表
+    insightsService.stats()   未读数（导航栏徽标）
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="我是怎么认识你的">
+      <template #right>
+        <view class="nav-badge" v-if="unread > 0" @click="scrollToFirst">
+          <text class="nav-badge-text">{{ unreadLabel }}</text>
+        </view>
+      </template>
+    </AppNavBar>
+
+    <scroll-view
+      class="body"
+      scroll-y
+      :refresher-enabled="true"
+      :refresher-triggered="refreshing"
+      @refresherrefresh="onRefresh"
+      @scrolltolower="onLoadMore"
+    >
+      <view class="body-inner">
+        <!-- ── 失败态 ── -->
+        <AppEmpty
+          v-if="errorText != ''"
+          title="没能取到我的观察"
+          :description="errorText"
+          action-text="再试一次"
+          @action="loadAll"
+        />
+
+        <!-- ── 首屏加载 ── -->
+        <AppLoading v-else-if="firstLoading" type="skeleton" :rows="4" />
+
+        <template v-else>
+          <view class="hero">
+            <text class="hero-title">我是怎么一点点认识你的</text>
+            <text class="hero-sub">这些不是结论，是我这些天看到的一点东西。你觉得不对的地方，点「没帮助」就行。</text>
+          </view>
+
+          <!-- ★ 空态文案直接用后端 50010 的文案，与产品理念同源 -->
+          <AppEmpty
+            v-if="insights.length == 0"
+            title="再多记几件事，我就能看出规律了"
+            description="记忆、感受、身体信号——你留下的越多，我越能看出点东西来。现在还太早，我不猜。"
+          />
+
+          <view v-else class="stream">
+            <view v-for="item in insights" :key="item.id" class="card">
+              <AppCard variant="solid" padding="lg" radius="lg">
+                <!-- 未读：新洞察给一个安静的圆点，不做红点闪烁 -->
+                <view class="card-head">
+                  <view class="kind-chip" :class="'kind-chip--' + item.kind">
+                    <text class="kind-chip-text">{{ kindLabel(item.kind) }}</text>
+                  </view>
+                  <view v-if="isUnread(item)" class="unread-dot" />
+                </view>
+
+                <text class="card-title">{{ item.title }}</text>
+
+                <!-- ★ 五类洞察各自的视觉隐喻 -->
+                <!--潜在联系：两个节点 + 一根连线 -->
+                <view v-if="item.kind == 'connection'" class="viz-connect">
+                  <view class="node node--left" />
+                  <view class="wire" />
+                  <view class="node node--right" />
+                </view>
+
+                <!-- 情绪粒度：粗词 → 细词 -->
+                <view v-else-if="item.kind == 'emotion_granularity'" class="viz-gran">
+                  <view class="gran-from" />
+                  <text class="gran-arrow">→</text>
+                  <view class="gran-to" />
+                </view>
+
+                <!-- 时间对照：前后两个时间点 -->
+                <view v-else-if="item.kind == 'timeline_diff'" class="viz-time">
+                  <view class="time-side">
+                    <view class="time-dot time-dot--past" />
+                    <text class="time-cap">那时</text>
+                  </view>
+                  <view class="time-link" />
+                  <view class="time-side">
+                    <view class="time-dot time-dot--now" />
+                    <text class="time-cap">现在</text>
+                  </view>
+                </view>
+
+                <!-- 信念矛盾：左右对立 -->
+                <view v-else-if="item.kind == 'belief_conflict'" class="viz-belief">
+                  <view class="belief-side">
+                    <text class="belief-mark">‹</text>
+                    <text class="belief-cap">你说过</text>
+                  </view>
+                  <view class="belief-gap" />
+                  <view class="belief-side">
+                    <text class="belief-mark belief-mark--right">›</text>
+                    <text class="belief-cap">但你也说过</text>
+                  </view>
+                </view>
+
+                <!-- 自我距离化：引用样式，旁观者的口气 -->
+                <view v-else class="viz-quote">
+                  <view class="quote-bar" />
+                  <text class="quote-text">{{ item.body }}</text>
+                </view>
+
+                <!-- connection 之外的 body 用普通段落；connection 的 body 已在上方引用展示 -->
+                <text v-if="item.kind != 'self_distance'" class="card-body">{{ item.body }}</text>
+
+                <!-- ★ 置信度：只有一条细进度条，不写「高/中/低」 -->
+                <view class="conf">
+                  <view class="conf-track">
+                    <view class="conf-fill" :style="'width:' + item.confidence + '%'" />
+                  </view>
+                  <text class="conf-cap">我有多确定</text>
+                </view>
+
+                <!-- 已采纳：明确标出来，不再显示采纳按钮 -->
+                <view v-if="isAdopted(item)" class="adopted">
+                  <text class="adopted-text">已收下</text>
+                </view>
+
+                <template v-else>
+                  <view class="acts">
+                    <view class="act" :class="item.feedback == 'like' ? 'act--on' : ''" @click="onFeedback(item, 'like')">
+                      <text class="act-text" :class="item.feedback == 'like' ? 'act-text--on' : ''">有帮助</text>
+                    </view>
+                    <view class="act-gap" />
+                    <view
+                      class="act"
+                      :class="item.feedback == 'dislike' ? 'act--on' : ''"
+                      @click="onFeedback(item, 'dislike')"
+                    >
+                      <text class="act-text" :class="item.feedback == 'dislike' ? 'act-text--on' : ''">没帮助</text>
+                    </view>
+                    <view class="act-gap" />
+                    <view class="act act--adopt" @click="onAdopt(item)">
+                      <text class="act-text act-text--adopt">收下这条</text>
+                    </view>
+                  </view>
+                </template>
+
+                <text class="card-time">{{ timeAgo(item.createdAt) }}</text>
+              </AppCard>
+            </view>
+          </view>
+
+          <view class="stream-foot">
+            <text class="stream-foot-text">这是我的猜测，你说了算。</text>
+          </view>
+
+          <view class="list-foot">
+            <text v-if="loadingMore" class="list-foot-text">正在加载更多</text>
+            <text v-else-if="hasNext" class="list-foot-text" @click="onLoadMore">上拉加载更多</text>
+            <text v-else-if="insights.length > 0" class="list-foot-text">— 暂时就这些 —</text>
+          </view>
+        </template>
+      </view>
+    </scroll-view>
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppCard from '@/components/AppCard.uvue'
+import AppEmpty from '@/components/AppEmpty.uvue'
+import AppLoading from '@/components/AppLoading.uvue'
+import { insightsService } from '@/services/insights.service'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+import type { PageResult } from '@/core/http/types'
+import type { Insight, InsightFeedback, InsightStats } from '@/services/types'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 与 pages.json 的 path 一致 */
+const PAGE_KEY: string = 'pages/insight/index'
+
+const PAGE_SIZE: number = 10
+
+/** 页面是否已卸载 */
+let disposed = false
+
+const insights = ref<Insight[]>([])
+const stats = ref<InsightStats | null>(null)
+
+const firstLoading = ref<boolean>(true)
+const refreshing = ref<boolean>(false)
+const loadingMore = ref<boolean>(false)
+const errorText = ref<string>('')
+
+const page = ref<number>(1)
+const hasNext = ref<boolean>(false)
+const pending = ref<number>(0)
+
+// ────────────────────────────────────────────────────────────
+// 取值
+// ────────────────────────────────────────────────────────────
+
+const unread = computed<number>(() => {
+  const s = stats.value
+  return s != null ? s.unread : 0
+})
+
+/** 未读数徽标：超过 99 显示 99+，避免把导航栏撑破 */
+const unreadLabel = computed<string>(() => {
+  const n = unread.value
+  if (n > 99) return '99+'
+  return n.toString()
+})
+
+// ────────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(PAGE_KEY)
+  loadAll()
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  disposed = true
+  cancelByKey(PAGE_KEY)
+})
+
+// ────────────────────────────────────────────────────────────
+// 数据加载
+// ────────────────────────────────────────────────────────────
+
+function loadAll(): void {
+  if (disposed) return
+  firstLoading.value = true
+  errorText.value = ''
+  pending.value = 2
+
+  loadList(1, true)
+  loadStats()
+}
+
+function onRefresh(): void {
+  if (disposed) return
+  refreshing.value = true
+  errorText.value = ''
+  pending.value = 2
+
+  loadList(1, true)
+  loadStats()
+}
+
+function settleOne(): void {
+  if (disposed) return
+  if (pending.value > 0) pending.value -= 1
+  if (pending.value == 0) refreshing.value = false
+}
+
+function loadList(targetPage: number, reset: boolean): void {
+  page.value = targetPage
+
+  insightsService
+    .list({ page: targetPage, pageSize: PAGE_SIZE })
+    .then((res: PageResult<Insight>) => {
+      if (disposed) return
+      if (reset) {
+        insights.value = res.list
+      } else {
+        insights.value = insights.value.concat(res.list)
+      }
+      hasNext.value = res.hasNext
+      loadingMore.value = false
+      firstLoading.value = false
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[insight] 列表失败', e)
+      loadingMore.value = false
+      firstLoading.value = false
+      errorText.value = describe(e)
+      settleOne()
+    })
+}
+
+function loadStats(): void {
+  insightsService
+    .stats()
+    .then((res: InsightStats) => {
+      if (disposed) return
+      stats.value = res
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      // 统计只影响导航栏徽标，取不到不该让整页变成错误页；
+      // 但必须留痕，不静默
+      console.error('[insight] stats 失败', e)
+      settleOne()
+    })
+}
+
+function onLoadMore(): void {
+  if (disposed) return
+  if (loadingMore.value || !hasNext.value) return
+  loadingMore.value = true
+  loadList(page.value + 1, false)
+}
+
+// ────────────────────────────────────────────────────────────
+// 交互
+// ────────────────────────────────────────────────────────────
+
+/**
+ * 反馈。
+ * ★ 再次点击同一个选项等于撤销（后端支持 'none'），
+ *   否则用户点错了就只能一直挂着错的状态。
+ */
+function onFeedback(item: Insight, feedback: InsightFeedback): void {
+  if (disposed) return
+
+  const next: InsightFeedback = item.feedback == feedback ? 'none' : feedback
+
+  insightsService
+    .setFeedback(item.id, next)
+    .then((updated: Insight) => {
+      if (disposed) return
+      replaceInsight(updated)
+      // 给出反馈即视为已读，徽标要跟着变
+      loadStats()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[insight] 反馈失败', e)
+      uni.showToast({ title: describe(e), icon: 'none' })
+    })
+}
+
+/** 采纳。★ 只能一次，重复返回 50007 */
+function onAdopt(item: Insight): void {
+  if (disposed) return
+
+  insightsService
+    .adopt(item.id)
+    .then((updated: Insight) => {
+      if (disposed) return
+      replaceInsight(updated)
+      loadStats()
+      uni.showToast({ title: '收下了', icon: 'none' })
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[insight] 采纳失败', e)
+      uni.showToast({ title: describe(e), icon: 'none' })
+    })
+}
+
+/** 局部替换一条：反馈 / 采纳后就地更新，不必重拉整页 */
+function replaceInsight(updated: Insight): void {
+  const list = insights.value.slice()
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].id == updated.id) {
+      list[i] = updated
+      insights.value = list
+      return
+    }
+  }
+}
+
+/** 点未读徽标：提示回到第一条未读 */
+function scrollToFirst(): void {
+  uni.showToast({ title: '从上往下看就是新的', icon: 'none' })
+}
+
+// ────────────────────────────────────────────────────────────
+// 展示辅助
+// ────────────────────────────────────────────────────────────
+
+function kindLabel(kind: string): string {
+  if (kind == 'connection') return '可能的联系'
+  if (kind == 'emotion_granularity') return '情绪的颗粒度'
+  if (kind == 'belief_conflict') return '你说过两件事'
+  if (kind == 'timeline_diff') return '那时的你 和 现在的你'
+  if (kind == 'self_distance') return '拉远一点看'
+  return '我的观察'
+}
+
+function isUnread(item: Insight): boolean {
+  return item.readAt == null
+}
+
+function isAdopted(item: Insight): boolean {
+  return item.adoptedAt != null
+}
+
+/**
+ * 相对时间。
+ * ★ 只说「几天前」，不精确到分钟——过精确会让人去数「它多久才反应过来」。
+ */
+function timeAgo(iso: string): string {
+  if (iso.length < 10) return iso
+  return iso.substring(5, 10)
+}
+
+/** 把任意异常转成能展示的中文 */
+function describe(e: unknown): string {
+  if (e == null) return '出了点问题，稍后再试试'
+  const err = e as HttpErrorLike
+  if (err != null && typeof err.message === 'string' && err.message.length > 0) {
+    return err.message
+  }
+  return '出了点问题，稍后再试试'
+}
+
+/** 只取 message */
+type HttpErrorLike = {
+  message: string
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  width: 100%;
+  flex-direction: column;
+  background-color: var(--color-bg);
+}
+
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+.body-inner {
+  flex-direction: column;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-lg;
+}
+
+// ── 导航栏未读徽标 ────────────────────────────────────────
+.nav-badge {
+  @include m.tap-target;
+  min-width: t.$space-lg;
+  height: t.$space-lg;
+  padding-left: t.$space-xs;
+  padding-right: t.$space-xs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-primary);
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-badge-text {
+  font-size: t.$font-xs;
+  color: var(--color-text-on-primary);
+  @include m.tabular-nums;
+}
+
+// ── 顶部 ──────────────────────────────────────────────────
+.hero {
+  flex-direction: column;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-md;
+}
+
+.hero-title {
+  font-size: t.$font-xl;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.hero-sub {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 洞察卡片流 ────────────────────────────────────────────
+.stream {
+  flex-direction: column;
+}
+
+.card {
+  margin-bottom: t.$space-md;
+}
+
+.card-head {
+  flex-direction: row;
+  align-items: center;
+}
+
+// 类型标签：五类各一个颜色区分，帮助用户建立「哪种长什么样」的认知
+.kind-chip {
+  padding-left: t.$space-sm;
+  padding-right: t.$space-sm;
+  padding-top: t.$space-xxs;
+  padding-bottom: t.$space-xxs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-bg-sunken);
+}
+
+.kind-chip--connection {
+  background-color: var(--color-primary-soft);
+}
+
+.kind-chip--emotion_granularity {
+  background-color: var(--color-success-soft);
+}
+
+.kind-chip--timeline_diff {
+  background-color: var(--color-pill-bg);
+}
+
+.kind-chip--belief_conflict {
+  background-color: var(--color-warning-soft);
+}
+
+.kind-chip--self_distance {
+  background-color: var(--color-bg-sunken);
+}
+
+.kind-chip-text {
+  font-size: t.$font-xs;
+  color: var(--color-text-2);
+}
+
+// 未读：一个安静的实心点，不闪烁不做红点提醒
+.unread-dot {
+  width: t.$space-xs;
+  height: t.$space-xs;
+  margin-left: t.$space-xs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-glacier);
+}
+
+.card-title {
+  margin-top: t.$space-sm;
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.card-body {
+  margin-top: t.$space-sm;
+  font-size: t.$font-md;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-1);
+}
+
+// ── 视觉隐喻 1：潜在联系（两点一线）─────────────────────
+.viz-connect {
+  flex-direction: row;
+  align-items: center;
+  margin-top: t.$space-md;
+}
+
+.node {
+  width: t.$space-md;
+  height: t.$space-md;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-glacier);
+}
+
+.node--right {
+  background-color: var(--color-primary);
+}
+
+.wire {
+  flex: 1;
+  height: 1px;
+  margin-left: t.$space-xs;
+  margin-right: t.$space-xs;
+  background-color: var(--color-divider-strong);
+}
+
+// ── 视觉隐喻 2：情绪粒度（粗 → 细）──────────────────────
+.viz-gran {
+  flex-direction: row;
+  align-items: center;
+  margin-top: t.$space-md;
+}
+
+// 起点小、模糊
+.gran-from {
+  width: t.$space-lg;
+  height: t.$space-lg;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-skeleton);
+}
+
+// 终点大、实
+.gran-to {
+  width: t.$space-xl;
+  height: t.$space-xl;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-glacier);
+}
+
+.gran-arrow {
+  margin-left: t.$space-sm;
+  margin-right: t.$space-sm;
+  font-size: t.$font-md;
+  color: var(--color-text-3);
+}
+
+// ── 视觉隐喻 3：时间对照（那时的我 ↔ 现在的我）──────────
+.viz-time {
+  flex-direction: row;
+  align-items: center;
+  margin-top: t.$space-md;
+}
+
+.time-side {
+  flex-direction: row;
+  align-items: center;
+}
+
+.time-dot {
+  width: t.$space-sm;
+  height: t.$space-sm;
+  border-radius: t.$radius-pill;
+}
+
+.time-dot--past {
+  background-color: var(--color-text-3);
+}
+
+.time-dot--now {
+  background-color: var(--color-primary);
+}
+
+.time-cap {
+  margin-left: t.$space-xs;
+  font-size: t.$font-xs;
+  color: var(--color-text-2);
+}
+
+.time-link {
+  flex: 1;
+  height: 1px;
+  margin-left: t.$space-sm;
+  margin-right: t.$space-sm;
+  background-color: var(--color-divider-strong);
+}
+
+// ── 视觉隐喻 4：信念矛盾（左右对立）──────────────────────
+.viz-belief {
+  flex-direction: row;
+  align-items: center;
+  margin-top: t.$space-md;
+}
+
+.belief-side {
+  flex-direction: row;
+  align-items: center;
+}
+
+.belief-mark {
+  font-size: t.$font-xl;
+  font-weight: t.$weight-semibold;
+  color: var(--color-primary);
+}
+
+.belief-mark--right {
+  color: var(--color-text-3);
+}
+
+.belief-cap {
+  font-size: t.$font-xs;
+  color: var(--color-text-2);
+}
+
+.belief-gap {
+  flex: 1;
+  height: 1px;
+  margin-left: t.$space-md;
+  margin-right: t.$space-md;
+  // 虚线感：中间断开，两边对立
+  background-color: var(--color-divider);
+}
+
+// ── 视觉隐喻 5：自我距离化（引用样式）────────────────────
+.viz-quote {
+  flex-direction: row;
+  margin-top: t.$space-md;
+}
+
+.quote-bar {
+  width: t.$space-xxs;
+  align-self: stretch;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-glacier);
+}
+
+.quote-text {
+  flex: 1;
+  margin-left: t.$space-sm;
+  font-size: t.$font-md;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 置信度：★ 只有细进度条，不写「高/中/低」─────────────
+// 写成文字就成了打分，用户会去管理我的输出而不是说真话。
+.conf {
+  flex-direction: row;
+  align-items: center;
+  margin-top: t.$space-md;
+}
+
+.conf-track {
+  flex: 1;
+  height: t.$space-xxs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-track);
+  overflow: hidden;
+}
+
+.conf-fill {
+  // 宽度由内联 style 给出（confidence 0~100）
+  height: 100%;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-glacier);
+}
+
+.conf-cap {
+  margin-left: t.$space-sm;
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+}
+
+// ── 操作按钮 ──────────────────────────────────────────────
+.acts {
+  flex-direction: row;
+  align-items: center;
+  margin-top: t.$space-md;
+}
+
+.act {
+  @include m.tap-target;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-bg-sunken);
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.act--on {
+  background-color: var(--color-primary-soft);
+}
+
+// ★ 不用后代选择器（uni-app x 的 CSS 只支持 web 子集）
+.act-text--on {
+  color: var(--color-primary);
+}
+
+.act-gap {
+  width: t.$space-xs;
+}
+
+.act-text {
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+}
+
+.act--adopt {
+  background-color: var(--color-primary);
+}
+
+.act-text--adopt {
+  color: var(--color-text-on-primary);
+}
+
+.adopted {
+  margin-top: t.$space-md;
+  align-self: flex-start;
+  padding-left: t.$space-sm;
+  padding-right: t.$space-sm;
+  padding-top: t.$space-xxs;
+  padding-bottom: t.$space-xxs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-success-soft);
+}
+
+.adopted-text {
+  font-size: t.$font-sm;
+  color: var(--color-success);
+}
+
+.card-time {
+  margin-top: t.$space-sm;
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+  @include m.tabular-nums;
+}
+
+// ── 页脚 ──────────────────────────────────────────────────
+.stream-foot {
+  align-items: center;
+  padding-top: t.$space-md;
+  padding-bottom: t.$space-md;
+}
+
+.stream-foot-text {
+  font-size: t.$font-sm;
+  color: var(--color-text-3);
+  text-align: center;
+}
+
+.list-foot {
+  @include m.tap-target;
+  align-items: center;
+  justify-content: center;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-md;
+}
+
+.list-foot-text {
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+}
+</style>

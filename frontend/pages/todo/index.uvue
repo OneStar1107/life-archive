@@ -1,0 +1,984 @@
+<!--
+  pages/todo/index.uvue
+  ══════════════════════════════════════════════════════════════
+  待办· 时间与你
+  ══════════════════════════════════════════════════════════════
+
+  产品态度：
+    待办在这里不是「任务清单」，而是「你和我都记得的日子」。
+    所以：
+      1. 已逾期不催促，只陈述「逾期了 N 天」——不给红色警告色；
+      2. 生日 / 节日这类每年重复的事用醒目标记，让人一眼看到「又是一年」；
+      3. 关联的人物直接写出来（「老周的生日」比「生日」有用得多）。
+
+  数据来源：
+    todosService.grouped()  今天 / 未来 7 天 / 已逾期 / 最近完成
+    todosService.list()    上拉分页的全量列表
+
+  ★ 无底部 Tab 栏：从首页或「你」进入，是二级页面。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="待办 · 时间与你" />
+
+    <scroll-view
+      class="body"
+      scroll-y
+      :refresher-enabled="true"
+      :refresher-triggered="refreshing"
+      @refresherrefresh="onRefresh"
+      @scrolltolower="onLoadMore"
+    >
+      <view class="body-inner">
+        <!-- ── 失败态 ── -->
+        <AppEmpty
+          v-if="errorText != ''"
+          title="没能取到你的待办"
+          :description="errorText"
+          action-text="再试一次"
+          @action="loadAll"
+        />
+
+        <!-- ── 首屏加载 ── -->
+        <AppLoading v-else-if="firstLoading" type="skeleton" :rows="5" />
+
+        <template v-else>
+          <view class="hero">
+            <text class="hero-title">待办 · 时间与你</text>
+            <text class="hero-sub">收起来不是删除，是放进「以后再说」。我不催你，只是替你记着。</text>
+          </view>
+
+          <!-- 新建入口 -->
+          <AppButton variant="secondary" size="md" block text="记一件事" @click="openCreate" />
+
+          <AppCard v-if="creating" variant="solid" padding="lg" radius="lg" class="create">
+            <text class="create-title">记一件事</text>
+
+            <view class="seg seg--wrap">
+              <view
+                v-for="opt in kindOptions"
+                :key="opt.value"
+                class="seg-item"
+                :class="formKind == opt.value ? 'seg-item--on' : ''"
+                @click="formKind = opt.value"
+              >
+                <text class="seg-item-text" :class="formKind == opt.value ? 'seg-text--on' : ''">{{ opt.label }}</text>
+              </view>
+            </view>
+
+            <view class="form">
+              <AppInput
+                v-model="formTitle"
+                label="是什么"
+                placeholder="比如：给妈妈打电话"
+                :error="formError"
+                :disabled="submitting"
+              />
+
+              <view class="form-gap" />
+
+              <AppInput
+                v-model="formDate"
+                label="哪一天（可以不填）"
+                placeholder="YYYY-MM-DD"
+                hint="生日、节日填上日期，我会记得每年这一天"
+                :maxlength="10"
+                :disabled="submitting"
+              />
+
+              <view class="form-gap" />
+
+              <AppInput
+                v-model="formPeople"
+                label="和谁有关（可以不填）"
+                placeholder="用顿号分开，比如：老周、小李"
+                :disabled="submitting"
+              />
+            </view>
+
+            <!-- 年复开关：只在生日/ 节日 / 出行这类「每年一次」的事上出现 -->
+            <view v-if="isYearlyKind(formKind)" class="yearly">
+              <view class="yearly-btn" :class="formRepeat == 'yearly' ? 'yearly-btn--on' : ''" @click="toggleYearly">
+                <text class="yearly-btn-text" :class="formRepeat == 'yearly' ? 'yearly-text--on' : ''">每年重复</text>
+              </view>
+              <text class="yearly-hint">这件事每年都会回来找你</text>
+            </view>
+
+            <view class="create-actions">
+              <AppButton variant="text" size="md" text="算了" :disabled="submitting" @click="closeCreate" />
+              <view class="create-gap" />
+              <AppButton
+                variant="primary"
+                size="md"
+                :text="submitting ? '正在记下' : '记下来'"
+                :loading="submitting"
+                @click="onCreate"
+              />
+            </view>
+          </AppCard>
+
+          <!-- 四组 -->
+          <view class="group" v-if="group.today.length > 0">
+            <text class="group-title">今天</text>
+            <view class="group-list">
+              <view v-for="todo in group.today" :key="todo.id" class="item">
+                <AppCard variant="solid" padding="md" radius="md">
+                  <view class="item-row">
+                    <view class="check" :class="todo.status == 'done' ? 'check--done' : ''" @click="onToggle(todo)">
+                      <text class="check-mark" v-if="todo.status == 'done'">✓</text>
+                    </view>
+                    <view class="item-main" @click="onToggle(todo)">
+                      <view class="item-head">
+                        <text class="item-title" :class="todo.status == 'done' ? 'item-title--done' : ''">{{ todo.title }}</text>
+                        <view class="kind-tag">
+                          <text class="kind-tag-text">{{ kindLabel(todo.kind) }}</text>
+                        </view>
+                      </view>
+
+                      <!-- ★ 每年重复：最醒目的一行 -->
+                      <view v-if="todo.repeatRule == 'yearly'" class="repeat">
+                        <text class="repeat-text">每年这一天</text>
+                      </view>
+
+                      <text v-if="dueText(todo) != ''" class="item-due">{{ dueText(todo) }}</text>
+                      <text v-if="todo.people.length > 0" class="item-people">{{ peopleText(todo.people) }}</text>
+                      <text v-if="hasNote(todo.note)" class="item-note">{{ todo.note }}</text>
+                    </view>
+                  </view>
+                </AppCard>
+              </view>
+            </view>
+          </view>
+
+          <view class="group" v-if="group.overdue.length > 0">
+            <text class="group-title">已经过去的日子</text>
+            <view class="group-list">
+              <view v-for="todo in group.overdue" :key="todo.id" class="item">
+                <AppCard variant="solid" padding="md" radius="md">
+                  <view class="item-row">
+                    <view class="check" @click="onToggle(todo)">
+                      <text class="check-mark" v-if="todo.status == 'done'">✓</text>
+                    </view>
+                    <view class="item-main" @click="onToggle(todo)">
+                      <view class="item-head">
+                        <text class="item-title">{{ todo.title }}</text>
+                        <view class="kind-tag">
+                          <text class="kind-tag-text">{{ kindLabel(todo.kind) }}</text>
+                        </view>
+                      </view>
+                      <view v-if="todo.repeatRule == 'yearly'" class="repeat">
+                        <text class="repeat-text">每年这一天</text>
+                      </view>
+                      <!-- ★ 只陈述「过去多久」，不用警告色、不写「快去完成」 -->
+                      <text v-if="dueText(todo) != ''" class="item-due">{{ dueText(todo) }}</text>
+                      <text v-if="todo.people.length > 0" class="item-people">{{ peopleText(todo.people) }}</text>
+                    </view>
+                  </view>
+                </AppCard>
+              </view>
+            </view>
+          </view>
+
+          <view class="group" v-if="group.upcoming.length > 0">
+            <text class="group-title">未来 7 天</text>
+            <view class="group-list">
+              <view v-for="todo in group.upcoming" :key="todo.id" class="item">
+                <AppCard variant="solid" padding="md" radius="md">
+                  <view class="item-row">
+                    <view class="check" @click="onToggle(todo)">
+                      <text class="check-mark" v-if="todo.status == 'done'">✓</text>
+                    </view>
+                    <view class="item-main" @click="onToggle(todo)">
+                      <view class="item-head">
+                        <text class="item-title">{{ todo.title }}</text>
+                        <view class="kind-tag">
+                          <text class="kind-tag-text">{{ kindLabel(todo.kind) }}</text>
+                        </view>
+                      </view>
+                      <view v-if="todo.repeatRule == 'yearly'" class="repeat">
+                        <text class="repeat-text">每年这一天</text>
+                      </view>
+                      <text v-if="dueText(todo) != ''" class="item-due">{{ dueText(todo) }}</text>
+                      <text v-if="todo.people.length > 0" class="item-people">{{ peopleText(todo.people) }}</text>
+                    </view>
+                  </view>
+                </AppCard>
+              </view>
+            </view>
+          </view>
+
+          <view class="group" v-if="group.completed.length > 0">
+            <text class="group-title">最近完成的</text>
+            <view class="group-list">
+              <view v-for="todo in group.completed" :key="todo.id" class="item">
+                <AppCard variant="glass" padding="md" radius="md">
+                  <view class="item-row">
+                    <view class="check check--done">
+                      <text class="check-mark">✓</text>
+                    </view>
+                    <view class="item-main">
+                      <view class="item-head">
+                        <text class="item-title item-title--done">{{ todo.title }}</text>
+                        <view class="kind-tag">
+                          <text class="kind-tag-text">{{ kindLabel(todo.kind) }}</text>
+                        </view>
+                      </view>
+                      <text v-if="completedText(todo) != ''" class="item-done">{{ completedText(todo) }}</text>
+                    </view>
+                  </view>
+                </AppCard>
+              </view>
+            </view>
+          </view>
+
+          <!-- 四组全空的空态：这是最常见的新用户状态 -->
+          <AppEmpty
+            v-if="isGroupEmpty()"
+            title="还没有什么事"
+            description="生日、约好要做的事、你不想忘的日子，都可以放这儿。我不会催你。"
+            action-text="记第一件事"
+            @action="openCreate"
+          />
+
+          <!-- 上拉分页的全量列表 -->
+          <view class="section-head">
+            <text class="section-title">全部记录</text>
+          </view>
+
+          <AppEmpty
+            v-if="allTodos.length == 0"
+            title="这里还是空的"
+            description="上拉或者记一件新的，这里就会有内容。"
+          />
+
+          <view v-else class="group-list">
+            <view v-for="todo in allTodos" :key="todo.id" class="item">
+              <AppCard variant="glass" padding="md" radius="md">
+                <view class="item-row">
+                  <view class="check" :class="todo.status == 'done' ? 'check--done' : ''" @click="onToggle(todo)">
+                    <text class="check-mark" v-if="todo.status == 'done'">✓</text>
+                  </view>
+                  <view class="item-main" @click="onToggle(todo)">
+                    <view class="item-head">
+                      <text class="item-title" :class="todo.status == 'done' ? 'item-title--done' : ''">{{ todo.title }}</text>
+                      <view class="kind-tag">
+                        <text class="kind-tag-text">{{ kindLabel(todo.kind) }}</text>
+                      </view>
+                    </view>
+                    <view v-if="todo.repeatRule == 'yearly'" class="repeat">
+                      <text class="repeat-text">每年这一天</text>
+                    </view>
+                    <text v-if="dueText(todo) != ''" class="item-due">{{ dueText(todo) }}</text>
+                    <text v-if="todo.people.length > 0" class="item-people">{{ peopleText(todo.people) }}</text>
+                  </view>
+                </view>
+              </AppCard>
+            </view>
+          </view>
+
+          <view class="list-foot">
+            <text v-if="loadingMore" class="list-foot-text">正在加载更多</text>
+            <text v-else-if="hasNext" class="list-foot-text" @click="onLoadMore">上拉加载更多</text>
+            <text v-else-if="allTodos.length > 0" class="list-foot-text">— 到底了 —</text>
+          </view>
+        </template>
+      </view>
+    </scroll-view>
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppCard from '@/components/AppCard.uvue'
+import AppButton from '@/components/AppButton.uvue'
+import AppInput from '@/components/AppInput.uvue'
+import AppEmpty from '@/components/AppEmpty.uvue'
+import AppLoading from '@/components/AppLoading.uvue'
+import { useAppStore } from '@/stores/app'
+import { todosService } from '@/services/todos.service'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+import type { PageResult } from '@/core/http/types'
+import type { Todo, TodoGroup, TodoKind } from '@/services/types'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 与 pages.json 的 path 一致 */
+const PAGE_KEY: string = 'pages/todo/index'
+
+const PAGE_SIZE: number = 20
+
+/** 页面是否已卸载 */
+let disposed = false
+
+// ────────────────────────────────────────────────────────────
+// 类型与常量
+// ────────────────────────────────────────────────────────────
+
+/** 类型选项 */
+type KindOption = {
+  value: TodoKind
+  label: string
+}
+
+const kindOptions: KindOption[] = [
+  { value: 'task', label: '要做的事' },
+  { value: 'birthday', label: '生日' },
+  { value: 'festival', label: '节日' },
+  { value: 'trip', label: '出行' },
+]
+
+/** 空分组：避免模板里到处判空 */
+function emptyGroup(): TodoGroup {
+  return { today: [], upcoming: [], overdue: [], completed: [] }
+}
+
+// ────────────────────────────────────────────────────────────
+// 状态
+// ────────────────────────────────────────────────────────────
+
+const group = ref<TodoGroup>(emptyGroup())
+const allTodos = ref<Todo[]>([])
+
+const firstLoading = ref<boolean>(true)
+const refreshing = ref<boolean>(false)
+const loadingMore = ref<boolean>(false)
+const errorText = ref<string>('')
+
+const page = ref<number>(1)
+const hasNext = ref<boolean>(false)
+const pending = ref<number>(0)
+
+const creating = ref<boolean>(false)
+const submitting = ref<boolean>(false)
+const formTitle = ref<string>('')
+const formDate = ref<string>('')
+const formPeople = ref<string>('')
+const formKind = ref<TodoKind>('task')
+const formRepeat = ref<string>('none')
+const formError = ref<string>('')
+
+// ────────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(PAGE_KEY)
+  loadAll()
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  disposed = true
+  cancelByKey(PAGE_KEY)
+})
+
+// ────────────────────────────────────────────────────────────
+// 数据加载
+// ────────────────────────────────────────────────────────────
+
+function loadAll(): void {
+  if (disposed) return
+  firstLoading.value = true
+  errorText.value = ''
+  pending.value = 2
+
+  loadGrouped()
+  loadAllTodos(1, true)
+}
+
+function onRefresh(): void {
+  if (disposed) return
+  refreshing.value = true
+  errorText.value = ''
+  pending.value = 2
+
+  loadGrouped()
+  loadAllTodos(1, true)
+}
+
+function settleOne(): void {
+  if (disposed) return
+  if (pending.value > 0) pending.value -= 1
+  if (pending.value == 0) refreshing.value = false
+}
+
+function loadGrouped(): void {
+  todosService
+    .grouped()
+    .then((res: TodoGroup) => {
+      if (disposed) return
+      group.value = res
+      firstLoading.value = false
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[todo] grouped 失败', e)
+      firstLoading.value = false
+      errorText.value = describe(e)
+      settleOne()
+    })
+}
+
+function loadAllTodos(targetPage: number, reset: boolean): void {
+  page.value = targetPage
+
+  todosService
+    .list({ page: targetPage, pageSize: PAGE_SIZE })
+    .then((res: PageResult<Todo>) => {
+      if (disposed) return
+      if (reset) {
+        allTodos.value = res.list
+      } else {
+        allTodos.value = allTodos.value.concat(res.list)
+      }
+      hasNext.value = res.hasNext
+      loadingMore.value = false
+      firstLoading.value = false
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[todo] 列表失败', e)
+      loadingMore.value = false
+      firstLoading.value = false
+      errorText.value = describe(e)
+      settleOne()
+    })
+}
+
+function onLoadMore(): void {
+  if (disposed) return
+  if (loadingMore.value || !hasNext.value) return
+  loadingMore.value = true
+  loadAllTodos(page.value + 1, false)
+}
+
+// ────────────────────────────────────────────────────────────
+// 交互
+// ────────────────────────────────────────────────────────────
+
+/**
+ * 切换完成状态。
+ * ★ toggle 是 POST（不是 PATCH）：它有副作用——写 completedAt，
+ *   且对 yearly 重复会自动生成下一期，所以不能当成普通更新。
+ */
+function onToggle(todo: Todo): void {
+  if (disposed) return
+
+  todosService
+    .toggle(todo.id)
+    .then((_res: Todo) => {
+      if (disposed) return
+      // 局部先动一下，界面立刻响应；随后整体刷新对齐后端
+      loadGrouped()
+      loadAllTodos(1, true)
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[todo] toggle 失败', e)
+      // 50006「这件事已经完成了」等业务错误直接用后端文案
+      uni.showToast({ title: describe(e), icon: 'none' })
+      // 失败后重新拉一次，避免界面停留在错误状态
+      loadGrouped()
+    })
+}
+
+function openCreate(): void {
+  creating.value = true
+  formError.value = ''
+}
+
+function closeCreate(): void {
+  creating.value = false
+  formError.value = ''
+}
+
+function toggleYearly(): void {
+  formRepeat.value = formRepeat.value == 'yearly' ? 'none' : 'yearly'
+}
+
+function onCreate(): void {
+  if (disposed) return
+  if (submitting.value) return
+  formError.value = ''
+
+  const title = formTitle.value.trim()
+  if (title.length == 0) {
+    formError.value = '写一句是什么就行'
+    return
+  }
+
+  const date = normalizeDate(formDate.value)
+  if (date == null) {
+    formError.value = '日期写成 YYYY-MM-DD，或者留空'
+    return
+  }
+
+  submitting.value = true
+  const kind = formKind.value
+
+  todosService
+    .create({
+      title: title,
+      kind: kind,
+      dueAt: date == '' ? undefined : date,
+      // 只有「每年一次」的事才带重复规则，提醒事项不该 yearly
+      repeatRule: isYearlyKind(kind) ? formRepeat.value : 'none',
+      people: splitPeople(formPeople.value),
+    })
+    .then((_res: Todo) => {
+      if (disposed) return
+      submitting.value = false
+      closeCreate()
+      formTitle.value = ''
+      formDate.value = ''
+      formPeople.value = ''
+      formKind.value = 'task'
+      formRepeat.value = 'none'
+      uni.showToast({ title: '记下了', icon: 'none' })
+      loadGrouped()
+      loadAllTodos(1, true)
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      submitting.value = false
+      console.error('[todo] 新建失败', e)
+      formError.value = describe(e)
+    })
+}
+
+// ────────────────────────────────────────────────────────────
+// 展示辅助
+// ────────────────────────────────────────────────────────────
+
+function isGroupEmpty(): boolean {
+  const g = group.value
+  return g.today.length == 0 && g.upcoming.length == 0 && g.overdue.length == 0 && g.completed.length == 0
+}
+
+function hasNote(note: string | null): boolean {
+  return note != null && note.length > 0
+}
+
+function kindLabel(kind: string): string {
+  for (const opt of kindOptions) {
+    if (opt.value == kind) return opt.label
+  }
+  return '要做的事'
+}
+
+/** 生日 / 节日 / 出行天然是「每年一次」；提醒事项不是 */
+function isYearlyKind(kind: string): boolean {
+  return kind == 'birthday' || kind == 'festival' || kind == 'trip'
+}
+
+/**
+ * 日期文案。
+ * ★ 只显示 MM-DD，不做「还有 3 天」这类倒计时。
+ *   原因：算天数要解析日期，而 uts 各端对 Date 的时区处理不一致，
+ *   很容易差一天——差一天的倒计时比没有更糟。
+ * ★ 分组（今天 / 已逾期 / 未来 7 天）已由后端算好，
+ *   前端不重复判断，也就不用自己算日期。
+ */
+function dueText(todo: Todo): string {
+  const due = todo.dueAt
+  if (due == null || due.length < 10) return ''
+  return shortDate(due)
+}
+
+function completedText(todo: Todo): string {
+  const at = todo.completedAt
+  if (at == null || at.length < 10) return ''
+  return shortDate(at) + ' 完成'
+}
+
+function shortDate(iso: string): string {
+  return iso.substring(5, 10)
+}
+
+/** 关联人物：直接写出来，「老周的生日」比「生日」有用得多 */
+function peopleText(people: string[]): string {
+  if (people.length == 0) return ''
+  return '关于 ' + people.join('、')
+}
+
+/** 顿号 / 逗号 / 空格都当分隔符 */
+function splitPeople(raw: string): string[] {
+  const list: string[] = []
+  const parts = raw.split(/[、,，\s]+/)
+  for (const p of parts) {
+    const t = p.trim()
+    if (t.length > 0) list.push(t)
+  }
+  return list
+}
+
+/**
+ * 日期规整。
+ * 允许用户只写 2026-03-14 或 20260314；
+ * 校验不通过返回 null 让表单报错，合法但为空返回空串。
+ * ★ 不引 Date 解析：uts 各端对 Date 的时区处理不一致，容易差一天。
+ */
+function normalizeDate(raw: string): string | null {
+  const s = raw.trim()
+  if (s.length == 0) return ''
+
+  const compact = s.replace(/-/g, '')
+  if (compact.length != 8) return null
+
+  const year = compact.substring(0, 4)
+  const month = compact.substring(4, 6)
+  const day = compact.substring(6, 8)
+
+  const y = parseInt(year)
+  const m = parseInt(month)
+  const d = parseInt(day)
+  if (isNaN(y) || isNaN(m) || isNaN(d)) return null
+  if (m < 1 || m > 12) return null
+  if (d < 1 || d > 31) return null
+
+  return year + '-' + month + '-' + day
+}
+
+/** 把任意异常转成能展示的中文 */
+function describe(e: unknown): string {
+  if (e == null) return '出了点问题，稍后再试试'
+  const err = e as HttpErrorLike
+  if (err != null && typeof err.message === 'string' && err.message.length > 0) {
+    return err.message
+  }
+  return '出了点问题，稍后再试试'
+}
+
+/** 只取 message */
+type HttpErrorLike = {
+  message: string
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  width: 100%;
+  flex-direction: column;
+  background-color: var(--color-bg);
+}
+
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+.body-inner {
+  flex-direction: column;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-lg;
+}
+
+// ── 顶部 ──────────────────────────────────────────────────
+.hero {
+  flex-direction: column;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-md;
+}
+
+.hero-title {
+  font-size: t.$font-xl;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.hero-sub {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 新建表单 ──────────────────────────────────────────────
+.create {
+  margin-top: t.$space-md;
+}
+
+.create-title {
+  font-size: t.$font-md;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+  margin-bottom: t.$space-sm;
+}
+
+.create-actions {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: t.$space-md;
+}
+
+.create-gap {
+  width: t.$space-sm;
+}
+
+.form {
+  flex-direction: column;
+  margin-top: t.$space-sm;
+}
+
+.form-gap {
+  height: t.$space-sm;
+}
+
+// ── 分段选择器 ────────────────────────────────────────────
+.seg {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.seg-item {
+  @include m.tap-target;
+  flex: 1;
+  margin-right: t.$space-xs;
+  margin-bottom: t.$space-xs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-bg-sunken);
+  align-items: center;
+  justify-content: center;
+}
+
+.seg-item--on {
+  background-color: var(--color-primary);
+}
+
+.seg-item-text {
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+}
+
+// ★ 不用后代选择器（uni-app x 的 CSS 只支持 web 子集）
+.seg-text--on {
+  color: var(--color-text-on-primary);
+}
+
+// ── 每年重复开关 ──────────────────────────────────────────
+.yearly {
+  flex-direction: row;
+  align-items: center;
+  margin-top: t.$space-sm;
+}
+
+.yearly-btn {
+  @include m.tap-target;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-bg-sunken);
+  flex-direction: row;
+  align-items: center;
+}
+
+.yearly-btn--on {
+  background-color: var(--color-primary);
+}
+
+.yearly-btn-text {
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+}
+
+.yearly-text--on {
+  color: var(--color-text-on-primary);
+}
+
+.yearly-hint {
+  flex: 1;
+  margin-left: t.$space-sm;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+// ── 分组 ──────────────────────────────────────────────────
+.group {
+  flex-direction: column;
+  margin-top: t.$space-lg;
+}
+
+.group-title {
+  font-size: t.$font-md;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+  margin-bottom: t.$space-sm;
+}
+
+.group-list {
+  flex-direction: column;
+}
+
+.section-head {
+  flex-direction: column;
+  padding-top: t.$space-lg;
+  padding-bottom: t.$space-sm;
+}
+
+.section-title {
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+// ── 单条待办 ──────────────────────────────────────────────
+.item {
+  margin-bottom: t.$space-sm;
+}
+
+.item-row {
+  flex-direction: row;
+  align-items: flex-start;
+}
+
+// 勾选框：最小点击区 88rpx，视觉上是个小方块
+.check {
+  @include m.tap-target;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: t.$tap-min-size;
+  height: t.$tap-min-size;
+  border-radius: t.$radius-sm;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-divider-strong);
+  background-color: transparent;
+}
+
+.check--done {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.check-mark {
+  font-size: t.$font-md;
+  color: var(--color-text-on-primary);
+}
+
+.item-main {
+  flex: 1;
+  flex-direction: column;
+  margin-left: t.$space-sm;
+  // 让点整行都能触发，不必精确点到文字
+  padding-top: t.$space-xs;
+  padding-bottom: t.$space-xs;
+}
+
+.item-head {
+  flex-direction: row;
+  align-items: center;
+}
+
+.item-title {
+  flex: 1;
+  font-size: t.$font-md;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-1);
+}
+
+// 已完成：弱化而不是划掉，划掉像在否定这件事
+.item-title--done {
+  color: var(--color-text-3);
+}
+
+// 类型标记：小圆角底 + 极窄内边距，紧贴文字
+.kind-tag {
+  padding-left: t.$space-xs;
+  padding-right: t.$space-xs;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-radius: t.$radius-xs;
+  background-color: var(--color-bg-sunken);
+  margin-left: t.$space-xs;
+}
+
+.kind-tag-text {
+  font-size: t.$font-xs;
+  color: var(--color-text-2);
+}
+
+// ★ 每年重复：全页最醒目的标记，用主色的淡底
+.repeat {
+  flex-direction: row;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: t.$space-xs;
+  padding-left: t.$space-xs;
+  padding-right: t.$space-xs;
+  padding-top: t.$space-xxs;
+  padding-bottom: t.$space-xxs;
+  border-radius: t.$radius-xs;
+  background-color: var(--color-primary-soft);
+}
+
+.repeat-text {
+  font-size: t.$font-xs;
+  font-weight: t.$weight-medium;
+  color: var(--color-primary);
+}
+
+.repeat-cycle {
+  font-size: t.$font-xs;
+  color: var(--color-primary);
+}
+
+.item-due {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+  @include m.tabular-nums;
+}
+
+.item-done {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  color: var(--color-text-3);
+  @include m.tabular-nums;
+}
+
+.item-people {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+}
+
+.item-note {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+// ── 列表底部 ──────────────────────────────────────────────
+.list-foot {
+  @include m.tap-target;
+  align-items: center;
+  justify-content: center;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-md;
+}
+
+.list-foot-text {
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+}
+</style>

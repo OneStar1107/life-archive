@@ -1,0 +1,207 @@
+// styles/mixins.scss
+// ══════════════════════════════════════════════════════════════
+// 混入：安全区 / 断点 / 文本截断 / 卡片
+// ══════════════════════════════════════════════════════════════
+
+@use './tokens.scss' as t;
+
+// ────────────────────────────────────────────────────────────
+// 安全区（04 号 T2 —— 最容易出错的地方）
+// ────────────────────────────────────────────────────────────
+//
+// ★ 必须同时写 constant() 与 env() 两行，缺一不可：
+//   - 老 Android WebView 不认 env()，只认 constant()
+//   - 新浏览器与 iOS 12.2+ 只认 env()
+//
+// uni-app x 4.52+ 另外提供原生 CSS 变量
+// --uni-safe-area-inset-top/bottom/left/right，
+// 原生层算得比 Web 兼容写法准，优先用它们（见 mixin safe-bottom-native）。
+
+@mixin safe-bottom($extra: 0) {
+  padding-bottom: calc(#{$extra} + constant(safe-area-inset-bottom));
+  padding-bottom: calc(#{$extra} + env(safe-area-inset-bottom));
+}
+
+@mixin safe-top($extra: 0) {
+  padding-top: calc(#{$extra} + constant(safe-area-inset-top));
+  padding-top: calc(#{$extra} + env(safe-area-inset-top));
+}
+
+@mixin safe-left($extra: 0) {
+  padding-left: calc(#{$extra} + constant(safe-area-inset-left));
+  padding-left: calc(#{$extra} + env(safe-area-inset-left));
+}
+
+@mixin safe-right($extra: 0) {
+  padding-right: calc(#{$extra} + constant(safe-area-inset-right));
+  padding-right: calc(#{$extra} + env(safe-area-inset-right));
+}
+
+/**
+ * 固定底栏标准写法（04 号 T2）。
+ *
+ * ⚠️ 禁止直接 `position: fixed; bottom: 0`——
+ * 那样会被 Home Indicator / 手势条压住。
+ *
+ * 用法：
+ *   .tabbar {
+ *     @include fixed-bottom-bar;
+ *   }
+ *   // 内容区必须留出等高的占位：
+ *   .content {
+ *     padding-bottom: calc(#{t.$tabbar-height} + env(safe-area-inset-bottom));
+ *   }
+ */
+@mixin fixed-bottom-bar($bg: var(--color-nav-bg)) {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: t.$z-tabbar;
+  background-color: $bg;
+  @include safe-bottom;
+}
+
+/** 固定顶栏（配合 navigationStyle: custom） */
+@mixin fixed-top-bar($bg: var(--color-bg)) {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: t.$z-navbar;
+  background-color: $bg;
+  @include safe-top;
+}
+
+/**
+ * 全屏遮罩层（loading / dialog / 阻止底层点击）。
+ *
+ * ⚠️ 这是唯一允许「四边都写死0」的定位场景——
+ *   它不是底栏，不需要 safe-bottom，
+ *   但也不能让底层内容被点到，所以必须铺满并吃事件。
+ */
+@mixin fixed-overlay($bg: var(--color-mask)) {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: t.$z-overlay;
+  background-color: $bg;
+}
+
+/** 自定义导航栏总高度：状态栏 + 内容区 */
+@mixin navbar-height {
+  height: calc(var(--status-bar-height, 0px) + #{t.$navbar-content-height});
+}
+
+// ────────────────────────────────────────────────────────────
+// 断点（04 号 T4）
+// ────────────────────────────────────────────────────────────
+//
+// ⚠️ uni-app x 的 CSS 只支持 web 子集，**不支持媒体查询**。
+// 因此断点必须改用 JS 判断：调用 platform.columnCount() 决定列数，
+// 并用 .is-wide / .is-tablet 类名切换布局。
+// 下面这两个 mixin 保留给支持媒体查询的平台（如 H5 预览），
+// 在 App 端它们不会生效，App 端一律走 JS 分档。
+
+@mixin respond-phone {
+  @media (max-width: 599px) {
+    @content;
+  }
+}
+
+@mixin respond-wide {
+  @media (min-width: 600px) {
+    @content;
+  }
+}
+
+@mixin respond-tablet {
+  @media (min-width: 840px) {
+    @content;
+  }
+}
+
+/** 内容区最大宽度 + 居中（平板上避免单列拉伸变形） */
+@mixin content-constrain {
+  width: 100%;
+  max-width: t.$content-max-width;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+// ────────────────────────────────────────────────────────────
+// 文本（04 号 T7）
+// ────────────────────────────────────────────────────────────
+
+/** 单行省略 */
+@mixin text-ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/** 多行省略 */
+@mixin text-ellipsis-lines($lines: 2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: $lines;
+  -webkit-box-orient: vertical;
+}
+
+/** 数字等宽，避免列表跳动 */
+@mixin tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum';
+}
+
+/** 最小可点击区域（04 号硬约束 88rpx × 88rpx） */
+@mixin tap-target {
+  min-width: t.$tap-min-size;
+  min-height: t.$tap-min-size;
+  align-items: center;
+  justify-content: center;
+}
+
+// ────────────────────────────────────────────────────────────
+// 卡片与容器
+// ────────────────────────────────────────────────────────────
+
+@mixin card($radius: t.$radius-lg) {
+  background-color: var(--color-bg-elevated);
+  border-radius: $radius;
+  box-shadow: t.$shadow-md;
+}
+
+/** 毛玻璃卡片（产品的冰川视觉语言） */
+@mixin glass-card($radius: t.$radius-lg) {
+  background-color: var(--color-glass);
+  border-radius: $radius;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-glass-border);
+  box-shadow: t.$shadow-sm;
+}
+
+/** 1px 分割线（唯一允许的 px 用法） */
+@mixin divider($direction: horizontal) {
+  @if $direction == horizontal {
+    height: 1px;
+    background-color: var(--color-divider);
+  } @else {
+    width: 1px;
+    background-color: var(--color-divider);
+  }
+}
+
+// ────────────────────────────────────────────────────────────
+// 骨架屏
+// ────────────────────────────────────────────────────────────
+
+@mixin skeleton($height: 32rpx, $radius: t.$radius-sm) {
+  height: $height;
+  border-radius: $radius;
+  background-color: var(--color-skeleton);
+}

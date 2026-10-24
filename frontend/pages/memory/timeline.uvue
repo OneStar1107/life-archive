@@ -1,0 +1,509 @@
+<!--
+  pages/memory/timeline —— 记忆时间轴
+  ══════════════════════════════════════════════════════════════
+  一条垂直时间线，左侧一条竖线 + 节点圆点，按 occurredAt 排序。
+
+  ★ 顶部统计是这一页存在的理由：
+    「你已经改变了 N 个看法」——
+    把「当时的我」与「现在的我」都写过的节点数变成一个用户能感知的数字。
+    没有这个数字，用户永远不知道自己「变过」，
+    于是这个产品的核心能力就静默地浪费了。
+
+  ★ 有 hasShift 的节点用冰川蓝实心圆点 +「已变化」标记突出：
+    这不是「重要」的标记，而是「发生过转变」的标记。
+    所以配色用冰川蓝（产品的变化色）而不是警示色——
+    一次想法的转变不是坏事，不该用红黄去暗示。
+
+  设计约束：
+    1. 全部颜色/间距/圆角走 var(--xxx) 与 t.$xxx，页面内零字面量。
+    2. 文字全部包在 <text> 里（红线第 1 条）。
+    3. 竖线用一个独立 view 画，不用 border-left 挂在每一项上——
+       那样每项的竖线会随内容高度断开，对不齐。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="记忆时间轴" :show-back="true" />
+
+    <scroll-view class="body" scroll-y>
+      <!-- 加载态 -->
+      <view v-if="loading" class="content">
+        <AppLoading type="skeleton" :rows="5" />
+      </view>
+
+      <!-- 错误态：带重试，绝不白屏 -->
+      <AppEmpty
+        v-else-if="loadFailed"
+        icon="⚠"
+        title="没能读到时间轴"
+        :description="errorText"
+        action-text="重试一次"
+        @action="loadTimeline"
+      />
+
+      <!-- 空态 -->
+      <AppEmpty
+        v-else-if="entries.length == 0"
+        icon="◌"
+        title="时间轴还是空的"
+        description="记下第一件事，它就会出现在这里。"
+        action-text="回到记忆"
+        @action="onGoMemory"
+      />
+
+      <view v-else class="content">
+        <!-- ★ 顶部统计：把「改变了 N 个看法」摆在最显眼的地方 -->
+        <AppCard padding="md">
+          <text class="stat-number">{{ shiftedCountText }}</text>
+          <text class="stat-sub">{{ statSubText }}</text>
+        </AppCard>
+
+        <view class="range-row">
+          <text class="range-text">{{ rangeText }}</text>
+        </view>
+
+        <!-- 时间轴主体：左竖线 + 逐项节点 -->
+        <view class="timeline">
+          <!-- 竖线：一个贯通整条时间线的 view。
+               不用 border-left 挂在每项上，那样每项会各画一段，
+               高度随内容变化，结果是断断续续的锯齿 -->
+          <view class="axis" />
+
+          <view
+            v-for="(e, idx) in entries"
+            :key="e.memoryId"
+            class="entry"
+            @click="onGoDetail(e.memoryId)"
+          >
+            <!-- 节点圆点：已变化的用冰川色实心，其余用空心。
+                 ★ 视觉上必须能一眼扫出「哪几个变过」 -->
+            <view class="entry-node-col">
+              <view class="entry-node" :class="e.hasShift ? 'entry-node--shift' : ''">
+                <text v-if="e.hasShift" class="entry-node-mark">✦</text>
+              </view>
+            </view>
+
+            <!-- 卡片内容 -->
+            <view class="entry-card">
+              <AppCard padding="sm">
+                <view class="entry-head">
+                  <text v-if="hasIcon(e.icon)" class="entry-icon">{{ e.icon }}</text>
+                  <text v-else class="entry-icon entry-icon--blank">◦</text>
+                  <text class="entry-title">{{ e.title }}</text>
+                </view>
+
+                <text class="entry-date">{{ dateTextOf(e.occurredAt) }}</text>
+
+                <!-- ★ 已变化的节点：直接展示两个视角的对照。
+                     不跳详情页也能看到「变了什么」，
+                     这是时间轴相对于列表页最大的价值 -->
+                <view v-if="e.hasShift" class="entry-shift">
+                  <view class="entry-shift-side">
+                    <text class="entry-shift-cap">当时</text>
+                    <text class="entry-shift-text">{{ e.pastSelfView }}</text>
+                  </view>
+
+                  <view class="entry-shift-line" />
+
+                  <view class="entry-shift-side">
+                    <text class="entry-shift-cap">现在</text>
+                    <text class="entry-shift-text">{{ e.presentSelfView }}</text>
+                  </view>
+                </view>
+
+                <!-- 没变化：只给「当时」的视角，并明确说「还没变过」，
+                     而不是显示一个空的「现在」栏让人以为出bug 了 -->
+                <view v-else-if="hasContent(e.pastSelfView)" class="entry-single">
+                  <text class="entry-single-text">{{ e.pastSelfView }}</text>
+                </view>
+
+                <view class="entry-foot">
+                  <view v-if="e.hasShift" class="shift-badge">
+                    <text class="shift-badge-text">已变化</text>
+                  </view>
+                  <text class="entry-arrow">›</text>
+                </view>
+              </AppCard>
+            </view>
+          </view>
+        </view>
+
+        <view class="tail-gap" />
+      </view>
+    </scroll-view>
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppCard from '@/components/AppCard.uvue'
+import AppEmpty from '@/components/AppEmpty.uvue'
+import AppLoading from '@/components/AppLoading.uvue'
+import { memoriesService } from '@/services'
+import type { TimelineEntry } from '@/services'
+import { messageOfError } from '@/core/http/error-code'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+import { fullTime } from '@/core/utils/datetime'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 取消键：与 onUnload 的 cancelByKey 成对 */
+const ABORT_KEY = 'pages/memory/timeline'
+
+const entries = ref<TimelineEntry[]>([])
+const shiftedCount = ref<number>(0)
+const earliest = ref<string>('')
+const latest = ref<string>('')
+const loading = ref<boolean>(true)
+const loadFailed = ref<boolean>(false)
+const errorText = ref<string>('')
+
+// ── 派生数据 ─────────────────────────────────────────────
+
+/**
+ * ★ 顶部那句核心文案。
+ * 直接说「你已经改变了 N 个看法」——
+ * 不用「共N 条记录」这种中性说法，因为用户来这里就是想看变化。
+ */
+const shiftedCountText = computed<string>(() => {
+  const n = shiftedCount.value
+  if (n === 0) return '你还没有写下第二个视角'
+  return `你已经改变了 ${n} 个看法`
+})
+
+/** 副文案：0 个变化时给引导，否则给一句陈述（不加评价） */
+const statSubText = computed<string>(() => {
+  const n = shiftedCount.value
+  const total = entries.value.length
+  if (n === 0) {
+    return '在每条记忆里写下「当时的我」和「现在的我」，这里就会开始计数。'
+  }
+  return `一共 ${total} 件事，其中有 ${n} 件你的看法不一样了。`
+})
+
+/** 时间跨度：最早到最晚 */
+const rangeText = computed<string>(() => {
+  if (earliest.value.length === 0 || latest.value.length === 0) return ''
+  return `${fullTime(earliest.value)} — ${fullTime(latest.value)}`
+})
+
+function hasIcon(icon: string | null): boolean {
+  return icon != null && icon.length > 0
+}
+
+function hasContent(v: string | null): boolean {
+  return v != null && v.length > 0
+}
+
+function dateTextOf(iso: string): string {
+  return fullTime(iso)
+}
+
+// ────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(ABORT_KEY)
+  loadTimeline()
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  // ★ 页面卸载必须取消在途请求，否则回调会更新已销毁的 ref
+  const n = cancelByKey(ABORT_KEY)
+  if (n > 0) {
+    console.log(`[timeline] 页面卸载，取消 ${n} 个在途请求`)
+  }
+})
+
+// ────────────────────────────────────────────────────────
+// 加载
+// ────────────────────────────────────────────────────────
+
+async function loadTimeline(): Promise<void> {
+  loading.value = true
+  loadFailed.value = false
+
+  try {
+    const res = await memoriesService.timeline()
+    entries.value = res.entries
+    shiftedCount.value = res.shiftedCount
+    earliest.value = res.earliest == null ? '' : res.earliest
+    latest.value = res.latest == null ? '' : res.latest
+  } catch (e) {
+    // ★ 不吞错误：错误态 + 可点的重试
+    console.error('[timeline] 时间轴加载失败', e)
+    errorText.value = messageOfError(e)
+    loadFailed.value = true
+    entries.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+// ────────────────────────────────────────────────────────
+// 交互
+// ────────────────────────────────────────────────────────
+
+function onGoDetail(id: string): void {
+  uni.navigateTo({
+    url: `/pages/memory/detail?id=${id}`,
+    fail: (err) => {
+      console.error('[timeline] 跳转记忆详情失败', err)
+      uni.showToast({ title: '页面还没打开，请稍后再试', icon: 'none' })
+    },
+  })
+}
+
+function onGoMemory(): void {
+  uni.switchTab({
+    url: '/pages/memory/index',
+    fail: () => {
+      console.error('[timeline] 返回记忆 Tab 失败')
+      uni.showToast({ title: '返回失败，请手动返回', icon: 'none' })
+    },
+  })
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  background-color: var(--color-bg);
+}
+
+// ★ 不用 vh 单位
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+.content {
+  width: 100%;
+  @include m.content-constrain;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-md;
+}
+
+// ── 顶部统计 ─────────────────────────────────────────────
+.stat-number {
+  font-size: t.$font-xl;
+  font-weight: t.$weight-bold;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+}
+
+.stat-sub {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+.range-row {
+  margin-top: t.$space-md;
+  margin-bottom: t.$space-sm;
+}
+
+.range-text {
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+// ── 时间轴 ───────────────────────────────────────────────
+.timeline {
+  width: 100%;
+  flex-direction: row;
+  // 竖线用绝对定位铺在左侧；条目靠 padding-left 让开它
+  position: relative;
+}
+
+// ★ 一条贯通的竖线。不用 border-left 挂在每项上：
+//   每项内容高度不同，竖线会断成锯齿
+.axis {
+  position: absolute;
+  left: t.$space-md;
+  top: t.$space-lg;
+  bottom: t.$space-lg;
+  width: 1px;
+  background-color: var(--color-divider-strong);
+}
+
+.entry {
+  flex-direction: row;
+  align-items: stretch;
+  // 让开左侧竖线与圆点
+  padding-left: t.$space-xxl;
+  margin-bottom: t.$space-md;
+}
+
+// ── 节点圆点列 ───────────────────────────────────────────
+.entry-node-col {
+  // 固定宽度，竖线正好落在圆心
+  width: t.$space-xxl;
+  margin-left: calc(-1 * #{t.$space-xxl});
+  align-items: center;
+}
+
+.entry-node {
+  width: t.$space-lg;
+  height: t.$space-lg;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-bg);
+  // 1px 边框是全项目唯一允许的 px 字面量
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-divider-strong);
+  align-items: center;
+  justify-content: center;
+}
+
+// ★ 已变化：实心冰川色。
+//   不用红黄警示色—— 一次想法的转变不是坏事，
+//   用警示色会暗示「你出问题了」，那是评判不是记录
+.entry-node--shift {
+  background-color: var(--color-glacier);
+  border-color: var(--color-glacier);
+}
+
+.entry-node-mark {
+  font-size: t.$font-xs;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-on-primary);
+}
+
+.entry-card {
+  flex: 1;
+}
+
+// ── 条目内容 ─────────────────────────────────────────────
+.entry-head {
+  flex-direction: row;
+  align-items: center;
+}
+
+.entry-icon {
+  font-size: t.$font-md;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-2);
+  margin-right: t.$space-xs;
+}
+
+.entry-icon--blank {
+  color: var(--color-text-3);
+}
+
+.entry-title {
+  flex: 1;
+  font-size: t.$font-md;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+  @include m.text-ellipsis;
+}
+
+.entry-date {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+// ── 视角对照（已变化的条目直接内联展示）──────────────────
+.entry-shift {
+  flex-direction: column;
+  margin-top: t.$space-sm;
+  padding-top: t.$space-sm;
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: var(--color-divider);
+}
+
+.entry-shift-side {
+  flex-direction: column;
+}
+
+.entry-shift-cap {
+  font-size: t.$font-xs;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+  margin-bottom: t.$space-xxs;
+}
+
+.entry-shift-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-1);
+}
+
+// 两个视角之间的分隔线。细一点、短一点，
+// 避免看起来像一条硬边界——转变是连续的
+.entry-shift-line {
+  width: t.$space-xxxl;
+  height: 1px;
+  background-color: var(--color-divider);
+  margin-top: t.$space-sm;
+  margin-bottom: t.$space-sm;
+}
+
+// ── 只有一个视角时 ───────────────────────────────────────
+.entry-single {
+  margin-top: t.$space-sm;
+  padding-top: t.$space-sm;
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: var(--color-divider);
+}
+
+.entry-single-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 条目底行 ─────────────────────────────────────────────
+.entry-foot {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: t.$space-sm;
+}
+
+.shift-badge {
+  background-color: var(--color-primary-soft);
+  border-radius: t.$radius-pill;
+  padding-left: t.$space-sm;
+  padding-right: t.$space-sm;
+  padding-top: t.$space-xxs;
+  padding-bottom: t.$space-xxs;
+}
+
+.shift-badge-text {
+  font-size: t.$font-xs;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-normal;
+  color: var(--color-primary);
+}
+
+.entry-arrow {
+  font-size: t.$font-lg;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-3);
+}
+
+.tail-gap {
+  @include m.safe-bottom(t.$space-lg);
+  width: 100%;
+  height: t.$space-lg;
+}
+</style>

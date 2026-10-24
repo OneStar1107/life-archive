@@ -1,0 +1,466 @@
+<!--
+  pages/login/login —— 登录
+  ══════════════════════════════════════════════════════════════
+  产品立场：
+    1. 游客可浏览。「暂不登录，先看看」是一等公民按钮，不是被藏起来的兜底。
+    2. 「我忘了密码」**只做 UI 占位**。后端目前没有这个接口
+       （见 services/auth.service.ts 的路由清单），
+       做一个假的「重置流程」比不做更糟——用户会填完表才发现没地方提交。
+       所以点击只给一句「请联系客服重置」。
+    3. 错误文案一律走 error-code.ts 的 messageOfError，
+       页面不自己写「登录失败」这种与后端不一致的说法。
+
+  设计约束：
+    1. 全部颜色/间距/圆角走 var(--xxx) 与 t.$xxx，页面内零字面量。
+    2. 文字全部包在 <text> 里（红线第 1 条）。
+    3. 事件用 @click（红线第 4 条）。
+    4. 本页在 core/router/guard.ts 的白名单里，不需要登录态。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppSafeTop />
+
+    <scroll-view class="body" scroll-y>
+      <!-- 已登录用户切号：login/register 在守卫白名单里，已登录也能进，
+           给出「退出并切换账号」入口，不必绕到设置页 -->
+      <view v-if="showLoggedIn" class="switch-bar">
+        <text class="switch-text">当前已登录：{{ displayName }}</text>
+        <view class="switch-action" @click="onSwitchAccount">
+          <text class="switch-action-text">退出并切换</text>
+        </view>
+      </view>
+
+      <view class="head">
+        <text class="head-glyph">❄</text>
+        <text class="head-title">欢迎回来</text>
+        <text class="head-sub">这里只有你自己写下的东西。慢慢来。</text>
+      </view>
+
+      <view class="form">
+        <AppInput
+          v-model="phone"
+          label="手机号"
+          placeholder="请输入手机号"
+          type="number"
+          :maxlength="11"
+          clearable
+          :error="phoneError"
+        />
+
+        <view class="form-gap" />
+
+        <AppInput
+          v-model="password"
+          label="密码"
+          placeholder="请输入密码"
+          :maxlength="32"
+          :error="pwdError"
+          @focus="onPwdFocus"
+        />
+      </view>
+
+      <!-- 提交级错误横幅：字段级错误走 AppInput 的 error 属性，
+           提交级错误（密码不对 / 服务不可用）走这里 -->
+      <view v-if="bannerError != ''" class="banner">
+        <view class="banner-box">
+          <text class="banner-text">{{ bannerError }}</text>
+        </view>
+      </view>
+
+      <view class="links">
+        <view class="link" @click="onForgotPassword">
+          <text class="link-text">我忘了密码</text>
+        </view>
+      </view>
+
+      <view class="actions">
+        <AppButton
+          variant="primary"
+          size="lg"
+          block
+          :loading="submitting"
+          :text="submitText"
+          @click="onSubmit"
+        />
+      </view>
+
+      <view class="foot">
+        <view class="foot-row" @click="onGoRegister">
+          <text class="foot-text">还没有账号？</text>
+          <text class="foot-link">去注册</text>
+        </view>
+
+        <view class="foot-row" @click="onSkip">
+          <text class="foot-text foot-text--dim">暂不登录，先看看</text>
+        </view>
+      </view>
+
+      <view class="safe-gap" />
+    </scroll-view>
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+import AppSafeTop from '@/components/AppSafeTop.uvue'
+import AppInput from '@/components/AppInput.uvue'
+import AppButton from '@/components/AppButton.uvue'
+import { useAuthStore } from '@/stores/auth'
+import { messageOfError, messageOf, CODE } from '@/core/http/error-code'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 与 pages.json 的 path 一致，作为本页在途请求的取消分组键 */
+const PAGE_KEY: string = 'pages/login/login'
+
+const authStore = useAuthStore()
+
+/** 已登录用户本页（守卫白名单）也能进，给出「退出并切换」入口 */
+const showLoggedIn = computed<boolean>(() => authStore.isLoggedIn)
+/** 当前登录的昵称，给切号条展示 */
+const displayName = computed<string>(() => authStore.displayName)
+
+const phone = ref<string>('')
+const password = ref<string>('')
+const submitting = ref<boolean>(false)
+/** 提交后的错误横幅。字段级错误（phoneError/pwdError）走 AppInput 的 error 属性 */
+const bannerError = ref<string>('')
+
+// ── 字段级校验 ───────────────────────────────────────────
+// ★ 只做「明显不可能对」的本地拦截，权威判定在后端：
+//   端上校验规则与后端 DTO 重复一份，两边一旦不一致就会出现
+//   「端上放行、后端拒绝」的白白一次请求。
+const phoneError = computed<string>(() => {
+  if (phone.value.length == 0) return ''
+  if (phone.value.length != 11) return messageOf(CODE.PHONE_INVALID)
+  return ''
+})
+
+const pwdError = computed<string>(() => {
+  if (password.value.length == 0) return ''
+  if (password.value.length < 8) return messageOf(CODE.PASSWORD_WEAK)
+  return ''
+})
+
+const submitText = computed<string>(() => {
+  return submitting.value ? '正在登录' : '登录'
+})
+
+// ────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(PAGE_KEY)
+  bannerError.value = ''
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求。
+  //   登录请求不能比页面活得久，否则用户已离开还会被提示「密码错误」
+  clearAbortScope()
+  cancelByKey(PAGE_KEY)
+})
+
+// ────────────────────────────────────────────────────────
+// 提交
+// ────────────────────────────────────────────────────────
+
+async function onSubmit(): Promise<void> {
+  if (submitting.value) return
+
+  // 本地只拦「空」与「格式明显不对」两种
+  if (phone.value.length != 11) {
+    bannerError.value = messageOf(CODE.PHONE_INVALID)
+    return
+  }
+  if (password.value.length < 8) {
+    bannerError.value = messageOf(CODE.PASSWORD_WEAK)
+    return
+  }
+
+  submitting.value = true
+  bannerError.value = ''
+
+  try {
+    await authStore.login(phone.value, password.value)
+    // ★ 登录成功后用 reLaunch 而不是 navigateTo/redirectTo：
+    //   1. 登录页不该留在栈里（reLaunch 清空页面栈）；
+    //   2. 首页是 tabBar 页，redirectTo **不允许**跳 tabBar 页（会静默失败）；
+    //   3. url 必须带前导 `/`，不带会被按相对路径解析（已踩坑）。
+    uni.reLaunch({
+      url: '/pages/index/index',
+      fail: () => {
+        console.error('[login] 登录成功但跳转首页失败')
+        uni.showToast({ title: '已经登录了，稍后手动返回', icon: 'none' })
+      },
+    })
+  } catch (e) {
+    // ★ 不吞错误：横幅给用户看，日志给开发看
+    console.error('[login] 登录失败', e)
+    bannerError.value = messageOfError(e)
+  } finally {
+    // 失败也要解锁，否则按钮永远转圈
+    submitting.value = false
+  }
+}
+
+function onPwdFocus(): void {
+  bannerError.value = ''
+}
+
+// ────────────────────────────────────────────────────────
+// 其他入口
+// ────────────────────────────────────────────────────────
+
+function onForgotPassword(): void {
+  // ★ 刻意不做「重置流程」：后端没有这个接口。
+  //   给一个假的表单比给一句实话更糟——用户会认真填完再发现提交不了。
+  uni.showToast({ title: '请联系客服重置', icon: 'none' })
+}
+
+function onGoRegister(): void {
+  uni.navigateTo({
+    url: '/pages/register/register',
+    fail: () => {
+      console.error('[login] 跳转注册页失败')
+      uni.showToast({ title: '页面还没打开，请稍后再试', icon: 'none' })
+    },
+  })
+}
+
+/** 游客浏览：直接去首页。首页请求失败时会各自降级，不影响浏览 */
+function onSkip(): void {
+  uni.reLaunch({
+    // ★ reLaunch 允许跳 tabBar 页，但 url 必须带前导 `/`（不带会按相对路径解析而静默失败）
+    url: '/pages/index/index',
+    fail: () => {
+      console.error('[login] 游客进入首页失败')
+      uni.showToast({ title: '首页还没打开，请稍后再试', icon: 'none' })
+    },
+  })
+}
+
+/**
+ * 已登录时点「退出并切换」：清掉当前登录态，留在登录页换号。
+ * 登录页在守卫白名单里，已登录用户也能进来（例如想换号），
+ * 这时给一个直接的退出入口，不必绕到「设置 → 账号 → 退出账号」。
+ */
+async function onSwitchAccount(): Promise<void> {
+  try {
+    await authStore.logout()
+  } catch (e) {
+    console.error('[login] 退出失败', e)
+  }
+  // 清掉刚填的表单，避免残留
+  phone.value = ''
+  password.value = ''
+  bannerError.value = ''
+  uni.showToast({ title: '已退出，可登录其他账号', icon: 'none' })
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  background-color: var(--color-bg);
+}
+
+// ★ 不用 vh 单位：页面是 flex: 1，scroll-view 撑满剩余空间
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+// ── 头部 ─────────────────────────────────────────────────
+.head {
+  width: 100%;
+  @include m.content-constrain;
+  flex-direction: column;
+  align-items: center;
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+  padding-top: t.$space-xxl;
+  padding-bottom: t.$space-xl;
+}
+
+.head-glyph {
+  font-size: t.$font-display;
+  line-height: t.$line-height-tight;
+  color: var(--color-glacier);
+}
+
+.head-title {
+  margin-top: t.$space-md;
+  font-size: t.$font-xl;
+  font-weight: t.$weight-bold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.head-sub {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+  text-align: center;
+}
+
+// ── 表单 ─────────────────────────────────────────────────
+.form {
+  width: 100%;
+  @include m.content-constrain;
+  flex-direction: column;
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+}
+
+.form-gap {
+  height: t.$space-md;
+}
+
+// ── 错误横幅 ─────────────────────────────────────────────
+.banner {
+  width: 100%;
+  @include m.content-constrain;
+  margin-top: t.$space-md;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+}
+
+.banner-box {
+  @include m.glass-card(t.$radius-md);
+  padding: t.$space-sm;
+  // 错误态的底色用 danger-soft 而不是 primary-soft，
+  // 否则「红色文案 + 蓝底」会显得像系统提示而不是错误
+  background-color: var(--color-danger-soft);
+}
+
+.banner-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-danger);
+}
+
+// ── 「我忘了密码」─────────────────────────────────────────
+.links {
+  width: 100%;
+  @include m.content-constrain;
+  flex-direction: row;
+  justify-content: flex-end;
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+  padding-top: t.$space-sm;
+}
+
+.link {
+  // ★ 独立可点区域 88rpx
+  @include m.tap-target;
+  padding-left: t.$space-sm;
+}
+
+.link-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+}
+
+// ── 主操作 ───────────────────────────────────────────────
+.actions {
+  width: 100%;
+  @include m.content-constrain;
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+  padding-top: t.$space-lg;
+}
+
+// ── 底部入口 ─────────────────────────────────────────────
+.foot {
+  width: 100%;
+  @include m.content-constrain;
+  flex-direction: column;
+  align-items: center;
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+  padding-top: t.$space-lg;
+}
+
+.foot-row {
+  // @include m.tap-target;
+  min-height: t.$tap-min-size;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.foot-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+.foot-text--dim {
+  color: var(--color-text-3);
+}
+
+.foot-link {
+  font-size: t.$font-sm;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-normal;
+  color: var(--color-primary);
+  margin-left: t.$space-xs;
+}
+
+// ── 底部安全区 ───────────────────────────────────────────
+.safe-gap {
+  // ★ 叠加安全区，滚动到底时按钮不会被 Home Indicator压住。
+  //   这里用 padding 而不是 AppSafeBottom 组件，
+  //   因为它属于「内容流的一部分」而不是「固定栏的让位」，
+  //   两者混用会重复让位（见 mixins.scss 的说明）。
+  @include m.safe-bottom(t.$space-xl);
+  width: 100%;
+}
+
+// ── 已登录切号条 ─────────────────────────────────────────
+.switch-bar {
+  width: 100%;
+  @include m.content-constrain;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+  padding-top: t.$space-md;
+  padding-bottom: t.$space-xs;
+}
+
+.switch-text {
+  flex: 1;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+.switch-action {
+  // ★ 独立可点区域 88rpx
+  @include m.tap-target;
+  padding-left: t.$space-sm;
+  padding-right: t.$space-sm;
+}
+
+.switch-action-text {
+  font-size: t.$font-sm;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+}
+</style>

@@ -1,0 +1,835 @@
+<!--
+  pages/memory/detail —— 记忆节点详情
+  ══════════════════════════════════════════════════════════════
+  ★★ 这一页是整个产品的灵魂★★
+
+  「当时的我 vs 现在的我」双时间戳对照区：
+    上下两栏，中间一条渐变线，各自标注写下这句话的时间。
+    这是 LifeArchive 与普通日记应用最根本的区别——
+    普通日记只记录「发生了什么」，
+    我们同时记录「你当时怎么看」和「你后来怎么看」。
+
+  为什么两个时间戳必须都显示：
+    只显示「现在的我」会让用户困惑「我什么时候改过主意」。
+    显示两个时间点，用户才能感受到「从那件事发生到今天，
+    已经过了多久，我的想法变了多少」。
+
+  ★ 三态：加载中 / 空态（id 无效）/ 错误态（带重试）。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="记忆" :show-back="true">
+      <template #right>
+        <view class="nav-action" @click="onEdit">
+          <text class="nav-action-text">编辑</text>
+        </view>
+      </template>
+    </AppNavBar>
+
+    <scroll-view class="body" scroll-y>
+      <!-- 加载态 -->
+      <view v-if="loading" class="content">
+        <AppLoading type="skeleton" :rows="4" />
+      </view>
+
+      <!-- 错误态：带重试，绝不白屏 -->
+      <AppEmpty
+        v-else-if="loadFailed"
+        icon="⚠"
+        title="没能打开这条记忆"
+        :description="errorText"
+        action-text="重试一次"
+        @action="loadDetail"
+      />
+
+      <AppEmpty
+        v-else-if="detail == null"
+        icon="◌"
+        title="这条记忆不在了"
+        description="它可能已经被你删掉了。"
+        action-text="回到记忆"
+        @action="onBackToList"
+      />
+
+      <view v-else class="content">
+        <!-- ① 标题区 -->
+        <view class="head">
+          <view class="head-icon-row">
+            <text v-if="hasIcon" class="head-icon">{{ detail.icon }}</text>
+            <text v-else class="head-icon head-icon--blank">◦</text>
+            <!-- 有过视角转变的节点：给一个显眼的「已变化」标记 -->
+            <view v-if="hasShift" class="shift-badge">
+              <text class="shift-badge-text">已变化</text>
+            </view>
+          </view>
+
+          <text class="head-title">{{ detail.title }}</text>
+          <text class="head-time">{{ occurredText }}</text>
+        </view>
+
+        <!-- ② 描述 -->
+        <AppCard v-if="hasDescription" padding="md">
+          <text class="desc-text">{{ detail.description }}</text>
+        </AppCard>
+
+        <!-- ③ ★★ 当时的我 vs 现在的我 ★★ -->
+        <view class="block">
+          <text class="block-title">你当时怎么看，现在怎么看</text>
+
+          <!-- 两个视角都没写：引导用户去写，这是产品的关键动作 -->
+          <AppCard v-if="!hasShift" padding="md">
+            <text class="shift-empty">这条记忆还没有两个视角。写一句当时的看法，以后再回来看变化。</text>
+            <view class="shift-empty-action" @click="onEdit">
+              <text class="shift-empty-action-text">现在补上</text>
+            </view>
+          </AppCard>
+
+          <!-- 两个视角都有：★ 双时间戳对照区 ★ -->
+          <AppCard v-else padding="md">
+            <view class="compare">
+              <!-- 上栏：当时的我 -->
+              <view class="compare-side compare-side--past">
+                <view class="compare-side-head">
+                  <view class="compare-dot compare-dot--past" />
+                  <text class="compare-cap">当时的我</text>
+                </view>
+                <text class="compare-text">{{ detail.pastSelfView }}</text>
+                <text class="compare-time">{{ pastViewedText }}</text>
+              </view>
+
+              <!-- 中间的渐变线：两个时间点之间的「变化」 -->
+              <view class="compare-line">
+                <view class="compare-line-inner" />
+              </view>
+
+              <!-- 下栏：现在的我 -->
+              <view class="compare-side compare-side--present">
+                <view class="compare-side-head">
+                  <view class="compare-dot compare-dot--present" />
+                  <text class="compare-cap">现在的我</text>
+                </view>
+                <text class="compare-text">{{ detail.presentSelfView }}</text>
+                <text class="compare-time">{{ presentViewedText }}</text>
+              </view>
+            </view>
+          </AppCard>
+        </view>
+
+        <!-- ④ 标签 / 人物 / 地点 -->
+        <view class="block">
+          <AppCard padding="md">
+            <view v-if="tags.length > 0" class="meta-row">
+              <text class="meta-label">标签</text>
+              <view class="meta-chips">
+                <view v-for="t in tags" :key="t" class="chip">
+                  <text class="chip-text">{{ t }}</text>
+                </view>
+              </view>
+            </view>
+
+            <view v-if="people.length > 0" class="meta-row">
+              <text class="meta-label">人物</text>
+              <view class="meta-chips">
+                <view v-for="p in people" :key="p" class="chip">
+                  <text class="chip-text">{{ p }}</text>
+                </view>
+              </view>
+            </view>
+
+            <view v-if="hasLocation" class="meta-row">
+              <text class="meta-label">地点</text>
+              <text class="meta-value">{{ detail.location }}</text>
+            </view>
+
+            <!-- 全部为空：不要留一个空卡片 -->
+            <text v-if="tags.length == 0 && people.length == 0 && !hasLocation" class="meta-empty">
+              还没有标签、人物或地点。
+            </text>
+          </AppCard>
+        </view>
+
+        <!-- ⑤ 关联的记忆节点：横滑列表 -->
+        <view class="block">
+          <text class="block-title">连在一起的事</text>
+
+          <view v-if="relationsLoading" class="rel-loading">
+            <AppLoading type="spinner" text="在找关联" />
+          </view>
+
+          <view v-else-if="relationsFailed" class="rel-error" @click="loadRelations">
+            <text class="rel-error-text">关联没读到，点我再试一次</text>
+          </view>
+
+          <text v-else-if="relatedList.length == 0" class="meta-empty">
+            这件事还没有和别的记忆连起来。
+          </text>
+
+          <scroll-view v-else class="rel-scroll" scroll-x :show-scrollbar="false">
+            <view class="rel-row">
+              <view
+                v-for="r in relatedList"
+                :key="r.memoryId"
+                class="rel-card"
+                @click="onGoRelated(r.memoryId)"
+              >
+                <text v-if="hasRelatedIcon(r)" class="rel-icon">{{ r.icon }}</text>
+                <text v-else class="rel-icon rel-icon--blank">◦</text>
+                <text class="rel-title">{{ r.title }}</text>
+                <text class="rel-kind">{{ kindTextOf(r.kind) }}</text>
+              </view>
+            </view>
+          </scroll-view>
+        </view>
+
+        <!-- ⑥ 删除 -->
+        <view class="block">
+          <AppButton
+            variant="secondary"
+            size="lg"
+            block
+            :loading="deleting"
+            text="删除这条记忆"
+            @click="onDelete"
+          />
+          <text class="delete-hint">删了就是删了，不留副本。</text>
+        </view>
+
+        <view class="tail-gap" />
+      </view>
+    </scroll-view>
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppCard from '@/components/AppCard.uvue'
+import AppButton from '@/components/AppButton.uvue'
+import AppEmpty from '@/components/AppEmpty.uvue'
+import AppLoading from '@/components/AppLoading.uvue'
+import { memoriesService } from '@/services'
+import type { Memory } from '@/services'
+import { messageOfError } from '@/core/http/error-code'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+import { fullTime } from '@/core/utils/datetime'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 取消键：与 onUnload 的 cancelByKey 成对 */
+const ABORT_KEY = 'pages/memory/detail'
+
+/** 关联类型 → 中文。后端 kind 是 string，这里做一次显式映射而不是直接显示英文 */
+const KIND_TEXT: Map<string, string> = new Map<string, string>([
+  ['emotional', '情绪相关'],
+  ['causal', '起因'],
+  ['temporal', '时间上挨着'],
+  ['person', '同一个人'],
+  ['location', '同一个地方'],
+  ['topical', '同一件事'],
+])
+
+/** 从 MemoryRelation 里抽出对端节点的信息，用于横滑列表 */
+type RelatedItem = {
+  memoryId: string
+  title: string
+  icon: string | null
+  kind: string
+}
+
+const memoryId = ref<string>('')
+const detail = ref<Memory | null>(null)
+const loading = ref<boolean>(true)
+const loadFailed = ref<boolean>(false)
+const errorText = ref<string>('')
+const deleting = ref<boolean>(false)
+
+// 关联
+const relatedList = ref<RelatedItem[]>([])
+const relationsLoading = ref<boolean>(false)
+const relationsFailed = ref<boolean>(false)
+
+// ── 派生数据 ─────────────────────────────────────────────
+
+const hasIcon = computed<boolean>(() => {
+  const d = detail.value
+  return d != null && d.icon != null && d.icon.length > 0
+})
+
+const hasDescription = computed<boolean>(() => {
+  const d = detail.value
+  return d != null && d.description != null && d.description.length > 0
+})
+
+const hasLocation = computed<boolean>(() => {
+  const d = detail.value
+  return d != null && d.location != null && d.location.length > 0
+})
+
+/** ★ 判定「已变化」：两个视角都写了才算。
+ *  只有一栏说明用户刚开始记录，不该标成「已变化」——
+ *  那个标记的含义是「你的想法真的动过了」 */
+const hasShift = computed<boolean>(() => {
+  const d = detail.value
+  if (d == null) return false
+  return (
+    d.pastSelfView != null &&
+    d.pastSelfView.length > 0 &&
+    d.presentSelfView != null &&
+    d.presentSelfView.length > 0
+  )
+})
+
+const tags = computed<string[]>(() => {
+  const d = detail.value
+  return d == null ? [] : d.tags
+})
+
+const people = computed<string[]>(() => {
+  const d = detail.value
+  return d == null ? [] : d.people
+})
+
+const occurredText = computed<string>(() => {
+  const d = detail.value
+  return d == null ? '' : fullTime(d.occurredAt)
+})
+
+/** 两个时间戳都显示，用户才能感到「过了多久」 */
+const pastViewedText = computed<string>(() => {
+  const d = detail.value
+  if (d == null || d.pastViewedAt == null || d.pastViewedAt.length === 0) {
+    return '写下时间未记录'
+  }
+  return fullTime(d.pastViewedAt)
+})
+
+const presentViewedText = computed<string>(() => {
+  const d = detail.value
+  if (d == null || d.presentViewedAt == null || d.presentViewedAt.length === 0) {
+    return '写下时间未记录'
+  }
+  return fullTime(d.presentViewedAt)
+})
+
+function hasRelatedIcon(r: RelatedItem): boolean {
+  return r.icon != null && r.icon.length > 0
+}
+
+function kindTextOf(kind: string): string {
+  const t = KIND_TEXT.get(kind)
+  return t != null ? t : '有关联'
+}
+
+// ────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────
+
+onLoad((options) => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(ABORT_KEY)
+  // ★ id 缺失时不发请求：直接进错误态。
+  //   发一个 /memories/undefined 的请求只会拿到一个看不懂的 404。
+  const raw = options == null ? null : options['id']
+  if (raw == null || raw.length === 0) {
+    console.error('[memory/detail] 缺少 id 参数，无法加载')
+    errorText.value = '这个页面需要从记忆列表进入'
+    loadFailed.value = true
+    loading.value = false
+    return
+  }
+  memoryId.value = raw
+  loadDetail()
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  // ★ 页面卸载必须取消在途请求，否则回调会更新已销毁的 ref
+  const n = cancelByKey(ABORT_KEY)
+  if (n > 0) {
+    console.log(`[memory/detail] 页面卸载，取消 ${n} 个在途请求`)
+  }
+})
+
+// ────────────────────────────────────────────────────────
+// 加载
+// ────────────────────────────────────────────────────────
+
+async function loadDetail(): Promise<void> {
+  if (memoryId.value.length === 0) return
+
+  loading.value = true
+  loadFailed.value = false
+
+  try {
+    detail.value = await memoriesService.detail(memoryId.value)
+    // 关联单独拉：它失败不该让整页变成错误态
+    loadRelations()
+  } catch (e) {
+    // ★ 不吞错误：错误态 + 可点的重试
+    console.error('[memory/detail] 记忆详情加载失败', e)
+    errorText.value = messageOfError(e)
+    loadFailed.value = true
+    detail.value = null
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadRelations(): Promise<void> {
+  if (memoryId.value.length === 0) return
+
+  relationsLoading.value = true
+  relationsFailed.value = false
+
+  try {
+    const rels = await memoriesService.listRelations(memoryId.value)
+    const items: RelatedItem[] = []
+    for (const r of rels) {
+      // 关联只有两个 id，对端信息要再查一次。
+      // ★ 逐个查而不是并发：一条记忆的关联通常不超过 10 条，
+      //   串行能避免瞬时打满后端连接数。
+      const otherId = r.sourceId === memoryId.value ? r.targetId : r.sourceId
+      if (otherId === memoryId.value) {
+        // 自环（后端会拦 40012，但历史数据可能有），跳过
+        console.warn('[memory/detail] 跳过自环关联')
+        continue
+      }
+      try {
+        const other = await memoriesService.detail(otherId)
+        items.push({
+          memoryId: other.id,
+          title: other.title,
+          icon: other.icon,
+          kind: r.kind,
+        })
+      } catch (inner) {
+        // 对端可能已被软删。跳过这一条，不影响其余关联
+        console.error(`[memory/detail] 关联节点 ${otherId} 读取失败，已跳过`, inner)
+      }
+    }
+    relatedList.value = items
+  } catch (e) {
+    // ★ 关联失败只降级这一块，主体内容照常显示
+    console.error('[memory/detail] 关联列表加载失败', e)
+    relationsFailed.value = true
+  } finally {
+    relationsLoading.value = false
+  }
+}
+
+// ────────────────────────────────────────────────────────
+// 交互
+// ────────────────────────────────────────────────────────
+
+function onEdit(): void {
+  if (memoryId.value.length === 0) return
+  // ★ 记忆编辑页还没建（pages.json 里没有 memory/edit），
+  //   所以这里明确告诉用户「还在路上」而不是跳一个必然失败的地址。
+  //   等编辑页落地后，把下面换成 navigateTo('/pages/memory/edit?id=...') 即可。
+  console.log('[memory/detail] 编辑入口：记忆编辑页尚未实现')
+  uni.showToast({ title: '编辑功能还在路上', icon: 'none' })
+}
+
+function onGoRelated(id: string): void {
+  if (id === memoryId.value) return
+  uni.navigateTo({
+    url: `/pages/memory/detail?id=${id}`,
+    fail: (err) => {
+      console.error('[memory/detail] 跳转关联记忆失败', err)
+      uni.showToast({ title: '页面还没打开，请稍后再试', icon: 'none' })
+    },
+  })
+}
+
+function onBackToList(): void {
+  uni.switchTab({
+    url: '/pages/memory/index',
+    fail: () => {
+      console.error('[memory/detail] 返回记忆 Tab 失败')
+      uni.showToast({ title: '返回失败，请手动返回', icon: 'none' })
+    },
+  })
+}
+
+function onDelete(): void {
+  if (deleting.value) return
+  if (memoryId.value.length === 0) return
+
+  // ★ 软删除不可撤销（后端没有恢复接口），所以必须先确认。
+  //   这是本页唯一一处二次确认的地方：内容丢了没法找回来。
+  uni.showModal({
+    title: '删掉这条记忆？',
+    content: '删了就是删了，不留副本。',
+    confirmText: '删掉',
+    cancelText: '再想想',
+    // ★ 二次确认的按钮不用红色：
+    //   showModal 的 confirmColor 只接受色值字面量（不吃 CSS 变量），
+    //   在页面里写色值会违反「颜色走令牌」的红线，
+    //   而且深色模式下这个红会突兀。所以不设，让它用系统默认色。
+    success: (res) => {
+      if (!res.confirm) return
+      doDelete()
+    },
+    fail: (err) => {
+      console.error('[memory/detail] 删除确认弹窗失败', err)
+      uni.showToast({ title: '操作没有生效，请再试一次', icon: 'none' })
+    },
+  })
+}
+
+async function doDelete(): Promise<void> {
+  deleting.value = true
+  try {
+    await memoriesService.remove(memoryId.value)
+    uni.showToast({ title: '已删除', icon: 'none' })
+    setTimeout(() => {
+      onBackToList()
+    }, 600)
+  } catch (e) {
+    // ★ 不吞错误：给用户看后端文案（比如 30003 只能操作自己的数据）
+    console.error('[memory/detail] 删除失败', e)
+    uni.showToast({ title: messageOfError(e), icon: 'none' })
+  } finally {
+    deleting.value = false
+  }
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  background-color: var(--color-bg);
+}
+
+// ★ 不用 vh 单位
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+.content {
+  width: 100%;
+  @include m.content-constrain;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-md;
+}
+
+// ── 标题区 ───────────────────────────────────────────────
+.head {
+  flex-direction: column;
+  margin-bottom: t.$space-md;
+}
+
+.head-icon-row {
+  flex-direction: row;
+  align-items: center;
+}
+
+.head-icon {
+  font-size: t.$font-xxl;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-2);
+}
+
+.head-icon--blank {
+  color: var(--color-text-3);
+}
+
+// 「已变化」标记：这是产品最想被看见的东西，所以给足视觉权重
+.shift-badge {
+  margin-left: t.$space-sm;
+  background-color: var(--color-primary-soft);
+  border-radius: t.$radius-pill;
+  padding-left: t.$space-sm;
+  padding-right: t.$space-sm;
+  padding-top: t.$space-xxs;
+  padding-bottom: t.$space-xxs;
+}
+
+.shift-badge-text {
+  font-size: t.$font-xs;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-normal;
+  color: var(--color-primary);
+}
+
+.head-title {
+  margin-top: t.$space-xs;
+  font-size: t.$font-xl;
+  font-weight: t.$weight-bold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.head-time {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+.desc-text {
+  font-size: t.$font-md;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-1);
+}
+
+// ── 区块 ─────────────────────────────────────────────────
+.block {
+  margin-top: t.$space-lg;
+}
+
+.block-title {
+  font-size: t.$font-md;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+  margin-bottom: t.$space-sm;
+}
+
+// ══════════════════════════════════════════════════════
+// ★ 双时间戳对照区：整个产品的灵魂 ★
+// ══════════════════════════════════════════════════════
+.compare {
+  flex-direction: column;
+}
+
+.compare-side {
+  flex-direction: column;
+}
+
+.compare-side-head {
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: t.$space-xs;
+}
+
+.compare-dot {
+  width: t.$space-sm;
+  height: t.$space-sm;
+  border-radius: t.$radius-pill;
+  margin-right: t.$space-xs;
+}
+
+// 两个点用同一色系的深浅，暗示「同一个人的两个时刻」，
+// 而不是「两个对立阵营」
+.compare-dot--past {
+  background-color: var(--color-glacier-light);
+}
+
+.compare-dot--present {
+  background-color: var(--color-primary);
+}
+
+.compare-cap {
+  font-size: t.$font-sm;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.compare-text {
+  font-size: t.$font-md;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-1);
+}
+
+// ★ 两个时间戳都要显示：用户需要知道「隔了多久我才改的主意」
+.compare-time {
+  margin-top: t.$space-xs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+// 中间的渐变线：从「当时」到「现在」的那段时间跨度。
+// 刻意不用 background-image: linear-gradient(...)：
+// var() 套在渐变函数里三端解析不稳，改用上下两段色块拼出渐变感，
+// 既保留视觉暗示，又不依赖渐变解析。
+.compare-line {
+  width: 100%;
+  height: t.$space-lg;
+  margin-top: t.$space-sm;
+  margin-bottom: t.$space-sm;
+  align-items: center;
+  justify-content: center;
+}
+
+.compare-line-inner {
+  width: 2rpx;
+  height: 100%;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-divider-strong);
+}
+
+// ── 只有一个视角时的引导 ─────────────────────────────────
+.shift-empty {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+.shift-empty-action {
+  @include m.tap-target;
+  margin-top: t.$space-xs;
+}
+
+.shift-empty-action-text {
+  font-size: t.$font-sm;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+}
+
+// ── 元信息 ───────────────────────────────────────────────
+.meta-row {
+  flex-direction: column;
+  margin-bottom: t.$space-sm;
+}
+
+.meta-label {
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+  margin-bottom: t.$space-xs;
+}
+
+.meta-chips {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+
+.chip {
+  background-color: var(--color-primary-soft);
+  border-radius: t.$radius-pill;
+  padding-left: t.$space-sm;
+  padding-right: t.$space-sm;
+  padding-top: t.$space-xxs;
+  padding-bottom: t.$space-xxs;
+  margin-right: t.$space-xs;
+  margin-bottom: t.$space-xs;
+}
+
+.chip-text {
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-primary);
+}
+
+.meta-value {
+  font-size: t.$font-md;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-1);
+}
+
+.meta-empty {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-3);
+}
+
+// ── 关联横滑 ─────────────────────────────────────────────
+.rel-loading {
+  flex-direction: row;
+  justify-content: center;
+}
+
+.rel-error {
+  @include m.tap-target;
+}
+
+.rel-error-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-danger);
+}
+
+.rel-scroll {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.rel-row {
+  flex-direction: row;
+  align-items: flex-start;
+  padding-right: t.$space-md;
+}
+
+.rel-card {
+  // 整卡可点
+  @include m.tap-target;
+  width: t.$space-xxxl * 4;
+  min-height: t.$space-xxxl * 3;
+  flex-direction: column;
+  justify-content: center;
+  background-color: var(--color-glass);
+  border-radius: t.$radius-lg;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-glass-border);
+  padding: t.$space-sm;
+  margin-right: t.$space-sm;
+}
+
+.rel-icon {
+  font-size: t.$font-lg;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-2);
+}
+
+.rel-icon--blank {
+  color: var(--color-text-3);
+}
+
+.rel-title {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-sm;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+  @include m.text-ellipsis-lines(2);
+}
+
+.rel-kind {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+// ── 删除 ─────────────────────────────────────────────────
+.delete-hint {
+  margin-top: t.$space-sm;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+  text-align: center;
+}
+
+.tail-gap {
+  @include m.safe-bottom(t.$space-lg);
+  width: 100%;
+  height: t.$space-lg;
+}
+
+// ── 导航栏右侧 ───────────────────────────────────────────
+.nav-action {
+  @include m.tap-target;
+  padding-left: t.$space-sm;
+  padding-right: t.$space-xs;
+}
+
+.nav-action-text {
+  font-size: t.$font-sm;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+}
+</style>

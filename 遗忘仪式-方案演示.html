@@ -1,0 +1,1955 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>遗忘仪式 · 四方案对比演示</title>
+<style>
+/* ==========================================================================
+   1. 设计令牌（整套取自《人生档案-产品概念原型.html》的 :root，保持视觉一致）
+   ========================================================================== */
+:root{
+  /* 品牌色 / 冰川蓝 */
+  --c-ink:#F2F7FC;
+  --c-body:#B9C9D9;
+  --c-muted:#7A8CA0;
+  --c-accent:#5AA9F0;
+  --c-accent-deep:#2A6FDB;
+  --c-glacier:#5AA9F0;
+  --c-glacier-tab:#3E8FE0;
+  --c-glacier-light:#8FC8F8;
+  --c-on-blue-2:#D6E9FA;
+
+  /* 屏幕背景 */
+  --bg:linear-gradient(225deg,#050A12 0%,#0A1420 100%);
+  --frame-bg:
+    linear-gradient(to bottom, rgba(90,169,240,.20), rgba(0,0,0,0) 52%),
+    linear-gradient(to top, rgba(42,111,219,.16), rgba(0,0,0,0) 48%),
+    linear-gradient(to left, rgba(90,169,240,.18), rgba(0,0,0,0) 55%),
+    linear-gradient(to right, rgba(42,111,219,.22), rgba(0,0,0,0) 55%),
+    linear-gradient(225deg,#050A12 0%,#0A1420 100%);
+  --bg-2:#0E1B2E;
+  --card:rgba(255,255,255,.06);
+  --card-2:rgba(255,255,255,.04);
+  --line:rgba(255,255,255,.1);
+  --text:#F2F7FC;
+  --text-dim:#B9C9D9;
+  --text-faint:#7A8CA0;
+
+  /* 四种情绪星色 */
+  --red:#e0685f;
+  --red-deep:#b04a44;
+  --red-glow:rgba(224,104,95,.42);
+  --amber:#e8b96a;
+  --amber-soft:rgba(232,185,106,.14);
+  --amber-line:rgba(232,185,106,.32);
+  --sage:#7fc8a8;
+  --sage-soft:rgba(127,200,168,.14);
+  --sage-line:rgba(127,200,168,.32);
+  --blue:#5AA9F0;
+  --blue-soft:rgba(90,169,240,.16);
+  --blue-line:rgba(90,169,240,.36);
+
+  --shadow:0 14px 40px -14px rgba(0,0,0,.6);
+
+  /* 圆角 */
+  --r:16px;
+  --r-capsule:36px;
+  --r-card-lg:26px;
+  --r-card:24px;
+  --r-card-md:22px;
+  --r-card-sm:20px;
+  --r-inner:16px;
+  --r-icon:14px;
+  --r-pill:999px;
+  --r-tab:26px;
+
+  /* 字体 */
+  --font:'Noto Sans SC','PingFang SC','Hiragino Sans GB','Microsoft YaHei',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+
+  /* Liquid Glass */
+  --glass-bg:rgba(255,255,255,.06);
+  --glass-bg-2:rgba(255,255,255,.04);
+  --glass-warm:rgba(90,169,240,.1);
+  --glass-hi:rgba(255,255,255,.1);
+  --glass-lo:rgba(0,0,0,.32);
+  --glass-border:rgba(255,255,255,.1);
+  --glass-blur:blur(14px) saturate(150%);
+  --tt-bg:rgba(10,20,32,.82);
+
+  /* 天空 / 图谱 */
+  --sky-bg:linear-gradient(180deg,#0A1830,#10254A);
+  --sky-inner:rgba(0,0,0,.3);
+  --sky-text:rgba(226,232,240,.66);
+  --mm-bg:
+    radial-gradient(420px 300px at 50% 46%, rgba(90,169,240,.2), transparent 70%),
+    linear-gradient(160deg,#10233F 0%,#0A1830 100%);
+
+  /* 冰川蓝渐变卡 */
+  --blue-grad:linear-gradient(160deg,#5AA9F0 0%,#2A6FDB 100%);
+  --blue-bd:rgba(255,255,255,.16);
+
+  /* 背景光晕 / 雪点 */
+  --spot-1:rgba(90,169,240,.14);
+  --spot-2:rgba(90,169,240,.1);
+  --spot-3:rgba(143,200,248,.08);
+  --spot-4:rgba(42,111,219,.1);
+  --snow-dot:rgba(255,255,255,.5);
+  --snow-dot-2:rgba(255,255,255,.3);
+}
+
+/* ==========================================================================
+   2. 基础与布局
+   ========================================================================== */
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  min-height:100vh;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font);
+  font-size:15px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(680px 420px at 12% -8%, var(--spot-1), transparent 62%),
+    radial-gradient(560px 380px at 92% 8%, var(--spot-2), transparent 60%),
+    radial-gradient(520px 420px at 78% 96%, var(--spot-3), transparent 62%),
+    radial-gradient(480px 360px at 8% 88%, var(--spot-4), transparent 60%);
+}
+.page{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:28px 20px 56px;}
+/* 全局重置按钮：清掉 UA 默认浅灰底/边框/内边距，防止任何未显式声明的按钮样式穿透 */
+button{font-family:inherit;font-size:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0;}
+:focus-visible{outline:2px solid var(--c-glacier-light);outline-offset:2px;border-radius:6px;}
+
+/* 顶部 */
+.hd{max-width:760px;margin:0 auto 22px;text-align:center;}
+.hd h1{margin:0 0 10px;font-size:26px;font-weight:700;letter-spacing:.5px;color:var(--c-ink);}
+.hd p{margin:0;font-size:13.5px;color:var(--c-body);line-height:1.85;}
+.hd code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:12.5px;padding:1px 6px;border-radius:6px;
+  background:var(--card);border:1px solid var(--line);color:var(--c-glacier-light);
+}
+
+/* 方案切换导航 */
+.nav{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:0 auto 22px;max-width:900px;}
+.nav-btn{
+  position:relative;display:flex;align-items:center;gap:8px;
+  padding:10px 18px;border-radius:var(--r-pill);
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  color:var(--text-dim);font-size:13.5px;letter-spacing:.3px;
+  transition:transform .18s ease, background .18s ease, color .18s ease, border-color .18s ease;
+}
+.nav-btn:hover{transform:translateY(-1px);color:var(--c-ink);border-color:rgba(255,255,255,.2);}
+.nav-btn .k{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;border-radius:50%;
+  background:var(--card-2);border:1px solid var(--line);
+  font-size:12px;font-weight:700;color:var(--c-body);
+}
+.nav-btn[aria-selected="true"]{
+  color:#fff;border-color:var(--blue-bd);
+  background:linear-gradient(160deg,var(--c-glacier-tab) 0%,var(--c-accent-deep) 100%);
+  box-shadow:0 10px 26px -14px rgba(90,169,240,.9);
+}
+.nav-btn[aria-selected="true"] .k{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.34);color:#fff;}
+.nav-btn .badge{
+  font-size:10.5px;padding:1px 7px;border-radius:var(--r-pill);
+  background:var(--amber-soft);border:1px solid var(--amber-line);color:var(--amber);
+}
+
+/* 舞台 */
+.stage{display:flex;justify-content:center;}
+.phone-wrap{width:100%;max-width:420px;}
+
+/* ==========================================================================
+   3. 手机外框 / 通用内构件
+   ========================================================================== */
+.phone{
+  position:relative;width:100%;border-radius:42px;overflow:hidden;
+  background:var(--frame-bg);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--shadow), 0 0 0 8px rgba(255,255,255,.02) inset;
+}
+.ph-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px 8px;
+}
+.ph-brand{font-size:13px;letter-spacing:2px;color:var(--c-muted);}
+.ph-stat{
+  font-size:11.5px;padding:3px 10px;border-radius:var(--r-pill);
+  background:var(--glass-bg);border:1px solid var(--glass-border);color:var(--text-dim);
+}
+.ph-body{position:relative;padding:0 16px 6px;min-height:392px;}
+.ph-dock{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:12px 18px 20px;
+}
+.dock-item{
+  width:52px;height:34px;border-radius:var(--r-capsule);
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+}
+.dock-item.on{background:var(--blue-grad);border-color:var(--blue-bd);}
+.ph-layer{position:absolute;inset:0;pointer-events:none;}
+.ph-layer > *{pointer-events:auto;}
+
+/* 星空带 */
+.sky{
+  position:relative;display:flex;align-items:center;justify-content:center;gap:26px;
+  height:56px;margin:2px 0 8px;border-radius:var(--r-inner);
+  background:var(--sky-bg);border:1px solid var(--line);
+  box-shadow:inset 0 0 26px var(--sky-inner);
+}
+.sky::after{
+  content:"";position:absolute;left:14px;right:14px;bottom:8px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.14),transparent);
+}
+.star{
+  position:relative;width:20px;height:20px;background:currentColor;
+  clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%);
+  filter:drop-shadow(0 0 6px currentColor);
+  animation:twinkle 3.2s ease-in-out var(--tw-delay,.4s) infinite;
+}
+.star.blue{color:var(--blue);}
+.star.amber{color:var(--amber);}
+.star.red{color:var(--red);}
+.star.sage{color:var(--sage);}
+.star--dim{opacity:.35;filter:drop-shadow(0 0 2px currentColor);}
+.star--off{opacity:.12;filter:none;animation:none;}
+.star--hide{display:none;}
+@keyframes twinkle{0%,100%{opacity:.45;transform:scale(.92);}50%{opacity:1;transform:scale(1.06);}}
+
+/* 图谱 */
+.field{position:relative;height:300px;border-radius:var(--r-card-lg);
+  background:var(--mm-bg);border:1px solid var(--line);overflow:hidden;}
+.field .glines{position:absolute;inset:0;width:100%;height:100%;}
+.field .glines line{stroke:rgba(143,200,248,.32);stroke-width:1.2;}
+.field .glines line.dim{stroke:rgba(143,200,248,.14);stroke-dasharray:3 4;}
+.gcenter{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:46px;height:46px;border-radius:50%;
+  background:var(--blue-grad);border:1px solid var(--blue-bd);
+  box-shadow:0 0 24px rgba(90,169,240,.45);
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:#fff;letter-spacing:1px;
+}
+.leaf{
+  position:absolute;transform:translate(-50%,-50%);
+  width:124px;padding:10px 12px;border-radius:var(--r-card-sm);
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  box-shadow:0 10px 24px -16px rgba(0,0,0,.8);
+  transition:transform .3s ease, opacity .3s ease, background .3s ease;
+}
+.leaf .lf-tag{display:block;font-size:10.5px;letter-spacing:.6px;color:var(--text-faint);}
+.leaf .lf-name{display:block;margin-top:2px;font-size:13px;font-weight:600;color:var(--c-ink);line-height:1.4;}
+.leaf.blue{border-color:var(--blue-line);background:var(--blue-soft);}
+.leaf.blue .lf-tag{color:var(--blue);}
+.leaf.amber{border-color:var(--amber-line);background:var(--amber-soft);}
+.leaf.amber .lf-tag{color:var(--amber);}
+.leaf.red{border-color:var(--al-red-line,rgba(196,69,59,.45));background:var(--red-glow);}
+.leaf.red .lf-tag{color:var(--red);}
+.leaf-x{
+  position:absolute;top:-8px;right:-8px;width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(10,20,32,.9);border:1px solid var(--line);
+  color:var(--text-dim);font-size:13px;line-height:1;padding:0;
+  transition:color .18s ease, border-color .18s ease, background .18s ease;
+}
+.leaf-x:hover{color:#fff;border-color:rgba(255,255,255,.34);background:rgba(224,104,95,.4);}
+.leaf-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.mini{
+  padding:3px 9px;border-radius:var(--r-pill);font-size:11px;
+  background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--text-dim);
+  transition:background .18s ease,color .18s ease,border-color .18s ease;
+}
+.mini:hover{color:#fff;background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.28);}
+.mini.warn:hover{background:var(--red-glow);border-color:var(--red);}
+.mini[disabled]{opacity:.38;cursor:not-allowed;}
+.leaf-note{margin-top:7px;font-size:10.5px;color:var(--text-faint);line-height:1.5;}
+
+/* 状态 */
+.leaf--shrink{transform:translate(-50%,-50%) scale(.08);opacity:0;border-radius:50%;}
+.leaf--hidden{opacity:0;pointer-events:none;transform:translate(-50%,-50%) scale(.08);}
+.leaf--faded{opacity:.55;transform:translate(-50%,calc(-50% + 6px));}
+.leaf--gone{display:none;}
+
+/* 控制条 */
+.ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0 10px;}
+.ctrl .hint{flex:1 1 100%;font-size:11.5px;color:var(--text-faint);line-height:1.6;}
+.ctrl-btn{
+  padding:6px 13px;border-radius:var(--r-pill);font-size:12px;
+  background:var(--glass-bg);border:1px solid var(--glass-border);color:var(--text-dim);
+  transition:color .18s ease,background .18s ease,border-color .18s ease;
+}
+.ctrl-btn:hover{color:#fff;background:rgba(255,255,255,.14);}
+.ctrl-btn.on{color:#fff;background:var(--blue-grad);border-color:var(--blue-bd);}
+.seg{display:inline-flex;border-radius:var(--r-pill);overflow:hidden;border:1px solid var(--glass-border);background:var(--glass-bg);}
+.seg button{padding:6px 12px;font-size:12px;background:transparent;border:0;color:var(--text-dim);}
+.seg button.on{background:var(--blue-grad);color:#fff;}
+/* 开关胶囊：与 .ctrl-btn 同族（此前缺 background/border/radius/padding，UA 浅灰底会穿透） */
+.switch{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:5px 12px 5px 7px;border-radius:var(--r-pill);
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  font-size:12px;color:var(--text-dim);cursor:pointer;
+  transition:color .18s ease,background .18s ease,border-color .18s ease;
+}
+.switch:hover{color:#fff;background:rgba(255,255,255,.14);}
+/* on 态只描边+淡蓝底做选中感，重色留给里面的 track */
+.switch.on{color:var(--c-ink);background:var(--blue-soft);border-color:var(--blue-line);}
+.switch .track{width:38px;height:20px;border-radius:var(--r-pill);background:rgba(255,255,255,.12);border:1px solid var(--line);position:relative;transition:background .2s ease;flex:0 0 auto;}
+.switch .track::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--c-body);transition:transform .2s ease, background .2s ease;}
+.switch.on .track{background:var(--blue-grad);}
+.switch.on .track::after{transform:translateX(18px);background:#fff;}
+
+/* 撤销条 */
+.undo{
+  position:absolute;left:18px;right:18px;bottom:66px;
+  display:flex;align-items:center;gap:12px;padding:11px 14px;
+  border-radius:var(--r-capsule);
+  background:var(--tt-bg);border:1px solid var(--blue-line);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  box-shadow:0 16px 34px -18px rgba(0,0,0,.9);
+  animation:undoIn .32s ease both;
+}
+@keyframes undoIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+.undo .u-txt{flex:1;font-size:12px;color:var(--text-dim);line-height:1.5;}
+.undo .u-txt b{color:var(--c-ink);font-weight:600;}
+.undo .u-btn{
+  padding:5px 13px;border-radius:var(--r-pill);font-size:12px;
+  background:var(--blue-grad);border:1px solid var(--blue-bd);color:#fff;
+}
+.undo .u-prog{position:absolute;left:14px;right:14px;bottom:6px;height:2px;border-radius:2px;background:rgba(255,255,255,.1);overflow:hidden;}
+.undo .u-prog i{display:block;height:100%;background:var(--c-glacier-light);transition:width .1s linear;}
+.risk{
+  position:absolute;left:18px;right:18px;bottom:66px;
+  padding:10px 14px;border-radius:var(--r-inner);
+  background:rgba(40,12,10,.72);border:1px solid rgba(224,104,95,.5);
+  color:#f3b4ae;font-size:12px;line-height:1.6;text-align:center;
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+  animation:undoIn .32s ease both;
+}
+
+/* 模态面板 */
+.mask{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(5,10,18,.62);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  animation:fadeIn .22s ease both;}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+.panel{
+  width:min(320px,86%);padding:20px 18px;border-radius:var(--r-card);
+  background:linear-gradient(160deg,rgba(20,38,64,.96),rgba(10,22,38,.96));
+  border:1px solid var(--glass-border);box-shadow:var(--shadow);text-align:center;
+  animation:panelIn .28s ease both;
+}
+@keyframes panelIn{from{opacity:0;transform:translateY(12px) scale(.97);}to{opacity:1;transform:none;}}
+.panel h3{margin:0 0 8px;font-size:15.5px;font-weight:700;color:var(--c-ink);}
+.panel p{margin:0 0 16px;font-size:12.5px;color:var(--text-dim);line-height:1.75;}
+.panel .row{display:flex;gap:10px;justify-content:center;}
+.panel .row button{flex:1;padding:9px 0;border-radius:var(--r-pill);font-size:12.5px;
+  background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--text-dim);}
+.panel .row button:hover{color:#fff;background:rgba(255,255,255,.16);}
+.panel .row button.primary{background:var(--blue-grad);border-color:var(--blue-bd);color:#fff;}
+.panel .row button.primary[disabled]{opacity:.4;cursor:not-allowed;background:rgba(255,255,255,.08);border-color:var(--line);color:var(--text-faint);}
+
+/* ==========================================================================
+   4. 方案 A：光点远行
+   ========================================================================== */
+.spark{
+  position:absolute;width:12px;height:12px;border-radius:50%;
+  background:radial-gradient(circle at 50% 50%,#fff 0%,var(--c-glacier-light) 45%,rgba(90,169,240,0) 72%);
+  box-shadow:0 0 14px rgba(143,200,248,.9);
+  transform:translate(-50%,-50%);pointer-events:none;
+}
+.star--flash{animation:lastFlash .54s ease-out forwards;}
+@keyframes lastFlash{
+  0%{transform:scale(1);opacity:1;}
+  45%{transform:scale(1.35);opacity:1;}
+  100%{transform:scale(0);opacity:0;}
+}
+
+/* ==========================================================================
+   5. 方案 B：三重遗忘
+   ========================================================================== */
+.sleep-entry{
+  margin:10px 0 0;padding:9px 12px;border-radius:var(--r-inner);
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+}
+.sleep-entry .se-hd{display:flex;align-items:center;justify-content:space-between;width:100%;
+  background:none;border:0;padding:0;font-size:12px;color:var(--text-dim);}
+.sleep-entry .se-hd:hover{color:var(--c-ink);}
+.sleep-entry .se-body{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+.sleep-card{
+  flex:1 1 100%;padding:9px 11px;border-radius:var(--r-card-sm);
+  background:var(--card-2);border:1px solid var(--line);text-align:left;
+}
+.sleep-card .sc-name{font-size:12.5px;color:var(--text-dim);font-weight:600;}
+.sleep-card .sc-note{margin-top:3px;font-size:10.5px;color:var(--text-faint);}
+.sleep-card .sc-acts{display:flex;gap:6px;margin-top:8px;}
+.dust{
+  position:absolute;width:5px;height:5px;border-radius:50%;
+  background:var(--c-glacier-light);box-shadow:0 0 8px rgba(143,200,248,.9);
+  transform:translate(-50%,-50%);pointer-events:none;
+  animation:dustOut .78s ease-out forwards;
+}
+@keyframes dustOut{
+  0%{opacity:1;transform:translate(-50%,-50%) scale(1);}
+  100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(.3);}
+}
+.lamp-btn{
+  width:70px;height:70px;margin:0 auto 14px;border-radius:50%;
+  background:radial-gradient(circle at 50% 42%,rgba(232,185,106,.18),rgba(232,185,106,.04) 70%);
+  border:1px solid var(--amber-line);color:var(--amber);
+  display:flex;align-items:center;justify-content:center;font-size:11px;line-height:1.4;
+  transition:background .3s ease,box-shadow .3s ease,color .3s ease;
+}
+.lamp-btn.lit{
+  background:radial-gradient(circle at 50% 42%,#ffe6b8 0%,var(--amber) 45%,rgba(232,185,106,.1) 78%);
+  color:#3a2a10;box-shadow:0 0 30px rgba(232,185,106,.6);
+}
+
+/* ==========================================================================
+   6. 方案 C：守夜人 · 回声
+   ========================================================================== */
+.lamp{
+  position:absolute;transform:translate(-50%,-50%);
+  width:124px;padding:12px;text-align:center;border-radius:var(--r-card-sm);
+  background:rgba(232,185,106,.08);border:1px solid var(--amber-line);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+}
+.lamp .bulb{
+  width:40px;height:40px;margin:0 auto 8px;border-radius:50%;
+  background:radial-gradient(circle at 50% 40%,#ffe6b8 0%,var(--amber) 46%,rgba(232,185,106,.08) 80%);
+  animation:breathe 3s ease-in-out infinite;
+}
+@keyframes breathe{
+  0%,100%{transform:scale(.92);box-shadow:0 0 14px rgba(232,185,106,.35);opacity:.85;}
+  50%{transform:scale(1.06);box-shadow:0 0 30px rgba(232,185,106,.7);opacity:1;}
+}
+.lamp .lp-name{display:block;font-size:12.5px;font-weight:600;color:var(--text-dim);}
+.lamp .lp-note{display:block;margin-top:3px;font-size:10.5px;color:var(--amber);}
+.released{margin-top:10px;padding:9px 12px;border-radius:var(--r-inner);
+  background:var(--card-2);border:1px solid var(--line);}
+.released .rl-hd{font-size:11px;color:var(--text-faint);letter-spacing:.6px;}
+.released .rl-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.chip{padding:4px 10px;border-radius:var(--r-pill);font-size:11.5px;
+  background:var(--glass-bg);border:1px solid var(--line);color:var(--text-dim);}
+.echo{
+  position:absolute;left:24px;right:24px;top:44%;
+  padding:14px 16px;border-radius:var(--r-card-sm);
+  background:linear-gradient(160deg,rgba(24,44,74,.96),rgba(12,24,42,.96));
+  border:1px solid var(--blue-line);box-shadow:0 18px 40px -20px rgba(0,0,0,.9);
+  animation:echoIn .5s ease both;
+}
+@keyframes echoIn{from{opacity:0;transform:translateY(14px) scale(.97);}to{opacity:1;transform:none;}}
+.echo .ec-tag{font-size:10.5px;letter-spacing:1.4px;color:var(--c-glacier-light);}
+.echo .ec-txt{margin:6px 0 12px;font-size:13px;color:var(--c-ink);line-height:1.7;}
+.echo .ec-acts{display:flex;gap:8px;}
+.echo .ec-acts button{flex:1;padding:7px 0;border-radius:var(--r-pill);font-size:12px;
+  background:rgba(255,255,255,.08);border:1px solid var(--line);color:var(--text-dim);}
+.echo .ec-acts button.go{background:var(--amber-soft);border-color:var(--amber-line);color:var(--amber);}
+.echo .ec-acts button:hover{color:#fff;background:rgba(255,255,255,.16);}
+
+/* ==========================================================================
+   7. 方案 D：遗忘之河
+   ========================================================================== */
+.field--d{height:400px;}
+.d-graph{position:absolute;left:0;right:0;top:0;height:200px;}
+.river{
+  position:absolute;left:0;right:0;bottom:0;height:200px;
+  border-top:1px dashed rgba(143,200,248,.28);
+  background:linear-gradient(180deg,rgba(42,111,219,.06),rgba(10,24,46,.75));
+}
+.river .water{
+  position:absolute;left:0;right:0;bottom:0;height:74%;
+  background:linear-gradient(180deg,rgba(90,169,240,.16),rgba(42,111,219,.28));
+  border-radius:60% 60% 0 0 / 18% 18% 0 0;
+}
+.wlevel{
+  position:absolute;left:12px;right:12px;height:52px;
+  display:flex;flex-direction:column;justify-content:center;gap:2px;
+  padding:0 12px;border-radius:var(--r-inner);
+  border:1px dashed rgba(255,255,255,.12);
+  transition:background .2s ease,border-color .2s ease;
+}
+.wlevel.shallow{top:14px;}
+.wlevel.mid{top:74px;}
+.wlevel.deep{top:134px;}
+.wlevel .wl-name{font-size:12px;color:var(--text-dim);font-weight:600;}
+.wlevel .wl-desc{font-size:10.5px;color:var(--text-faint);opacity:0;transition:opacity .2s ease;}
+.wlevel.hot{background:rgba(90,169,240,.14);border-color:var(--blue-line);border-style:solid;}
+.wlevel.active{border-style:solid;border-color:var(--blue-line);background:rgba(90,169,240,.08);}
+.wlevel.active .wl-desc,.wlevel.hot .wl-desc{opacity:1;}
+.leaf--drag{cursor:grabbing;z-index:5;transition:none;box-shadow:0 18px 34px -18px rgba(0,0,0,.9);}
+.leaf--sink1{opacity:.82;}
+.leaf--sink2{opacity:.5;}
+.leaf--sink3{opacity:0;transform:translate(-50%,-50%) scale(.6);pointer-events:none;}
+.grip{
+  position:absolute;top:-8px;right:-8px;width:22px;height:22px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(10,20,32,.9);border:1px solid var(--blue-line);
+  color:var(--c-glacier-light);font-size:11px;line-height:1;padding:0;
+}
+.river-note{
+  margin-top:10px;padding:9px 12px;border-radius:var(--r-inner);
+  background:var(--card-2);border:1px solid var(--line);
+  font-size:11.5px;color:var(--text-dim);line-height:1.6;
+}
+
+/* ==========================================================================
+   8. 指标条
+   ========================================================================== */
+.metrics{
+  margin:20px auto 0;max-width:760px;padding:16px 18px;border-radius:var(--r-card-md);
+  background:var(--glass-bg);border:1px solid var(--glass-border);
+  backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+}
+.m-row{display:flex;flex-wrap:wrap;gap:14px;}
+.m-cell{flex:1 1 140px;min-width:130px;}
+.m-k{font-size:10.5px;letter-spacing:1.2px;color:var(--text-faint);}
+.m-v{margin-top:3px;font-size:14px;color:var(--c-ink);font-weight:600;}
+.dots{display:inline-flex;gap:4px;margin-left:8px;vertical-align:middle;}
+.dots i{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.18);}
+.dots i.on{background:var(--c-glacier);}
+.m-v.low{color:var(--red);}
+.m-v.mid{color:var(--amber);}
+.m-v.high{color:var(--sage);}
+.m-line{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12.5px;line-height:1.8;}
+.m-line .lab{color:var(--text-faint);margin-right:6px;}
+.m-line .risk-tx{color:#f0aaa4;}
+.m-line .verdict-tx{color:var(--c-glacier-light);font-weight:600;}
+
+/* ==========================================================================
+   9. 响应式 / 降级
+   ========================================================================== */
+@media (max-width:1099px){
+  .page{padding:20px 14px 44px;}
+  .hd h1{font-size:22px;}
+  .stage{flex-direction:column;align-items:center;}
+}
+@media (min-width:1100px){
+  .nav{flex-wrap:nowrap;}
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;
+  }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="hd">
+    <h1>遗忘仪式 · 四方案对比演示</h1>
+    <p>
+      <code>deleteMindNode</code> 目前一次点击级联抹除 4 处：图谱叶子 / 源头卡片 / 情绪日志 / 星空星星，且只有 6 秒撤销窗口。
+      以下四个方案在同一个场景里演示同一批烦恼的处理方式。
+    </p>
+  </header>
+
+  <nav class="nav" id="nav" role="tablist" aria-label="方案切换"></nav>
+
+  <main class="stage">
+    <div class="phone-wrap">
+      <div class="phone" id="phone">
+        <div class="ph-bar">
+          <span class="ph-brand">我懂你多少</span>
+          <span class="ph-stat" id="phStat">已放下 0 件</span>
+        </div>
+        <div class="ph-body" id="phBody"></div>
+        <div class="ph-dock" id="phDock"></div>
+        <div class="ph-layer" id="phLayer"></div>
+      </div>
+    </div>
+  </main>
+
+  <section class="metrics" id="metrics" aria-live="polite"></section>
+</div>
+
+<script>
+/* ==========================================================================
+   通用工具 —— 命名空间 U
+   ========================================================================== */
+var U = (function () {
+  var NODES = [
+    { id: 'work',  name: '工作反复改方案', tone: 'blue',  feel: '焦虑' },
+    { id: 'run',   name: '夜跑少了',       tone: 'amber', feel: '倦怠' },
+    { id: 'argue', name: '和阿哲的争执',   tone: 'red',   feel: '委屈' }
+  ];
+
+  /* 放射状布局（百分比坐标，四个方案完全一致） */
+  var POS = {
+    work:  { x: 20, y: 26 },
+    run:   { x: 80, y: 26 },
+    argue: { x: 50, y: 76 }
+  };
+
+  function el(tag, cls, txt) {
+    var n = document.createElement(tag);
+    if (cls) { n.className = cls; }
+    if (txt !== undefined && txt !== null) { n.textContent = txt; }
+    return n;
+  }
+
+  function btn(cls, txt, handler) {
+    var b = el('button', cls, txt);
+    b.type = 'button';
+    if (handler) { b.addEventListener('click', handler); }
+    return b;
+  }
+
+  function reduced() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
+  function nodeById(id) {
+    for (var i = 0; i < NODES.length; i++) { if (NODES[i].id === id) { return NODES[i]; } }
+    return NODES[0];
+  }
+
+  function body() { return document.getElementById('phBody'); }
+  function dock() { return document.getElementById('phDock'); }
+  function layer() { return document.getElementById('phLayer'); }
+  /* 容器缺失时返回零矩形，调用方（A 的飞行 / B 的星尘）只做坐标换算，不会崩 */
+  function layerRect() {
+    var l = layer();
+    return l ? l.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0, right: 0, bottom: 0 };
+  }
+
+  function clear() {
+    /* 容器可能缺失（外部裁剪 DOM 时），逐个判断避免 TypeError */
+    var b = body(), d = dock(), l = layer();
+    if (b) { b.innerHTML = ''; }
+    if (d) { d.innerHTML = ''; }
+    if (l) { l.innerHTML = ''; }
+  }
+
+  function setStat(txt) {
+    var host = document.getElementById('phStat');
+    if (host) { host.textContent = txt; }
+  }
+
+  /* 类名增删：不依赖 classList，且不会误伤同元素上的其它类（如 wlevel 的 active） */
+  function hasClass(node, c) {
+    return !!node && (' ' + (node.className || '') + ' ').indexOf(' ' + c + ' ') >= 0;
+  }
+
+  function toggleClass(node, c, on) {
+    if (!node) { return; }
+    var has = hasClass(node, c);
+    if (on && !has) {
+      node.className = ((node.className || '') + ' ' + c).replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+    } else if (!on && has) {
+      node.className = (' ' + (node.className || '') + ' ').replace(' ' + c + ' ', ' ')
+        .replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+    }
+  }
+
+  /* 底部 dock（4 个装饰性胶囊位，纯装饰故 aria-hidden） */
+  function buildDock() {
+    var d = dock();
+    if (!d) { return null; }
+    var on = el('div', 'dock-item on');
+    on.setAttribute('aria-hidden', 'true');
+    d.appendChild(on);
+    for (var i = 0; i < 3; i++) {
+      var it = el('div', 'dock-item');
+      it.setAttribute('aria-hidden', 'true');
+      d.appendChild(it);
+    }
+    return d;
+  }
+
+  /* 星空带：status = { id: 'on' | 'dim' | 'off' } */
+  function buildSky(status) {
+    var sky = el('div', 'sky');
+    sky.setAttribute('aria-hidden', 'true');
+    for (var i = 0; i < NODES.length; i++) {
+      var n = NODES[i];
+      var st = (status && status[n.id]) ? status[n.id] : 'on';
+      var s = el('span', 'star ' + n.tone + (st === 'dim' ? ' star--dim' : '') + (st === 'off' ? ' star--hide' : ''));
+      s.setAttribute('data-star', n.id);
+      s.style.setProperty('--tw-delay', (0.3 + i * 0.9) + 's');
+      sky.appendChild(s);
+    }
+    return sky;
+  }
+
+  /* 连线（SVG，百分比坐标） */
+  function buildLines(state, hiddenIds) {
+    var svgNS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('class', 'glines');
+    svg.setAttribute('aria-hidden', 'true');
+    for (var i = 0; i < NODES.length; i++) {
+      var n = NODES[i];
+      var hidden = hiddenIds && hiddenIds.indexOf(n.id) >= 0;
+      var ln = document.createElementNS(svgNS, 'line');
+      ln.setAttribute('x1', '50%'); ln.setAttribute('y1', '50%');
+      ln.setAttribute('x2', POS[n.id].x + '%'); ln.setAttribute('y2', POS[n.id].y + '%');
+      if (hidden || (state && state[n.id] && state[n.id] !== 'active')) { ln.setAttribute('class', 'dim'); }
+      svg.appendChild(ln);
+    }
+    return svg;
+  }
+
+  function buildCenter() {
+    var c = el('div', 'gcenter', '我');
+    c.setAttribute('aria-hidden', 'true');
+    return c;
+  }
+
+  function place(nodeEl, id) {
+    nodeEl.style.left = POS[id].x + '%';
+    nodeEl.style.top = POS[id].y + '%';
+  }
+
+  /* 基础叶子卡（含右上 ×） */
+  function buildLeaf(id, xLabel) {
+    var n = nodeById(id);
+    var leaf = el('div', 'leaf ' + n.tone);
+    leaf.setAttribute('data-node', id);
+    var tag = el('span', 'lf-tag', n.feel);
+    var nm = el('span', 'lf-name', n.name);
+    leaf.appendChild(tag);
+    leaf.appendChild(nm);
+    var x = btn('leaf-x', '×', null);
+    x.setAttribute('aria-label', (xLabel || '处理') + '「' + n.name + '」');
+    leaf.appendChild(x);
+    return leaf;
+  }
+
+  function actions(leaf) {
+    var a = el('div', 'leaf-actions');
+    leaf.appendChild(a);
+    return a;
+  }
+
+  function starEl(id) {
+    return document.querySelector('[data-star="' + id + '"]');
+  }
+
+  function centerRect(r) {
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+
+  function relPoint(rect, hostRect) {
+    var c = centerRect(rect);
+    return { x: c.x - hostRect.left, y: c.y - hostRect.top };
+  }
+
+  /* 三次贝塞尔求值 */
+  function bez(p0, p1, p2, p3, t) {
+    var mt = 1 - t;
+    var a = mt * mt * mt, b = 3 * mt * mt * t, c = 3 * mt * t * t, d = t * t * t;
+    return { x: a * p0.x + b * p1.x + c * p2.x + d * p3.x, y: a * p0.y + b * p1.y + c * p2.y + d * p3.y };
+  }
+
+  return {
+    NODES: NODES, POS: POS,
+    el: el, btn: btn, reduced: reduced, nodeById: nodeById,
+    body: body, dock: dock, layer: layer, layerRect: layerRect, clear: clear, setStat: setStat,
+    hasClass: hasClass, toggleClass: toggleClass, buildDock: buildDock,
+    buildSky: buildSky, buildLines: buildLines, buildCenter: buildCenter,
+    place: place, buildLeaf: buildLeaf, actions: actions,
+    starEl: starEl, relPoint: relPoint, bez: bez
+  };
+})();
+
+/* ==========================================================================
+   应用外壳：方案注册 / 切换 / 定时器托管
+   ========================================================================== */
+var App = (function () {
+  var plans = {};
+  var order = ['A', 'B', 'C', 'D'];
+  var current = null;
+  var timers = [];
+  var rafs = [];
+
+  function register(key, plan) { plans[key] = plan; }
+
+  function clearTimers() {
+    for (var i = 0; i < timers.length; i++) { clearTimeout(timers[i]); clearInterval(timers[i]); }
+    timers.length = 0;
+    for (var j = 0; j < rafs.length; j++) { cancelAnimationFrame(rafs[j]); }
+    rafs.length = 0;
+  }
+
+  function dropFrom(arr, id) {
+    var i = arr.indexOf(id);
+    if (i >= 0) { arr.splice(i, 1); }
+  }
+
+  /* 执行后自动出列，避免 B 的常驻 rAF / A 的一次性 timeout 把数组撑爆 */
+  function setTimeout_(fn, ms) {
+    var id = setTimeout(function () { dropFrom(timers, id); fn(); }, ms);
+    timers.push(id);
+    return id;
+  }
+
+  function setInterval_(fn, ms) { var id = setInterval(fn, ms); timers.push(id); return id; }
+
+  function raf(fn) {
+    var id = requestAnimationFrame(function (ts) {
+      dropFrom(rafs, id);
+      fn(ts);
+    });
+    rafs.push(id);
+    return id;
+  }
+
+  function renderMetrics(plan) {
+    var m = plan.metrics;
+    var host = document.getElementById('metrics');
+    if (!host) { return; }
+    host.innerHTML = '';
+
+    function cell(k, v, tone) {
+      var c = U.el('div', 'm-cell');
+      c.appendChild(U.el('div', 'm-k', k));
+      var val = U.el('div', 'm-v' + (tone ? ' ' + tone : ''), v.txt);
+      if (v.dots) {
+        var d = U.el('span', 'dots');
+        d.setAttribute('aria-hidden', 'true');
+        for (var i = 1; i <= v.max; i++) {
+          var dot = U.el('i', i <= v.dots ? 'on' : '');
+          d.appendChild(dot);
+        }
+        val.appendChild(d);
+      }
+      c.appendChild(val);
+      return c;
+    }
+
+    var row = U.el('div', 'm-row');
+    row.appendChild(cell('创意评分', { txt: m.cre + ' / 5', dots: m.cre, max: 5 }));
+    row.appendChild(cell('可玩性评分', { txt: m.play + ' / 5', dots: m.play, max: 5 }));
+    row.appendChild(cell('开发量', { txt: m.dev }));
+    row.appendChild(cell('误删保护等级', { txt: m.safeTxt, dots: m.safe, max: 3 }, m.safeTone));
+    host.appendChild(row);
+
+    var line = U.el('div', 'm-line');
+    var l1 = U.el('div');
+    var lab1 = U.el('span', 'lab', '风险：');
+    var tx1 = U.el('span', 'risk-tx', m.risk);
+    l1.appendChild(lab1); l1.appendChild(tx1);
+    var l2 = U.el('div');
+    var lab2 = U.el('span', 'lab', '一句话判词：');
+    var tx2 = U.el('span', 'verdict-tx', m.verdict);
+    l2.appendChild(lab2); l2.appendChild(tx2);
+    line.appendChild(l1); line.appendChild(l2);
+    host.appendChild(line);
+  }
+
+  function mount(key) {
+    if (current && current.unmount) { current.unmount(); }
+    clearTimers();
+    current = plans[key];
+    for (var i = 0; i < order.length; i++) {
+      var b = document.querySelector('[data-plan="' + order[i] + '"]');
+      if (b) { b.setAttribute('aria-selected', order[i] === key ? 'true' : 'false'); }
+    }
+    U.clear();
+    renderMetrics(current);
+    current.render();
+    if (current.mount) { current.mount(); }
+  }
+
+  function render() { if (current) { current.render(); } }
+
+  function buildNav(meta) {
+    var nav = document.getElementById('nav');
+    nav.innerHTML = '';
+    for (var i = 0; i < order.length; i++) {
+      var key = order[i];
+      var b = U.btn('nav-btn', null, function (e) {
+        var target = e.currentTarget.getAttribute('data-plan');
+        mount(target);
+      });
+      b.setAttribute('role', 'tab');
+      b.setAttribute('data-plan', key);
+      b.setAttribute('aria-selected', key === 'A' ? 'true' : 'false');
+      var k = U.el('span', 'k', key);
+      b.appendChild(k);
+      b.appendChild(U.el('span', null, meta[key].name));
+      if (meta[key].badge) { b.appendChild(U.el('span', 'badge', meta[key].badge)); }
+      nav.appendChild(b);
+    }
+  }
+
+  function boot(meta) {
+    buildNav(meta);
+    plans.A.init();
+    plans.B.init();
+    plans.C.init();
+    plans.D.init();
+    mount('A');
+  }
+
+  return {
+    register: register, mount: mount, render: render, boot: boot,
+    setTimeout: setTimeout_, setInterval: setInterval_, raf: raf,
+    currentKey: function () {
+      for (var k in plans) { if (plans[k] === current) { return k; } }
+      return 'A';
+    }
+  };
+})();
+
+/* ==========================================================================
+   方案 A：送别 · 光点远行
+   ========================================================================== */
+var DemoA = (function () {
+  var s = null;
+
+  var metrics = {
+    cre: 4, play: 3, dev: '中', safe: 1, safeTxt: '低（仅 6 秒）', safeTone: 'low',
+    risk: '6 秒窗口一过就是硬删除；动画越美，越容易让人冲动点击。误触一次 = 永久丢失。',
+    verdict: '最好看，也最危险。情绪价值满分，数据安全不及格。'
+  };
+
+  function init() { reset(); }
+
+  function reset() {
+    s = {
+      stage: { work: 'active', run: 'active', argue: 'active' },
+      released: 0,
+      pending: null,     /* { id, remain } */
+      pendingTick: 0,    /* 倒数 interval 句柄，单例 */
+      risk: null,
+      busy: false,
+      busyAt: 0,
+      flying: null       /* 正在飞行链上的节点 id */
+    };
+    if (App.currentKey() === 'A') { App.render(); }
+  }
+
+  function starStatus() {
+    var st = {};
+    for (var i = 0; i < U.NODES.length; i++) {
+      var id = U.NODES[i].id;
+      st[id] = (s.stage[id] === 'active') ? 'on' : 'off';
+    }
+    return st;
+  }
+
+  function render() {
+    U.clear();
+    U.setStat('已放下 ' + s.released + ' 件');
+
+    var body = U.body();
+
+    /* 控制条 */
+    var ctrl = U.el('div', 'ctrl');
+    ctrl.appendChild(U.btn('ctrl-btn', '重置', function () { reset(); }));
+    ctrl.appendChild(U.el('span', 'hint', '点叶子右上角的 × —— 它会变成一颗光点，飞向星空里属于自己的那颗星。'));
+    body.appendChild(ctrl);
+
+    /* 星空带 */
+    body.appendChild(U.buildSky(starStatus()));
+
+    /* 图谱 */
+    var field = U.el('div', 'field');
+    field.appendChild(U.buildLines(s.stage, []));
+    field.appendChild(U.buildCenter());
+    for (var i = 0; i < U.NODES.length; i++) {
+      var n = U.NODES[i];
+      var leaf = U.buildLeaf(n.id, '送别');
+      U.place(leaf, n.id);
+      if (s.stage[n.id] === 'gone') { leaf.className += ' leaf--gone'; }
+      (function (id) {
+        leaf.querySelector('.leaf-x').addEventListener('click', function () { remove(id); });
+      })(n.id);
+      field.appendChild(leaf);
+    }
+    body.appendChild(field);
+
+    /* dock（4 个装饰性胶囊位，内部已 aria-hidden） */
+    U.buildDock();
+
+    /* 撤销条 / 风险条 */
+    var layer = U.layer();
+    if (s.pending) {
+      var node = U.nodeById(s.pending.id);
+      var bar = U.el('div', 'undo');
+      var txt = U.el('div', 'u-txt');
+      txt.appendChild(document.createTextNode('送走了「'));
+      var b = U.el('b', null, node.name);
+      txt.appendChild(b);
+      txt.appendChild(document.createTextNode('」· 它还在路上'));
+      bar.appendChild(txt);
+      var undoBtn = U.btn('u-btn', '撤销', function () { undo(); });
+      bar.appendChild(undoBtn);
+      var prog = U.el('div', 'u-prog');
+      var fill = U.el('i');
+      fill.style.width = Math.max(0, (s.pending.remain / 6000) * 100) + '%';
+      prog.appendChild(fill);
+      bar.appendChild(prog);
+      layer.appendChild(bar);
+      s.pending.fill = fill;
+    } else if (s.risk) {
+      var r = U.el('div', 'risk', '6 秒已过 · 这次是真正的删除，找不回来了');
+      layer.appendChild(r);
+    }
+  }
+
+  /* 把「飞行链被打断」的那一件回滚为「未送出」（只改状态，不渲染）
+     语义：用户没看着它走完仪式，就不该算它已送达 —— 不计数、不建撤销窗口。 */
+  function rollbackFlight(id) {
+    if (!id) { return; }
+    s.stage[id] = 'active';
+    s.flying = null;
+    s.busy = false;
+    s.busyAt = 0;
+    /* 清掉可能已经挂上的收缩/隐藏类名，切回时 render() 会重建，这里一并兜底 */
+    var leaf = document.querySelector('[data-node="' + id + '"]');
+    if (leaf) {
+      U.toggleClass(leaf, 'leaf--shrink', false);
+      U.toggleClass(leaf, 'leaf--hidden', false);
+      U.toggleClass(leaf, 'leaf--gone', false);
+    }
+  }
+
+  function remove(id) {
+    if (s.busy) {
+      /* 兜底：动画链若被外部打断（切方案、后台标签页）超过 2.5s 仍卡住，强制解锁并回滚 */
+      var waited = (new Date()).getTime() - (s.busyAt || 0);
+      if (waited < 2500) { return; }
+      if (s.flying) { rollbackFlight(s.flying); }
+      s.busy = false;
+      s.busyAt = 0;
+    }
+    if (s.stage[id] !== 'active') { return; }
+    if (s.pending) { commit(); }   /* 上一件的安全窗口先结束 */
+    s.risk = null;
+    s.busy = true;
+    s.busyAt = (new Date()).getTime();
+    s.flying = id;
+
+    var leaf = document.querySelector('[data-node="' + id + '"]');
+    if (!leaf) { s.busy = false; s.flying = null; return; }
+
+    if (U.reduced()) { arrive(id); return; }
+
+    leaf.className += ' leaf--shrink';
+    App.setTimeout(function () { launch(id, leaf); }, 380);
+  }
+
+  function launch(id, leaf) {
+    var hostEl = U.layer();
+    /* 容器缺失：动画无处可演 —— 按「没看着它走就不算送出」回滚，而不是静默计数 */
+    if (!hostEl) { rollbackFlight(id); return; }
+    var star = U.starEl(id);
+    if (!star) { arrive(id); return; }
+    var host = U.layerRect();
+    var p0 = U.relPoint(leaf.getBoundingClientRect(), host);
+    var p3 = U.relPoint(star.getBoundingClientRect(), host);
+    var p1 = { x: p0.x + (p3.x - p0.x) * 0.1, y: p0.y - 70 };
+    var p2 = { x: p3.x - (p3.x - p0.x) * 0.35, y: p3.y + 46 };
+
+    var dot = U.el('span', 'spark');
+    dot.setAttribute('aria-hidden', 'true');
+    hostEl.appendChild(dot);
+    dot.style.left = p0.x + 'px';
+    dot.style.top = p0.y + 'px';
+
+    if (U.reduced()) { dot.parentNode.removeChild(dot); arrive(id); return; }
+
+    var dur = 900, t0 = 0;
+    function step(ts) {
+      if (!t0) { t0 = ts; }
+      var t = Math.min(1, (ts - t0) / dur);
+      var e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;   /* easeInOutQuad */
+      var p = U.bez(p0, p1, p2, p3, e);
+      dot.style.left = p.x + 'px';
+      dot.style.top = p.y + 'px';
+      dot.style.opacity = String(1 - Math.max(0, (t - 0.8) * 3));
+      if (t < 1) { App.raf(step); }
+      else {
+        if (dot.parentNode) { dot.parentNode.removeChild(dot); }
+        flash(id);
+      }
+    }
+    App.raf(step);
+  }
+
+  function flash(id) {
+    var star = U.starEl(id);
+    if (star && !U.reduced()) {
+      star.className += ' star--flash';
+      App.setTimeout(function () { arrive(id); }, 520);
+    } else {
+      arrive(id);
+    }
+  }
+
+  function arrive(id) {
+    s.busy = false;
+    s.busyAt = 0;
+    s.flying = null;
+    s.stage[id] = 'gone';
+    s.released += 1;
+    s.pending = { id: id, remain: 6000, fill: null, last: 0 };
+    App.render();
+    startCountdown();
+  }
+
+  /* 单例：同一时刻只允许存在一个倒数 interval，切回时按剩余时间续跑 */
+  function startCountdown() {
+    if (!s.pending) { return; }
+    if (s.pendingTick) { return; }
+    s.pending.last = (new Date()).getTime();
+    s.pendingTick = App.setInterval(function () {
+      if (!s.pending) { return; }
+      var now = (new Date()).getTime();
+      var dt = now - s.pending.last;
+      s.pending.last = now;
+      s.pending.remain -= dt;
+      if (s.pending.fill) {
+        s.pending.fill.style.width = Math.max(0, (s.pending.remain / 6000) * 100) + '%';
+      }
+      if (s.pending.remain <= 0) { commit(); }
+    }, 100);
+  }
+
+  function commit() {
+    if (!s.pending) { return; }
+    var id = s.pending.id;
+    s.pending = null;
+    s.pendingTick = 0;
+    s.risk = id;
+    App.render();
+  }
+
+  function undo() {
+    if (!s.pending) { return; }
+    var id = s.pending.id;
+    s.stage[id] = 'active';
+    s.released = Math.max(0, s.released - 1);
+    s.pending = null;
+    s.pendingTick = 0;
+    s.risk = null;
+    App.render();
+  }
+
+  /* 切走：飞行中的那一件回滚为未送出（不计数、不给撤销窗口），
+     同时解锁 s.busy 防止所有 × 被永久锁死。已在撤销窗口里的那一件不受影响。 */
+  function unmount() {
+    if (!s) { return; }
+    if (s.busy && s.flying) { rollbackFlight(s.flying); }
+    s.busy = false;
+    s.busyAt = 0;
+    s.pendingTick = 0;   /* interval 已被 App 清掉，标记以便 mount 时续跑 */
+  }
+
+  /* 切回：若还有未走完的 6 秒窗口，按剩余时间继续倒数（不从头计时） */
+  function mount() {
+    if (!s) { return; }
+    if (s.pending) { startCountdown(); }
+  }
+
+  return {
+    key: 'A', name: '送别 · 光点远行', metrics: metrics,
+    init: init, reset: reset, render: render, mount: mount, unmount: unmount
+  };
+})();
+
+/* ==========================================================================
+   方案 B：三重遗忘 · 淡忘 → 沉睡 → 消散（TOP1）
+   ========================================================================== */
+var DemoB = (function () {
+  var s = null;
+  var DAY = 2000;      /* 1× 时：1 天 = 2 秒 */
+  var SPEEDS = { '1': 1, '10': 10, 'ff': 50 };
+  var ticking = false;
+
+  var metrics = {
+    cre: 5, play: 4, dev: '中大', safe: 3, safeTxt: '高', safeTone: 'high',
+    risk: '三档状态机 + 时间推进，逻辑最复杂，需要状态持久化与防抖；档位文案不清晰时用户会困惑。',
+    verdict: 'TOP1：把「删除」换成「淡忘」，情感与容错兼得，前两档随时可找回。'
+  };
+
+  function init() { reset(); }
+
+  function reset() {
+    s = {
+      stage: { work: 'active', run: 'active', argue: 'active' },
+      tFade: { work: 0, run: 0, argue: 0 },
+      tSleep: { work: 0, run: 0, argue: 0 },
+      speed: '1',
+      openSleep: false,
+      modal: null,
+      dust: null
+    };
+    if (App.currentKey() === 'B') { App.render(); }
+  }
+
+  function mult() { return SPEEDS[s.speed] || 1; }
+
+  function starStatus() {
+    var st = {};
+    for (var i = 0; i < U.NODES.length; i++) {
+      var id = U.NODES[i].id;
+      var g = s.stage[id];
+      st[id] = (g === 'active') ? 'on' : (g === 'gone' ? 'off' : 'dim');
+    }
+    return st;
+  }
+
+  function count(stage) {
+    var c = 0;
+    for (var i = 0; i < U.NODES.length; i++) { if (s.stage[U.NODES[i].id] === stage) { c++; } }
+    return c;
+  }
+
+  function render() {
+    U.clear();
+    U.setStat('淡忘 ' + count('faded') + ' · 沉睡 ' + count('asleep') + ' · 消散 ' + count('gone'));
+
+    var body = U.body();
+
+    /* 控制条 */
+    var ctrl = U.el('div', 'ctrl');
+    ctrl.appendChild(U.btn('ctrl-btn', '重置', function () { reset(); }));
+    var seg = U.el('span', 'seg');
+    var labels = [['1', '1×'], ['10', '10×'], ['ff', '快进']];
+    for (var i = 0; i < labels.length; i++) {
+      (function (pair) {
+        var b = U.btn(pair[0] === s.speed ? 'on' : '', pair[1], function () {
+          s.speed = pair[0];
+          App.render();
+        });
+        seg.appendChild(b);
+      })(labels[i]);
+    }
+    ctrl.appendChild(seg);
+    ctrl.appendChild(U.el('span', 'hint', '点 × 只是「淡忘」。真实尺度：7 天后自动沉睡、30 天后自动消散；上面的倍速只压缩演示时间，不压缩真实设计。'));
+    body.appendChild(ctrl);
+
+    /* 星空带 */
+    body.appendChild(U.buildSky(starStatus()));
+
+    /* 图谱 */
+    var field = U.el('div', 'field');
+    var hidden = [];
+    for (var k = 0; k < U.NODES.length; k++) {
+      if (s.stage[U.NODES[k].id] !== 'active' && s.stage[U.NODES[k].id] !== 'faded') { hidden.push(U.NODES[k].id); }
+    }
+    field.appendChild(U.buildLines(s.stage, hidden));
+    field.appendChild(U.buildCenter());
+
+    for (var j = 0; j < U.NODES.length; j++) {
+      var n = U.NODES[j];
+      var g = s.stage[n.id];
+      if (g === 'asleep' || g === 'gone') { continue; }
+      var leaf = U.buildLeaf(n.id, '淡忘');
+      U.place(leaf, n.id);
+      if (g === 'faded') { leaf.className += ' leaf--faded'; }
+
+      (function (id, gg) {
+        leaf.querySelector('.leaf-x').addEventListener('click', function () {
+          if (gg === 'active') { toFaded(id); }
+        });
+      })(n.id, g);
+
+      var left = Math.max(0, s.tFade[n.id]) / DAY;
+      (function (id, gg) {
+        if (gg === 'faded') {
+          var a = U.actions(leaf);
+          a.appendChild(U.btn('mini', '点回来', function () { toActive(id); }));
+          a.appendChild(U.btn('mini', '让它再淡一点', function () { toAsleep(id); }));
+          var note = U.el('div', 'leaf-note', '淡忘中 · ' + left.toFixed(1) + ' 天后自动沉睡（星星变暗但还在）');
+          leaf.appendChild(note);
+        } else {
+          var acts = U.actions(leaf);
+          acts.appendChild(U.btn('mini', '让它淡一点', function () { toFaded(id); }));
+        }
+      })(n.id, g);
+      field.appendChild(leaf);
+    }
+    body.appendChild(field);
+
+    /* 沉睡抽屉 */
+    var asleepCount = count('asleep');
+    if (asleepCount > 0) {
+      var entry = U.el('div', 'sleep-entry');
+      var hd = U.btn('se-hd', null, function () { s.openSleep = !s.openSleep; App.render(); });
+      hd.appendChild(U.el('span', null, '沉睡着 ' + asleepCount + ' 件事'));
+      hd.appendChild(U.el('span', null, s.openSleep ? '收起' : '展开'));
+      entry.appendChild(hd);
+      if (s.openSleep) {
+        var box = U.el('div', 'se-body');
+        for (var m = 0; m < U.NODES.length; m++) {
+          var nn = U.NODES[m];
+          if (s.stage[nn.id] !== 'asleep') { continue; }
+          var card = U.el('div', 'sleep-card');
+          card.appendChild(U.el('div', 'sc-name', nn.name));
+          var leftS = Math.max(0, s.tSleep[nn.id]) / DAY;
+          card.appendChild(U.el('div', 'sc-note', '沉睡中 · ' + leftS.toFixed(1) + ' 天后彻底消散'));
+          var acts2 = U.el('div', 'sc-acts');
+          (function (id) {
+            acts2.appendChild(U.btn('mini', '唤回', function () { toFaded(id); }));
+            acts2.appendChild(U.btn('mini warn', '彻底消散', function () { openRitual(id); }));
+          })(nn.id);
+          card.appendChild(acts2);
+          box.appendChild(card);
+        }
+        entry.appendChild(box);
+      }
+      body.appendChild(entry);
+    }
+
+    /* dock（4 个装饰性胶囊位，内部已 aria-hidden） */
+    U.buildDock();
+
+    /* 告别仪式面板 */
+    if (s.modal) {
+      var node = U.nodeById(s.modal.id);
+      var mask = U.el('div', 'mask');
+      var panel = U.el('div', 'panel');
+      panel.appendChild(U.el('h3', null, '最后一次想起它'));
+      panel.appendChild(U.el('p', null, '「' + node.name + '」陪你走过一段路。点亮这盏灯，算作道别；不点也可以直接放手。'));
+      var lamp = U.btn('lamp-btn' + (s.modal.lit ? ' lit' : ''), s.modal.lit ? '已点亮' : '点亮它', function () {
+        s.modal.lit = !s.modal.lit;
+        App.render();
+      });
+      lamp.setAttribute('aria-pressed', s.modal.lit ? 'true' : 'false');
+      panel.appendChild(lamp);
+      var row = U.el('div', 'row');
+      row.appendChild(U.btn('', '再想想', function () { s.modal = null; App.render(); }));
+      var go = U.btn('primary', '送它走', function () { disperse(s.modal.id); });
+      if (!s.modal.lit) { go.disabled = true; }
+      row.appendChild(go);
+      panel.appendChild(row);
+      mask.appendChild(panel);
+      U.layer().appendChild(mask);
+    }
+  }
+
+  function idOf(n) { return n.id; }
+
+  function toFaded(id) {
+    if (s.stage[id] === 'active') {
+      s.stage[id] = 'faded';
+      s.tFade[id] = 7 * DAY;
+      s.tSleep[id] = 30 * DAY;
+    } else if (s.stage[id] === 'asleep') {
+      s.stage[id] = 'faded';
+      s.tFade[id] = 7 * DAY;
+    } else { return; }
+    App.render();
+  }
+
+  function toActive(id) {
+    s.stage[id] = 'active';
+    s.tFade[id] = 0;
+    s.tSleep[id] = 0;
+    App.render();
+  }
+
+  function toAsleep(id) {
+    s.stage[id] = 'asleep';
+    if (!s.tSleep[id]) { s.tSleep[id] = 30 * DAY; }
+    s.openSleep = true;
+    App.render();
+  }
+
+  function openRitual(id) { s.modal = { id: id, lit: false }; App.render(); }
+
+  function disperse(id) {
+    s.modal = null;
+    s.stage[id] = 'gone';
+    App.render();
+    var star = U.starEl(id);
+    var layer = U.layer();
+    /* 状态已按真删落定；这里只做星尘装饰，容器缺失就跳过动画 */
+    if (!star || !layer || U.reduced()) { return; }
+    var host = U.layerRect();
+    var p = U.relPoint(star.getBoundingClientRect(), host);
+    var N = 16;
+    for (var i = 0; i < N; i++) {
+      var d = U.el('span', 'dust');
+      d.setAttribute('aria-hidden', 'true');
+      var ang = (Math.PI * 2 * i) / N + Math.random() * 0.4;
+      var dist = 26 + Math.random() * 34;
+      d.style.left = p.x + 'px';
+      d.style.top = p.y + 'px';
+      d.style.setProperty('--dx', (Math.cos(ang) * dist).toFixed(1) + 'px');
+      d.style.setProperty('--dy', (Math.sin(ang) * dist).toFixed(1) + 'px');
+      d.style.animationDelay = (Math.random() * 0.12).toFixed(2) + 's';
+      layer.appendChild(d);
+      (function (dot) { App.setTimeout(function () { if (dot.parentNode) { dot.parentNode.removeChild(dot); } }, 1000); })(d);
+    }
+    if (star) { star.className += ' star--hide'; }
+  }
+
+  function tick() {
+    if (App.currentKey() !== 'B') { ticking = false; return; }
+    var last = tick.lastTs || (new Date()).getTime();
+    var now = (new Date()).getTime();
+    var dt = Math.min(400, now - last);
+    tick.lastTs = now;
+    var f = mult();
+    var changed = false, jumped = false;
+    for (var i = 0; i < U.NODES.length; i++) {
+      var id = U.NODES[i].id;
+      if (s.stage[id] === 'faded') {
+        s.tFade[id] -= dt * f;
+        if (s.tFade[id] <= 0) { s.stage[id] = 'asleep'; s.openSleep = true; changed = true; jumped = true; }
+        else { changed = true; }
+      } else if (s.stage[id] === 'asleep') {
+        s.tSleep[id] -= dt * f;
+        if (s.tSleep[id] <= 0) { s.stage[id] = 'gone'; changed = true; jumped = true; }
+        else { changed = true; }
+      }
+    }
+    /* 倒计时显示按 200ms 节流刷新，避免每帧重建 DOM 打断点击 */
+    if (changed && (jumped || now - (tick.lastRender || 0) > 200)) {
+      tick.lastRender = now;
+      App.render();
+    }
+    App.raf(tick);
+  }
+
+  function mount() {
+    if (ticking) { return; }
+    ticking = true;
+    tick.lastTs = (new Date()).getTime();
+    App.raf(tick);
+  }
+
+  function unmount() { ticking = false; tick.lastTs = 0; }
+
+  return {
+    key: 'B', name: '三重遗忘', badge: 'TOP1', metrics: metrics,
+    init: init, reset: reset, render: render, mount: mount, unmount: unmount
+  };
+})();
+
+/* ==========================================================================
+   方案 C：守夜人 · 回声
+   ========================================================================== */
+var DemoC = (function () {
+  var s = null;
+
+  var metrics = {
+    cre: 4, play: 5, dev: '中', safe: 3, safeTone: 'high', safeTxt: '高',
+    risk: '回声本质是主动打扰。若不做频率上限、不做关闭开关，温柔会变成骚扰，用户会关掉整个功能。',
+    verdict: '最有陪伴感：给删除加了一夜缓冲与一次回访，但必须克制冷启动频率。'
+  };
+
+  function init() { reset(); }
+
+  function reset() {
+    s = {
+      stage: { work: 'active', run: 'active', argue: 'active' },
+      day: 1,
+      modal: null,
+      echo: null,
+      pendingEcho: null,   /* { id } 已安排但还没弹出的回声，切方案后补发 */
+      echoOff: false
+    };
+    if (App.currentKey() === 'C') { App.render(); }
+  }
+
+  function count(stage) {
+    var c = 0;
+    for (var i = 0; i < U.NODES.length; i++) { if (s.stage[U.NODES[i].id] === stage) { c++; } }
+    return c;
+  }
+
+  function starStatus() {
+    var st = {};
+    for (var i = 0; i < U.NODES.length; i++) {
+      var id = U.NODES[i].id;
+      var g = s.stage[id];
+      st[id] = (g === 'active' || g === 'keeping') ? 'on' : (g === 'released' ? 'dim' : 'off');
+    }
+    return st;
+  }
+
+  function render() {
+    U.clear();
+    U.setStat('守夜 ' + count('keeping') + ' · 已放下 ' + count('released') + ' · 消散 ' + count('gone'));
+
+    var body = U.body();
+
+    /* 控制条 */
+    var ctrl = U.el('div', 'ctrl');
+    ctrl.appendChild(U.btn('ctrl-btn', '重置', function () { reset(); }));
+    ctrl.appendChild(U.btn('ctrl-btn', '跳到明天', function () { tomorrow(); }));
+    ctrl.appendChild(U.btn('ctrl-btn', '触发一次回声', function () { showEcho(); }));
+    var sw = U.btn('switch' + (s.echoOff ? ' on' : ''), null, function () {
+      s.echoOff = !s.echoOff;
+      /* 关闭时必须连「待触发」一起丢弃，否则关掉开关后又切回会冒出僵尸回声 */
+      if (s.echoOff) { s.echo = null; s.pendingEcho = null; }
+      App.render();
+    });
+    sw.setAttribute('aria-pressed', s.echoOff ? 'true' : 'false');
+    sw.appendChild(U.el('span', 'track'));
+    sw.appendChild(U.el('span', null, '不再让回声出现'));
+    ctrl.appendChild(sw);
+    ctrl.appendChild(U.el('span', 'hint', '点 × 不会删除，而是点亮一盏灯守一夜。明天再问你一次，还送就送；之后它还会以「回声」回来找你一次。'));
+    body.appendChild(ctrl);
+
+    /* 星空带 */
+    body.appendChild(U.buildSky(starStatus()));
+
+    /* 图谱 */
+    var field = U.el('div', 'field');
+    var hidden = [];
+    var lineState = {};
+    for (var k = 0; k < U.NODES.length; k++) {
+      var g0 = s.stage[U.NODES[k].id];
+      if (g0 === 'released' || g0 === 'gone') { hidden.push(U.NODES[k].id); }
+      lineState[U.NODES[k].id] = (g0 === 'active' || g0 === 'keeping') ? 'active' : g0;
+    }
+    field.appendChild(U.buildLines(lineState, hidden));
+    field.appendChild(U.buildCenter());
+
+    for (var i = 0; i < U.NODES.length; i++) {
+      var n = U.NODES[i];
+      var g = s.stage[n.id];
+      if (g === 'released' || g === 'gone') { continue; }
+
+      if (g === 'keeping') {
+        var lamp = U.el('div', 'lamp');
+        lamp.setAttribute('data-node', n.id);
+        U.place(lamp, n.id);
+        var bulb = U.el('div', 'bulb');
+        bulb.setAttribute('aria-hidden', 'true');
+        lamp.appendChild(bulb);
+        lamp.appendChild(U.el('span', 'lp-name', n.name));
+        lamp.appendChild(U.el('span', 'lp-note', '守夜中 · 明天再来送它'));
+        field.appendChild(lamp);
+        continue;
+      }
+
+      var leaf = U.buildLeaf(n.id, '守夜');
+      U.place(leaf, n.id);
+      (function (id) {
+        leaf.querySelector('.leaf-x').addEventListener('click', function () { keep(id); });
+      })(n.id);
+      field.appendChild(leaf);
+    }
+    body.appendChild(field);
+
+    /* 已放下区 */
+    var rel = [];
+    for (var r = 0; r < U.NODES.length; r++) {
+      if (s.stage[U.NODES[r].id] === 'released') { rel.push(U.NODES[r]); }
+    }
+    if (rel.length) {
+      var box = U.el('div', 'released');
+      box.appendChild(U.el('div', 'rl-hd', '已放下（不是真删，还在档案里）'));
+      var list = U.el('div', 'rl-list');
+      for (var q = 0; q < rel.length; q++) {
+        list.appendChild(U.el('span', 'chip', rel[q].name));
+      }
+      box.appendChild(list);
+      body.appendChild(box);
+    }
+
+    /* dock（4 个装饰性胶囊位，内部已 aria-hidden） */
+    U.buildDock();
+
+    /* 决策面板 */
+    if (s.modal) {
+      var node = U.nodeById(s.modal.id);
+      var mask = U.el('div', 'mask');
+      var panel = U.el('div', 'panel');
+      panel.appendChild(U.el('h3', null, '现在还要送它走吗？'));
+      panel.appendChild(U.el('p', null, '灯亮了一整夜。第 ' + s.day + ' 天了，「' + node.name + '」还在。'));
+      var row = U.el('div', 'row');
+      row.appendChild(U.btn('', '再留一晚', function () {
+        var id = s.modal.id;
+        s.modal = null;
+        s.stage[id] = 'keeping';
+        s.day += 1;
+        App.render();
+      }));
+      row.appendChild(U.btn('primary', '送它走', function () {
+        var id = s.modal.id;
+        s.modal = null;
+        s.stage[id] = 'released';
+        /* 记成「待触发」而不是一次性 setTimeout：切方案被打断也能补发 */
+        s.pendingEcho = { id: id };
+        App.render();
+        App.setTimeout(function () { fireEcho(); }, 1400);
+      }));
+      panel.appendChild(row);
+      mask.appendChild(panel);
+      U.layer().appendChild(mask);
+    }
+
+    /* 回声卡 */
+    if (s.echo) {
+      var en = U.nodeById(s.echo.id);
+      var ec = U.el('div', 'echo');
+      ec.setAttribute('role', 'dialog');
+      ec.appendChild(U.el('div', 'ec-tag', '回声'));
+      ec.appendChild(U.el('div', 'ec-txt', '三个月前的你，曾为「' + en.name + '」' + (en.feel === '委屈' ? '难过过' : (en.feel === '倦怠' ? '遗憾过' : '焦虑过')) + '。'));
+      var acts = U.el('div', 'ec-acts');
+      acts.appendChild(U.btn('', '再记起', function () {
+        var id = s.echo.id;
+        s.echo = null;
+        s.stage[id] = 'active';
+        App.render();
+      }));
+      acts.appendChild(U.btn('go', '让它走', function () {
+        var id = s.echo.id;
+        s.echo = null;
+        s.stage[id] = 'gone';   /* 第二次才算真删 */
+        App.render();
+        var star = U.starEl(id);
+        if (star) { star.className += ' star--off'; }
+      }));
+      ec.appendChild(acts);
+      U.layer().appendChild(ec);
+    }
+  }
+
+  function keep(id) {
+    if (s.stage[id] !== 'active') { return; }
+    s.stage[id] = 'keeping';
+    App.render();
+  }
+
+  function tomorrow() {
+    var keepList = [];
+    for (var i = 0; i < U.NODES.length; i++) {
+      if (s.stage[U.NODES[i].id] === 'keeping') { keepList.push(U.NODES[i].id); }
+    }
+    if (!keepList.length) { return; }
+    s.day += 1;
+    s.modal = { id: keepList[0] };
+    App.render();
+  }
+
+  /* preferId 有值且仍处 released 时优先回显它（保证补发的是被打断的那一件） */
+  function showEcho(preferId) {
+    if (s.echoOff) { return; }
+    var rel = [];
+    for (var i = 0; i < U.NODES.length; i++) {
+      if (s.stage[U.NODES[i].id] === 'released') { rel.push(U.NODES[i].id); }
+    }
+    if (!rel.length) { return; }
+    var id = (preferId && rel.indexOf(preferId) >= 0) ? preferId : rel[Math.floor(Math.random() * rel.length)];
+    s.echo = { id: id };
+    s.pendingEcho = null;
+    App.render();
+  }
+
+  /* 真正弹出被挂起的回声（无论来自 1.4s 延迟还是切回补发） */
+  function fireEcho() {
+    if (!s.pendingEcho) { return; }
+    var id = s.pendingEcho.id;
+    s.pendingEcho = null;
+    if (s.echoOff || s.stage[id] !== 'released') { return; }
+    showEcho(id);
+  }
+
+  /* 切回 C：若上一次的回声还没来得及出现，补发一次 */
+  function mount() {
+    if (!s) { return; }
+    if (s.pendingEcho && !s.echoOff && !s.echo) {
+      App.setTimeout(function () { fireEcho(); }, 400);
+    }
+  }
+
+  return {
+    key: 'C', name: '守夜人 · 回声', metrics: metrics,
+    init: init, reset: reset, render: render, mount: mount
+  };
+})();
+
+/* ==========================================================================
+   方案 D：遗忘之河 · 三档水位
+   ========================================================================== */
+var DemoD = (function () {
+  var s = null;
+  var LEVELS = [
+    { key: 'shallow', name: '浅 · 收起来', desc: '折叠进抽屉，不再出现在首页', top: 58, cls: 'leaf--sink1' },
+    { key: 'mid', name: '中 · 淡忘', desc: '降权，不再被推荐和追问', top: 74, cls: 'leaf--sink2' },
+    { key: 'deep', name: '深 · 遗忘', desc: '真删，卡片与星星一起消失', top: 88, cls: 'leaf--sink3' }
+  ];
+
+  /* 图谱区（上半 200px）内的放射坐标；换算到 400px 场地时纵向减半 */
+  var DPOS = { work: { x: 20, y: 20 }, run: { x: 80, y: 20 }, argue: { x: 50, y: 84 } };
+  var CENTER_Y = 48;
+
+  /* D 专用连线：svg 挂在 200px 高的图谱层里，中心在 CENTER_Y% */
+  function buildLinesD(state, hiddenIds) {
+    var svgNS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('class', 'glines');
+    svg.setAttribute('aria-hidden', 'true');
+    for (var i = 0; i < U.NODES.length; i++) {
+      var n = U.NODES[i];
+      var hidden = hiddenIds && hiddenIds.indexOf(n.id) >= 0;
+      var ln = document.createElementNS(svgNS, 'line');
+      ln.setAttribute('x1', '50%'); ln.setAttribute('y1', CENTER_Y + '%');
+      ln.setAttribute('x2', DPOS[n.id].x + '%'); ln.setAttribute('y2', DPOS[n.id].y + '%');
+      if (hidden || (state && state[n.id] && state[n.id] !== 'active')) { ln.setAttribute('class', 'dim'); }
+      svg.appendChild(ln);
+    }
+    return svg;
+  }
+
+  var metrics = {
+    cre: 2, play: 3, dev: '小', safe: 2, safeTxt: '中', safeTone: 'mid',
+    risk: '拖到深处即真删，缺少告别仪式；误拖、手滑一样丢数据，也没有情绪缓冲。',
+    verdict: '最快上线：手势直观、开发量最小，但少了仪式感，像「扔东西」不像「告别」。'
+  };
+
+  function init() { reset(); }
+
+  function reset() {
+    s = { level: { work: 'none', run: 'none', argue: 'none' }, note: null, hot: null };
+    if (App.currentKey() === 'D') { App.render(); }
+  }
+
+  function starStatus() {
+    var st = {};
+    for (var i = 0; i < U.NODES.length; i++) {
+      var id = U.NODES[i].id;
+      var lv = s.level[id];
+      st[id] = (lv === 'none' || lv === 'shallow') ? 'on' : (lv === 'mid' ? 'dim' : 'off');
+    }
+    return st;
+  }
+
+  function levelOf(key) {
+    for (var i = 0; i < LEVELS.length; i++) { if (LEVELS[i].key === key) { return LEVELS[i]; } }
+    return null;
+  }
+
+  function render() {
+    U.clear();
+    var gone = 0, inRiver = 0;
+    for (var c = 0; c < U.NODES.length; c++) {
+      var lv = s.level[U.NODES[c].id];
+      if (lv === 'deep') { gone++; } else if (lv !== 'none') { inRiver++; }
+    }
+    U.setStat('河中 ' + inRiver + ' · 遗忘 ' + gone);
+
+    var body = U.body();
+
+    /* 控制条 */
+    var ctrl = U.el('div', 'ctrl');
+    ctrl.appendChild(U.btn('ctrl-btn', '重置', function () { reset(); }));
+    ctrl.appendChild(U.el('span', 'hint', '按住卡片向下拖入遗忘之河（鼠标 / 触摸都行）。三档水位：浅 = 收起来，中 = 淡忘，深 = 遗忘（真删）。'));
+    body.appendChild(ctrl);
+
+    /* 星空带 */
+    body.appendChild(U.buildSky(starStatus()));
+
+    /* 场地：上图谱 / 下河流 */
+    var field = U.el('div', 'field field--d');
+    field.setAttribute('data-field', 'd');
+
+    var g = U.el('div', 'd-graph');
+    var hidden = [];
+    var lineState = {};
+    for (var h = 0; h < U.NODES.length; h++) {
+      var lid = U.NODES[h].id;
+      if (s.level[lid] !== 'none') { hidden.push(lid); }
+      lineState[lid] = (s.level[lid] === 'none') ? 'active' : 'faded';
+    }
+    g.appendChild(buildLinesD(lineState, hidden));
+    var cen = U.buildCenter();
+    cen.style.top = CENTER_Y + '%';
+    g.appendChild(cen);
+    field.appendChild(g);
+
+    var river = U.el('div', 'river');
+    river.appendChild(U.el('div', 'water'));
+    for (var i = 0; i < LEVELS.length; i++) {
+      var L = LEVELS[i];
+      var row = U.el('div', 'wlevel ' + L.key);
+      row.setAttribute('data-level', L.key);
+      if (s.hot === L.key) { row.className += ' hot'; }
+      var used = false;
+      for (var u = 0; u < U.NODES.length; u++) { if (s.level[U.NODES[u].id] === L.key) { used = true; } }
+      if (used) { row.className += ' active'; }
+      row.appendChild(U.el('span', 'wl-name', L.name));
+      row.appendChild(U.el('span', 'wl-desc', L.desc));
+      river.appendChild(row);
+    }
+    field.appendChild(river);
+
+    /* 叶子：可拖 */
+    for (var n = 0; n < U.NODES.length; n++) {
+      var node = U.NODES[n];
+      if (s.level[node.id] === 'deep') { continue; }
+      var leaf = U.buildLeaf(node.id, '处理');
+      /* 右上改为拖拽把手 */
+      var x = leaf.querySelector('.leaf-x');
+      if (x && x.parentNode) { x.parentNode.removeChild(x); }
+      var grip = U.el('span', 'grip', '拖');
+      grip.setAttribute('aria-hidden', 'true');
+      leaf.appendChild(grip);
+
+      var lvNow = s.level[node.id];
+      leaf.style.left = DPOS[node.id].x + '%';
+      if (lvNow === 'none') {
+        leaf.style.top = (DPOS[node.id].y * 0.5) + '%';   /* 图谱区只占上半，纵向减半 */
+      } else {
+        var Lv = levelOf(lvNow);
+        leaf.style.top = Lv.top + '%';
+        leaf.className += ' ' + Lv.cls;
+      }
+      leaf.setAttribute('data-node', node.id);
+      leaf.setAttribute('tabindex', '0');
+
+      if (lvNow !== 'none') {
+        var a = U.actions(leaf);
+        (function (id) {
+          a.appendChild(U.btn('mini', '复位', function () { setLevel(id, 'none'); }));
+        })(node.id);
+      }
+
+      attachDrag(leaf, node.id);
+      field.appendChild(leaf);
+    }
+    body.appendChild(field);
+
+    /* 说明条 */
+    if (s.note && s.note.level !== 'none') {
+      var nd = U.nodeById(s.note.id);
+      var Ln = levelOf(s.note.level);
+      var note = U.el('div', 'river-note', '「' + nd.name + '」现在在：' + Ln.name + ' —— ' + Ln.desc);
+      body.appendChild(note);
+    } else if (s.note) {
+      var nd2 = U.nodeById(s.note.id);
+      var note2 = U.el('div', 'river-note', '「' + nd2.name + '」已放回图谱 —— 浅档与中档都不是删除，随时可以再拖回来。');
+      body.appendChild(note2);
+    } else {
+      var note0 = U.el('div', 'river-note', '把卡片拖到某一档水位，这里会立刻说明那一档意味着什么。');
+      body.appendChild(note0);
+    }
+
+    /* dock（4 个装饰性胶囊位，内部已 aria-hidden） */
+    U.buildDock();
+  }
+
+  function attachDrag(leaf, id) {
+    var dragging = false, startY = 0, startX = 0, baseX = 0, baseY = 0, pid = null;
+
+    leaf.addEventListener('pointerdown', function (e) {
+      if (e.target && e.target.tagName === 'BUTTON') { return; }
+      dragging = true;
+      pid = e.pointerId;
+      startX = e.clientX; startY = e.clientY;
+      var r = leaf.getBoundingClientRect();
+      var f = leaf.parentNode.getBoundingClientRect();
+      baseX = r.left - f.left + r.width / 2;
+      baseY = r.top - f.top + r.height / 2;
+      leaf.className += ' leaf--drag';
+      try { leaf.setPointerCapture(pid); } catch (err) { /* 兼容：忽略捕获失败 */ }
+      e.preventDefault();
+    });
+
+    leaf.addEventListener('pointermove', function (e) {
+      if (!dragging) { return; }
+      var dx = e.clientX - startX, dy = e.clientY - startY;
+      leaf.style.transform = 'translate(-50%,-50%) translate(' + dx + 'px,' + dy + 'px)';
+      var hot = hitLevel(e.clientY);
+      if (hot !== s.hot) {
+        s.hot = hot;
+        var rows = document.querySelectorAll('.wlevel');
+        for (var i = 0; i < rows.length; i++) {
+          /* 只增删 hot，保留 active / shallow|mid|deep，避免高亮抖动 */
+          U.toggleClass(rows[i], 'hot', rows[i].getAttribute('data-level') === hot);
+        }
+      }
+    });
+
+    function end(e) {
+      if (!dragging) { return; }
+      dragging = false;
+      try { leaf.releasePointerCapture(pid); } catch (err) { /* 兼容：忽略 */ }
+      s.hot = null;
+      var lv = hitLevel(e.clientY);
+      leaf.style.transform = '';
+      if (lv) { setLevel(id, lv); }
+      else { App.render(); }
+    }
+
+    leaf.addEventListener('pointerup', end);
+    leaf.addEventListener('pointercancel', function (e) {
+      dragging = false;
+      s.hot = null;
+      leaf.style.transform = '';
+      App.render();
+    });
+
+    /* 键盘可达：Tab 聚焦后用上下方向键换档 */
+    leaf.addEventListener('keydown', function (e) {
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') { return; }
+      var seq = ['none', 'shallow', 'mid', 'deep'];
+      var idx = seq.indexOf(s.level[id]);
+      if (e.key === 'ArrowDown') { idx = Math.min(seq.length - 1, idx + 1); }
+      else { idx = Math.max(0, idx - 1); }
+      setLevel(id, seq[idx]);
+      e.preventDefault();
+    });
+  }
+
+  function hitLevel(clientY) {
+    var rows = document.querySelectorAll('.wlevel');
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i].getBoundingClientRect();
+      if (clientY >= r.top && clientY <= r.bottom) { return rows[i].getAttribute('data-level'); }
+    }
+    return null;
+  }
+
+  function setLevel(id, lv) {
+    s.level[id] = lv;
+    s.note = { id: id, level: lv };
+    App.render();
+    if (lv === 'deep') {
+      var star = U.starEl(id);
+      if (star) { star.className += ' star--off'; }
+    }
+  }
+
+  return { key: 'D', name: '遗忘之河 · 三档水位', metrics: metrics, init: init, reset: reset, render: render };
+})();
+
+/* ==========================================================================
+   启动
+   ========================================================================== */
+(function () {
+  App.register('A', DemoA);
+  App.register('B', DemoB);
+  App.register('C', DemoC);
+  App.register('D', DemoD);
+
+  var meta = {
+    A: { name: '送别 · 光点远行' },
+    B: { name: '三重遗忘', badge: 'TOP1' },
+    C: { name: '守夜人 · 回声' },
+    D: { name: '遗忘之河 · 三档水位' }
+  };
+
+  function start() { App.boot(meta); }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start);
+  } else {
+    start();
+  }
+})();
+</script>
+</body>
+</html>

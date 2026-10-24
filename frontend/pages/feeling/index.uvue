@@ -1,0 +1,468 @@
+<!--
+  pages/feeling/index —— 感受列表（Tab 2）
+  ══════════════════════════════════════════════════════════════
+  这一页要让人「一眼看懂自己最近的情绪」，所以每条卡片同时给四样东西：
+    原话（rawLabel）· 更精确的说法（refinedLabel）· 强度 · 极性色点
+  ★ refinedLabel 是本产品的核心差异点：用户说「难受」，
+    我们帮他找到「憋屈」这种更准的说法。列表里两者要**并排**出现，
+    因为「原话 → 精炼」这个变化本身就是用户想看到的东西。
+
+  分页：上拉加载更多（scroll-view 的 scrolltolower）。
+  ★ 刻意不做无限滚动 +自动预取：情绪记录是私密内容，
+    用户滑过就等于读过，预取下一页会造成「我明明只看了 5 条，
+    怎么消耗了 20 条的加载」的不信任感。
+
+  设计约束：
+    1. 全部颜色/间距/圆角走 var(--xxx) 与 t.$xxx，页面内零字面量。
+    2. 文字全部包在 <text> 里（红线第 1 条）。
+    3. 空态用 AppEmpty 且**必须带重试按钮**（05 号 T8 DoD）。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="感受" :show-back="false">
+      <template #right>
+        <view class="nav-action" @click="onGoEdit">
+          <text class="nav-action-text">记一下</text>
+        </view>
+      </template>
+    </AppNavBar>
+
+    <scroll-view
+      class="body"
+      scroll-y
+      :lower-threshold="LOAD_MORE_THRESHOLD"
+      @scrolltolower="onReachBottom"
+    >
+      <!-- 加载态：首屏骨架屏 -->
+      <view v-if="firstLoading" class="content">
+        <AppLoading type="skeleton" :rows="5" />
+      </view>
+
+      <!-- 错误态：带重试按钮，绝不是白屏+ toast 一闪 -->
+      <AppEmpty
+        v-else-if="loadFailed"
+        icon="⚠"
+        title="没能读到这些感受"
+        :description="errorText"
+        action-text="重试一次"
+        @action="reloadFirstPage"
+      />
+
+      <!-- 空态：真的没有记录。仍给「记一下」入口 -->
+      <AppEmpty
+        v-else-if="list.length == 0"
+        icon="◌"
+        title="还没有记录过感受"
+        description="不用想清楚再写。哪怕只是「有点累」，也值得记下来。"
+        action-text="记第一笔"
+        @action="onGoEdit"
+      />
+
+      <view v-else class="content">
+        <view v-for="f in list" :key="f.id" class="card-wrap">
+          <AppCard padding="md">
+            <!-- 极性色点 + 原话 + 精炼词 -->
+            <view class="row-top">
+              <view class="polarity-dot" :class="polarityClassOf(f.polarity)" />
+              <text class="raw-label">{{ f.rawLabel }}</text>
+              <text class="refined-label" v-if="hasRefined(f.refinedLabel)">更接近：{{ f.refinedLabel }}</text>
+            </view>
+
+            <!-- 原话内容 -->
+            <text v-if="hasContent(f.content)" class="content-text">{{ f.content }}</text>
+
+            <!-- 触发事件 -->
+            <text v-if="hasContent(f.trigger)" class="trigger-text">因为：{{ f.trigger }}</text>
+
+            <!-- 强度条 + 时间 -->
+            <view class="row-bottom">
+              <view class="intensity">
+                <!-- 强度条用固定 10 格而不是百分比：
+                     百分比要算小数，三端在小数精度上偶有差异，画出来的格数会差一格 -->
+                <view
+                  v-for="i in INTENSITY_CELLS"
+                  :key="i"
+                  class="intensity-cell"
+                  :class="i <= f.intensity ? 'intensity-cell--on' : ''"
+                />
+              </view>
+              <text class="intensity-text">{{ f.intensity }} / 10</text>
+              <text class="time-text">{{ shortTextOf(f.happenedAt) }}</text>
+            </view>
+          </AppCard>
+        </view>
+
+        <!-- 上拉分页的底部状态：三种都要有明确文案，
+             否则用户会以为「还有但没出来」或者「卡住了」 -->
+        <view class="list-foot">
+          <AppLoading v-if="loadingMore" type="spinner" text="在读更早的" />
+          <text v-else-if="loadMoreFailed" class="foot-text" @click="loadNextPage">点我重试</text>
+          <text v-else-if="!hasNext" class="foot-text">到底了</text>
+        </view>
+
+        <!-- 底部占位：让最后一张卡不被固定 Tab 栏压住 -->
+        <view class="tab-placeholder" />
+      </view>
+    </scroll-view>
+
+    <AppTabBar current="feeling" />
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppCard from '@/components/AppCard.uvue'
+import AppEmpty from '@/components/AppEmpty.uvue'
+import AppLoading from '@/components/AppLoading.uvue'
+import AppTabBar from '@/components/AppTabBar.uvue'
+import { feelingsService } from '@/services'
+import type { Feeling } from '@/services'
+import { messageOfError } from '@/core/http/error-code'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+import { nowIso, shortTime } from '@/core/utils/datetime'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 取消键：与 onUnload 的 cancelByKey 成对 */
+const ABORT_KEY = 'pages/feeling/index'
+
+/** 每页条数 */
+const PAGE_SIZE = 20
+/** 触底提前量（px）。给 120 是为了「快到底时就开始拉」，
+ *  用户看不到明显的空窗；但也不能太大，否则会一次拉好几页 */
+const LOAD_MORE_THRESHOLD = 120
+/** 强度条固定 10 格，与后端 intensity 的 1~10 一致 */
+const INTENSITY_CELLS: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+const list = ref<Feeling[]>([])
+const page = ref<number>(1)
+const hasNext = ref<boolean>(true)
+const firstLoading = ref<boolean>(true)
+const loadingMore = ref<boolean>(false)
+/** 首屏失败（整页错误态） */
+const loadFailed = ref<boolean>(false)
+/** 翻页失败：只影响底部那一行，不影响已加载的内容 */
+const loadMoreFailed = ref<boolean>(false)
+const errorText = ref<string>('')
+
+/** now 存成 ref，这样短时间格式能跟着「今天」这个基准走 */
+const now = ref<string>(nowIso())
+
+/** 「记一下」在导航栏右侧常驻，列表页是产品的主入口之一 */
+const canLoadMore = computed<boolean>(() => {
+  return hasNext.value && !loadingMore.value && !firstLoading.value && !loadFailed.value
+})
+
+function hasRefined(v: string | null): boolean {
+  return v != null && v.length > 0
+}
+
+function hasContent(v: string | null): boolean {
+  return v != null && v.length > 0
+}
+
+function shortTextOf(iso: string): string {
+  return shortTime(iso, now.value)
+}
+
+/** 极性色点。只映射三档，不做「好/坏」暗示 */
+function polarityClassOf(polarity: string | null): string {
+  if (polarity == 'positive') return 'polarity-dot--positive'
+  if (polarity == 'negative') return 'polarity-dot--negative'
+  if (polarity == 'neutral') return 'polarity-dot--neutral'
+  return 'polarity-dot--none'
+}
+
+// ────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(ABORT_KEY)
+  now.value = nowIso()
+  reloadFirstPage()
+})
+
+onShow(() => {
+  now.value = nowIso()
+  // 从记录页返回时如果列表是空的，说明用户可能刚记完又删了，
+  // 这里只在「空列表」时自动重拉，避免打断正在浏览的用户
+  if (list.value.length == 0 && !firstLoading.value) {
+    reloadFirstPage()
+  }
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  // ★ 页面卸载必须取消在途请求，否则回调会更新已销毁的 ref
+  const n = cancelByKey(ABORT_KEY)
+  if (n > 0) {
+    console.log(`[feeling] 页面卸载，取消 ${n} 个在途请求`)
+  }
+})
+
+// ────────────────────────────────────────────────────────
+// 加载
+// ────────────────────────────────────────────────────────
+
+/** 重载第一页：首次进入、下拉、错误重试都走这里 */
+async function reloadFirstPage(): Promise<void> {
+  if (loadingMore.value) return
+
+  firstLoading.value = true
+  loadFailed.value = false
+  loadMoreFailed.value = false
+  page.value = 1
+
+  try {
+    const res = await feelingsService.list({ page: 1, pageSize: PAGE_SIZE })
+    list.value = res.list
+    hasNext.value = res.hasNext
+  } catch (e) {
+    // ★ 不吞错误：整页错误态 + 可点的重试
+    console.error('[feeling] 感受列表加载失败', e)
+    errorText.value = messageOfError(e)
+    loadFailed.value = true
+    list.value = []
+  } finally {
+    firstLoading.value = false
+  }
+}
+
+/** 上拉翻页 */
+async function loadNextPage(): Promise<void> {
+  if (!canLoadMore.value) return
+
+  loadingMore.value = true
+  loadMoreFailed.value = false
+  const next = page.value + 1
+
+  try {
+    const res = await feelingsService.list({ page: next, pageSize: PAGE_SIZE })
+    // ★ 竞态保护：用户可能在翻页途中下拉重载了第一页，
+    //   这时 page 已经被改回 1，直接 push 会造成重复条目。
+    if (page.value + 1 !== next) {
+      console.log('[feeling] 翻页期间页码已变，丢弃这次结果')
+      return
+    }
+    // 用 list 重新赋值而不是 push：uts 里 ref<Array<T>> 的 push
+    // 在部分端不会触发视图更新，整体赋值最稳
+    const merged: Feeling[] = list.value.slice()
+    for (const item of res.list) {
+      merged.push(item)
+    }
+    list.value = merged
+    page.value = next
+    hasNext.value = res.hasNext
+  } catch (e) {
+    // ★ 翻页失败只影响底部那一行，已加载的内容必须留着
+    console.error(`[feeling] 第 ${next} 页加载失败`, e)
+    errorText.value = messageOfError(e)
+    loadMoreFailed.value = true
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+function onReachBottom(): void {
+  loadNextPage()
+}
+
+/** 下拉刷新。pages.json 的本页已开 enablePullDownRefresh */
+async function onPullDownRefresh(): Promise<void> {
+  await reloadFirstPage()
+  uni.stopPullDownRefresh()
+}
+
+// ────────────────────────────────────────────────────────
+// 交互
+// ────────────────────────────────────────────────────────
+
+function onGoEdit(): void {
+  uni.navigateTo({
+    url: '/pages/feeling/edit',
+    fail: (err) => {
+      console.error('[feeling] 跳转记录页失败', err)
+      uni.showToast({ title: '页面还没打开，请稍后再试', icon: 'none' })
+    },
+  })
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  background-color: var(--color-bg);
+}
+
+// ★ 不用 vh 单位
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+.content {
+  width: 100%;
+  @include m.content-constrain;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-sm;
+}
+
+.card-wrap {
+  margin-top: t.$space-sm;
+}
+
+// ── 卡片首行 ─────────────────────────────────────────────
+.row-top {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.polarity-dot {
+  width: t.$space-sm;
+  height: t.$space-sm;
+  border-radius: t.$radius-pill;
+  margin-right: t.$space-xs;
+}
+
+// 极性三色：用「冰川蓝 / 灰 / 暖橙」而不是「绿=好 / 红=坏」。
+// 正负情绪没有优劣，绿色会暗示「开心才是对的」，那是评判不是记录
+.polarity-dot--positive {
+  background-color: var(--color-glacier);
+}
+
+.polarity-dot--neutral {
+  background-color: var(--color-text-3);
+}
+
+.polarity-dot--negative {
+  background-color: var(--color-warning);
+}
+
+.polarity-dot--none {
+  background-color: var(--color-divider-strong);
+}
+
+.raw-label {
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+// ★ 精炼词是产品的核心差异点，视觉上要比原话「轻」但仍要可读：
+//   重了会喧宾夺主，轻到看不清就失去了它的意义
+.refined-label {
+  margin-left: t.$space-sm;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-primary);
+}
+
+// ── 卡片正文 ─────────────────────────────────────────────
+.content-text {
+  margin-top: t.$space-sm;
+  font-size: t.$font-md;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-1);
+}
+
+.trigger-text {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+// ── 卡片底行：强度 + 时间 ────────────────────────────────
+.row-bottom {
+  flex-direction: row;
+  align-items: center;
+  margin-top: t.$space-sm;
+}
+
+.intensity {
+  flex-direction: row;
+  align-items: center;
+}
+
+.intensity-cell {
+  width: t.$space-xs;
+  height: t.$space-sm;
+  border-radius: t.$radius-xs;
+  background-color: var(--color-track);
+  margin-right: t.$space-xxs;
+}
+
+.intensity-cell--on {
+  background-color: var(--color-glacier);
+}
+
+.intensity-text {
+  margin-left: t.$space-xs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+.time-text {
+  flex: 1;
+  margin-left: t.$space-sm;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+  text-align: right;
+}
+
+// ── 列表底部状态 ─────────────────────────────────────────
+// ★ 三种状态都要有明确文案，否则用户会以为「卡住了」
+.list-foot {
+  min-height: t.$tap-min-size;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding-top: t.$space-md;
+  padding-bottom: t.$space-md;
+}
+
+.foot-text {
+  @include m.tap-target;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+  text-align: center;
+}
+
+// ── Tab 栏占位 ───────────────────────────────────────────
+// ★ 与 AppTabBar 高度等高
+.tab-placeholder {
+  height: t.$tabbar-height;
+  width: 100%;
+}
+
+// ── 导航栏右侧 ───────────────────────────────────────────
+.nav-action {
+  @include m.tap-target;
+  padding-left: t.$space-sm;
+  padding-right: t.$space-xs;
+}
+
+.nav-action-text {
+  font-size: t.$font-sm;
+  line-weight: t.$weight-medium;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+}
+</style>

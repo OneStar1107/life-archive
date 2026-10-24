@@ -1,0 +1,172 @@
+{
+  "light": {
+    "--color-bg": "#F8FBFE",
+    "--color-bg-elevated": "#FFFFFF",
+    "--color-bg-sunken": "#EAF2F8",
+    "--color-glass": "rgba(255, 255, 255, 0.58)",
+    "--color-glass-border": "rgba(255, 255, 255, 0.60)",
+
+    "--color-text-1": "#0A2233",
+    "--color-text-2": "#5B7C90",
+    "--color-text-3": "#93B2C3",
+    "--color-text-on-primary": "#FFFFFF",
+    "--color-text-inverse": "#F8FBFE",
+
+    "--color-primary": "#0E5C7E",
+    "--color-primary-deep": "#08324E",
+    "--color-primary-soft": "rgba(14, 92, 126, 0.10)",
+    "--color-accent": "#0E5C7E",
+    "--color-glacier": "#4FB0D9",
+    "--color-glacier-light": "#7FD4F2",
+    "--color-glacier-tab": "#1E87B5",
+
+    "--color-danger": "#D64545",
+    "--color-danger-soft": "rgba(214, 69, 69, 0.10)",
+    "--color-success": "#2FA84F",
+    "--color-success-soft": "rgba(47, 168, 79, 0.10)",
+    "--color-warning": "#D9902F",
+    "--color-warning-soft": "rgba(217, 144, 47, 0.12)",
+
+    "--color-divider": "rgba(10, 34, 51, 0.08)",
+    "--color-divider-strong": "rgba(10, 34, 51, 0.14)",
+    "--color-mask": "rgba(8, 32, 46, 0.45)",
+    "--color-skeleton": "rgba(14, 92, 126, 0.08)",
+
+    "--color-tab-inactive": "#93B2C3",
+    "--color-nav-bg": "rgba(255, 255, 255, 0.50)",
+    "--color-nav-border": "rgba(255, 255, 255, 0.70)",
+    "--color-pill-bg": "rgba(255, 255, 255, 0.55)",
+    "--color-pill-border": "rgba(255, 255, 255, 0.70)",
+    "--color-track": "rgba(23, 77, 102, 0.14)",
+
+    "--space-xxs": "4rpx",
+    "--space-xs": "8rpx",
+    "--space-sm": "16rpx",
+    "--space-md": "24rpx",
+    "--space-lg": "32rpx",
+    "--space-xl": "48rpx",
+    "--space-xxl": "64rpx",
+    "--space-xxxl": "96rpx",
+
+    "--radius-xs": "8rpx",
+    "--radius-sm": "12rpx",
+    "--radius-md": "16rpx",
+    "--radius-lg": "24rpx",
+    "--radius-xl": "32rpx",
+    "--radius-pill": "999rpx",
+
+    "--font-xs": "24rpx",
+    "--font-sm": "26rpx",
+    "--font-md": "30rpx",
+    "--font-lg": "34rpx",
+    "--font-xl": "40rpx",
+    "--font-xxl": "48rpx",
+    "--font-display": "56rpx",
+
+    "--line-height-tight": "1.3",
+    "--line-height-normal": "1.5",
+    "--line-height-loose": "1.7",
+
+    "--weight-regular": "400",
+    "--weight-medium": "500",
+    "--weight-semibold": "600",
+    "--weight-bold": "700",
+
+    "--opacity-disabled": "0.45",
+    "--opacity-muted": "0.7",
+    "--opacity-overlay": "0.6",
+
+    "color-bg": "#F8FBFE",
+    "color-nav-bg": "rgba(255, 255, 255, 0.50)",
+    "color-tab-inactive": "#93B2C3",
+    "color-text-on-primary": "#FFFFFF"
+  },
+
+  "dark": {
+    "--color-bg": "#081217",
+    "--color-bg-elevated": "#0F1F27",
+    "--color-bg-sunken": "#050D11",
+    "--color-glass": "rgba(255, 255, 255, 0.07)",
+    "--color-glass-border": "rgba(255, 255, 255, 0.12)",
+
+    "--color-text-1": "#E6F1F7",
+    "--color-text-2": "#A8C2D0",
+    "--color-text-3": "#6B8999",
+    "--color-text-on-primary": "#FFFFFF",
+    "--color-text-inverse": "#081217",
+
+    "--color-primary": "#7FD4F2",
+    "--color-primary-deep": "#4FB0D9",
+    "--color-primary-soft": "rgba(127, 212, 242, 0.12)",
+    "--color-accent": "#7FD4F2",
+    "--color-glacier": "#4FB0D9",
+    "--color-glacier-light": "#9FE0F7",
+    "--color-glacier-tab": "#4FB0D9",
+
+    "--color-danger": "#F07A7A",
+    "--color-danger-soft": "rgba(240, 122, 122, 0.14)",
+    "--color-success": "#5FD08A",
+    "--color-success-soft": "rgba(95, 208, 138, 0.14)",
+    "--color-warning": "#F0B45F",
+    "--color-warning-soft": "rgba(240, 180, 95, 0.16)",
+
+    "--color-divider": "rgba(230, 241, 247, 0.10)",
+    "--color-divider-strong": "rgba(230, 241, 247, 0.18)",
+    "--color-mask": "rgba(0, 0, 0, 0.60)",
+    "--color-skeleton": "rgba(127, 212, 242, 0.08)",
+
+    "--color-tab-inactive": "#4E6B7A",
+    "--color-nav-bg": "rgba(255, 255, 255, 0.06)",
+    "--color-nav-border": "rgba(255, 255, 255, 0.10)",
+    "--color-pill-bg": "rgba(255, 255, 255, 0.07)",
+    "--color-pill-border": "rgba(255, 255, 255, 0.12)",
+    "--color-track": "rgba(255, 255, 255, 0.10)",
+
+    "--space-xxs": "4rpx",
+    "--space-xs": "8rpx",
+    "--space-sm": "16rpx",
+    "--space-md": "24rpx",
+    "--space-lg": "32rpx",
+    "--space-xl": "48rpx",
+    "--space-xxl": "64rpx",
+    "--space-xxxl": "96rpx",
+
+    "--radius-xs": "8rpx",
+    "--radius-sm": "12rpx",
+    "--radius-md": "16rpx",
+    "--radius-lg": "24rpx",
+    "--radius-xl": "32rpx",
+    "--radius-pill": "999rpx",
+
+    "--font-xs": "24rpx",
+    "--font-sm": "26rpx",
+    "--font-md": "30rpx",
+    "--font-lg": "34rpx",
+    "--font-xl": "40rpx",
+    "--font-xxl": "48rpx",
+    "--font-display": "56rpx",
+
+    "--line-height-tight": "1.3",
+    "--line-height-normal": "1.5",
+    "--line-height-loose": "1.7",
+
+    "--weight-regular": "400",
+    "--weight-medium": "500",
+    "--weight-semibold": "600",
+    "--weight-bold": "700",
+
+    "--opacity-disabled": "0.45",
+    "--opacity-muted": "0.7",
+    "--opacity-overlay": "0.6",
+
+    "color-bg": "#081217",
+    "color-nav-bg": "rgba(255, 255, 255, 0.06)",
+    "color-tab-inactive": "#4E6B7A",
+    "color-text-on-primary": "#FFFFFF"
+  },
+
+  "navigationBarTextStyle": "black",
+  "navigationBarTitleText": "人生档案",
+  "navigationBarBackgroundColor": "#F8FBFE",
+  "backgroundColor": "#F8FBFE"
+}

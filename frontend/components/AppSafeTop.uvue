@@ -1,0 +1,36 @@
+<!--
+  AppSafeTop —— 顶部安全区占位
+  ══════════════════════════════════════════════════════════════
+  职责：撑开刘海 / 挖孔 / 灵动岛的高度。
+        navigationStyle: "custom" 时，页面内容需要自己让开这段区域。
+
+  用法：两种典型场景
+        1. 自定义导航栏用 AppNavBar 时不必再加本组件
+           （AppNavBar 的高度已含状态栏）。
+        2. 页面顶部要直接铺内容（沉浸式头图 / 大标题）时，
+           在内容最前面放一个<AppSafeTop />。
+
+  slots：无（只有一个固定高度的占位 view）
+
+  设计约束：
+    1. 高度走 @include m.safe-top，不写死数值。
+    2. 与 AppSafeBottom 成对，不要混用 fixed-bottom-bar 的
+       padding 写法，否则会重复让位。
+-->
+<template>
+  <view class="safe-top" />
+</template>
+
+<script lang="uts" setup>
+// 无 props / 无 emits：纯粹的占位块
+</script>
+
+<style scoped lang="scss">
+@use '../styles/mixins.scss' as m;
+
+.safe-top {
+  width: 100%;
+  // ★ 安全区高度由 mixin 提供（同时写 constant() 与 env() 两行）
+  @include m.safe-top;
+}
+</style>

@@ -1,0 +1,1129 @@
+<!--
+  pages/memory/index —— 记忆（Tab 3）
+  ══════════════════════════════════════════════════════════════
+  两个视图：
+    图谱视图：<canvas> 画节点与连线，看「哪些记忆连在一起」
+    列表视图：卡片网格，看「有哪些记忆」
+
+  ★ 平板自动多列（04 号 T4）：
+    列数由 appStore.columnCount 决定（1 / 2 / 3），
+    **不用媒体查询** —— uni-app x 的 CSS 不支持 @media，
+    断点必须走 JS 判断。列数变化时要重新测量画布尺寸，
+    否则 canvas 里的节点坐标会与容器不匹配（节点会挤在左上角）。
+
+  ★ canvas 颜色的来源：
+    CanvasRenderingContext2D 不认 CSS 变量（fillStyle 只能接色值），
+    所以色值统一从 core/theme/palette.ts 取，页面里一个字面量都没有。
+    这样深色模式下画出来的节点不会「发光」糊成一片。
+
+  ★ canvas 上下文的获取（易踩坑）：
+    uni-app x **不支持**旧版同步 uni.createCanvasContext（运行时无此函数，
+    调用即抛 not a function → 画布静默空白）。必须用异步的
+    uni.createCanvasContextAsync + CanvasContext.getContext('2d')
+    取 W3C 标准上下文，画完不需要调 draw()。
+
+  设计约束：
+    1. 全部颜色/间距/圆角走 var(--xxx) 与 t.$xxx，页面内零字面量。
+    2. 文字全部包在 <text> 里（红线第 1 条）。
+    3. 画布高度用 flex 撑开，不写 vh 与屏幕像素值。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="记忆" :show-back="false">
+      <template #right>
+        <view class="nav-action" @click="onGoTimeline">
+          <text class="nav-action-text">时间轴</text>
+        </view>
+      </template>
+    </AppNavBar>
+
+    <!-- 视图切换：图谱 / 列表 -->
+    <view class="switcher">
+      <view class="switch-item" :class="viewMode == 'graph' ? 'switch-item--on' : ''" @click="setView('graph')">
+        <text class="switch-text" :class="viewMode == 'graph' ? 'switch-text--on' : ''">图谱</text>
+      </view>
+      <view class="switch-item" :class="viewMode == 'list' ? 'switch-item--on' : ''" @click="setView('list')">
+        <text class="switch-text" :class="viewMode == 'list' ? 'switch-text--on' : ''">列表</text>
+      </view>
+    </view>
+
+    <!-- ══════════ 图谱视图 ══════════ -->
+    <view v-if="viewMode == 'graph'" class="body">
+      <!-- 加载态 -->
+      <view v-if="graphLoading" class="graph-wrap">
+        <AppLoading type="spinner" text="在读你的记忆图谱" />
+      </view>
+
+      <!-- 错误态：带重试，绝不白屏 -->
+      <AppEmpty
+        v-else-if="graphFailed"
+        icon="⚠"
+        title="图谱没画出来"
+        :description="errorText"
+        action-text="重试一次"
+        @action="loadGraph"
+      />
+
+      <!-- 空态 -->
+      <AppEmpty
+        v-else-if="nodeCount == 0"
+        icon="◌"
+        title="图谱还是空的"
+        description="你每真心记下一件事，这里就会长出一个节点。"
+        action-text="切到列表看看"
+        @action="setView('list')"
+      />
+
+      <!-- 画布 -->
+      <view v-else class="graph-wrap">
+        <view class="canvas-holder">
+        <!--
+          ★ canvas-id 用固定字符串：uni 的 canvas 上下文按 id 查找，
+          动态 id 在部分端拿不到上下文。
+          ★ 只绑一个处理器：canvas 的 touchend 与 click 会成对触发，
+          两个都绑必须自己去重（见 onCanvasActivate），
+          不如只绑一个，行为在三端也一致
+        -->
+          <canvas
+            id="memory-graph-canvas"
+            canvas-id="memory-graph-canvas"
+            class="graph-canvas"
+            :style="canvasStyle"
+            @click="onCanvasActivate"
+          />
+        </view>
+
+        <!-- 图例：说明节点大小代表什么。
+             没有图例的话「大小 = weight + degree」对用户毫无意义 -->
+        <view class="legend">
+          <view class="legend-row">
+            <view class="legend-dot legend-dot--sm" />
+            <text class="legend-text">小节点：提过一次</text>
+          </view>
+          <view class="legend-row">
+            <view class="legend-dot legend-dot--lg" />
+            <text class="legend-text">大节点：记得多、连得多</text>
+          </view>
+        </view>
+
+        <text class="graph-hint">点节点可以打开那件事</text>
+      </view>
+    </view>
+
+    <!-- ══════════ 列表视图 ══════════ -->
+    <scroll-view
+      v-else
+      class="body"
+      scroll-y
+      :lower-threshold="LOAD_MORE_THRESHOLD"
+      @scrolltolower="onReachBottom"
+    >
+      <view v-if="listLoading" class="content">
+        <AppLoading type="skeleton" :rows="4" />
+      </view>
+
+      <AppEmpty
+        v-else-if="listFailed"
+        icon="⚠"
+        title="没能读到这些记忆"
+        :description="errorText"
+        action-text="重试一次"
+        @action="reloadFirstPage"
+      />
+
+      <AppEmpty
+        v-else-if="list.length == 0"
+        icon="◌"
+        title="还没有记忆节点"
+        description="记一件今天发生的小事就够了。图谱会从这一件开始长。"
+      />
+
+      <view v-else class="content">
+        <!-- ★ 网格列数由 appStore.columnCount 决定（04 号 T4）。
+             列数变化靠 class 切换而不是媒体查询，
+             因为 uni-app x 的 CSS 不支持 @media -->
+        <view class="grid">
+          <view
+            v-for="m in list"
+            :key="m.id"
+            class="grid-cell"
+            :class="cellClass"
+            @click="onGoDetail(m.id)"
+          >
+            <AppCard padding="sm">
+              <view class="cell-head">
+                <text v-if="hasIcon(m.icon)" class="cell-icon">{{ m.icon }}</text>
+                <text v-else class="cell-icon cell-icon--blank">◦</text>
+                <!-- 有过视角转变的节点给一个渐变点，这是产品的灵魂标记 -->
+                <view v-if="hasShift(m)" class="cell-shift" />
+              </view>
+
+              <text class="cell-title">{{ m.title }}</text>
+
+              <text v-if="hasContent(m.description)" class="cell-desc">{{ m.description }}</text>
+
+              <view class="cell-foot">
+                <text class="cell-time">{{ shortTextOf(m.occurredAt) }}</text>
+              </view>
+            </AppCard>
+          </view>
+        </view>
+
+        <view class="list-foot">
+          <AppLoading v-if="loadingMore" type="spinner" text="在读更早的" />
+          <text v-else-if="loadMoreFailed" class="foot-text" @click="loadNextPage">点我重试</text>
+          <text v-else-if="!hasNext" class="foot-text">到底了</text>
+        </view>
+
+        <view class="tab-placeholder" />
+      </view>
+    </scroll-view>
+
+    <AppTabBar current="memory" />
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed, getCurrentInstance, onUnmounted } from 'vue'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppCard from '@/components/AppCard.uvue'
+import AppEmpty from '@/components/AppEmpty.uvue'
+import AppLoading from '@/components/AppLoading.uvue'
+import AppTabBar from '@/components/AppTabBar.uvue'
+import { useAppStore } from '@/stores/app'
+import { memoriesService } from '@/services'
+import type { GraphEdge, GraphNode, Memory } from '@/services'
+import { messageOfError } from '@/core/http/error-code'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+import { canvasPalette } from '@/core/theme/palette'
+import { onWindowResize } from '@/core/platform'
+import { nowIso, shortTime } from '@/core/utils/datetime'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 取消键：与 onUnload 的 cancelByKey 成对 */
+const ABORT_KEY = 'pages/memory/index'
+
+/** 列表每页条数 */
+const PAGE_SIZE = 20
+/** 触底提前量（px） */
+const LOAD_MORE_THRESHOLD = 120
+
+/** 画布最小高度（px）。这是布局下限不是屏幕尺寸 guess——
+ *  图谱画布太矮会让节点挤成一团，用 flex 撑高但给个下限 */
+const CANVAS_MIN_HEIGHT = 320
+
+/** 节点半径上下限（px）：太小点不准，太大会糊成一片 */
+const NODE_MIN_RADIUS = 14
+const NODE_MAX_RADIUS = 40
+
+const appStore = useAppStore()
+
+/** 视图模式 */
+type ViewMode = 'graph' | 'list'
+const viewMode = ref<ViewMode>('graph')
+
+// ── 图谱三态 ─────────────────────────────────────────────
+const graphLoading = ref<boolean>(true)
+const graphFailed = ref<boolean>(false)
+const nodes = ref<GraphNode[]>([])
+const edges = ref<GraphEdge[]>([])
+
+// ── 列表三态 ─────────────────────────────────────────────
+const listLoading = ref<boolean>(false)
+const listFailed = ref<boolean>(false)
+const loadingMore = ref<boolean>(false)
+const loadMoreFailed = ref<boolean>(false)
+const list = ref<Memory[]>([])
+const page = ref<number>(1)
+const hasNext = ref<boolean>(true)
+
+const errorText = ref<string>('')
+
+/** 画布尺寸（px）。列数变化 / 折叠屏展开时重新测量 */
+const canvasWidth = ref<number>(0)
+const canvasHeight = ref<number>(0)
+
+/**
+ * 已绘制的节点位置（px），供点击命中检测。
+ * canvas 本身不提供「点到了哪个元素」，只能自己做命中检测。
+ *
+ * ★ 用 type 而不是 interface：uts 不支持 interface 声明。
+ */
+type LaidOutNode = {
+  x: number
+  y: number
+  r: number
+  id: string
+  title: string
+}
+
+let laidOut: LaidOutNode[] = []
+
+const nodeCount = computed<number>(() => nodes.value.length)
+
+/**
+ * ★ 网格列数 class（04 号 T4）。
+ * uni-app x 的 CSS 不支持 @media，所以断点必须走 JS 判断
+ * （appStore.columnCount：1 / 2 / 3），再用平铺的修饰类切宽度。
+ * 用后代选择器 `.grid--col2 .grid-cell` 不可靠 —— 修饰类直接挂在 cell 上。
+ */
+const cellClass = computed<string>(() => {
+  return 'grid-cell--col' + appStore.columnCount.toString()
+})
+
+/**
+ * canvas 的内联尺寸。
+ *
+ * ★ 宽度量不到时**不能**输出 `width: 0px`：
+ *   内联 style 优先级高于 .graph-canvas 的 `width: 100%`，
+ *   一旦写上 0px，画布元素真的就是 0 宽 —— pick=<当前>,
+ *   位图永远停在默认的 300×150，画什么都看不见。
+ *   所以量不到就整个省略 width，交回给 CSS 的 100% 撑开。
+ *   （这是「图谱容器在但画布全空」的直接成因之一。）
+ */
+const canvasStyle = computed<string>(() => {
+  const h = canvasHeight.value > 0 ? canvasHeight.value : CANVAS_MIN_HEIGHT
+  if (canvasWidth.value > 0) {
+    return `width:${canvasWidth.value}px;height:${h}px;`
+  }
+  return `height:${h}px;`
+})
+
+const canLoadMore = computed<boolean>(() => {
+  return hasNext.value && !loadingMore.value && !listLoading.value && !listFailed.value
+})
+
+function hasIcon(icon: string | null): boolean {
+  return icon != null && icon.length > 0
+}
+
+function hasContent(v: string | null): boolean {
+  return v != null && v.length > 0
+}
+
+/** 是否发生过视角转变：两个视角都写了才算。
+ *  这也是 timeline.ts 里 hasShift 的同一套判定 */
+function hasShift(m: Memory): boolean {
+  return hasContent(m.pastSelfView) && hasContent(m.presentSelfView)
+}
+
+function shortTextOf(iso: string): string {
+  return shortTime(iso, nowIso())
+}
+
+/**
+ * ★ 组件实例必须在 setup 作用域捕获。
+ *   之前在 onLoad 回调里调 getCurrentInstance() 拿到的是 null
+ *   （Vue 只在 setup 同步执行期间维护 currentInstance），
+ *   createSelectorQuery().in(null) 直接抛错 → onLoad 整个中断：
+ *   canvasWidth/Height 永远是 0 → drawGraph 被尺寸守卫拦下 → 一笔都不画。
+ *   这就是「图谱容器在但画布全空」的根因。
+ */
+const pageInstance = getCurrentInstance()
+
+// ────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(ABORT_KEY)
+  measureCanvas()
+  // ★ 必须在这里绑resize：折叠屏展开 / 横竖屏切换后
+  //   画布尺寸与列数都会变，不重画的话节点会挤在左上角。
+  //   解绑函数存在 unbindResize，onUnload 里调用。
+  bindResize()
+  loadGraph()
+})
+
+onShow(() => {
+  // 从详情页返回：如果用户在那边删了节点，图谱要跟着变
+  if (viewMode.value === 'graph') {
+    loadGraph()
+  }
+})
+
+onUnload(() => {
+  // ★ 先标记失效：measureThenDraw 的延迟重试会读这个标记，
+  //   页面销毁后绝不能再对画布做一次绘制
+  pageAlive = false
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  // ★ 页面卸载必须取消在途请求
+  const n = cancelByKey(ABORT_KEY)
+  if (n > 0) {
+    console.log(`[memory] 页面卸载，取消 ${n} 个在途请求`)
+  }
+  // ★ 移除 resize 监听。不移除的话折叠屏反复折叠会累积监听器，
+  //   最终 OOM —— 这是 04 号禁止事项第 7 条点名的泄漏
+  unbindResize()
+})
+
+// ── 视图切换 ─────────────────────────────────────────────
+
+async function setView(mode: ViewMode): Promise<void> {
+  if (viewMode.value === mode) return
+  viewMode.value = mode
+
+  if (mode === 'graph') {
+    // 切回图谱时如果还没数据过才拉；已有数据直接重画
+    if (nodes.value.length == 0 && !graphLoading.value) {
+      await loadGraph()
+    } else if (nodes.value.length > 0) {
+      // 重新测量 + 重画：切视图会改变容器尺寸
+      measureThenDraw()
+    }
+  } else {
+    if (list.value.length == 0 && !listLoading.value) {
+      await reloadFirstPage()
+    }
+  }
+}
+
+// ── 尺寸测量 ─────────────────────────────────────────────
+
+/**
+ * 容器测量结果。
+ * ★ 显式声明结构而不是用 any[] —— uts 不接受 any，
+ *   exec 的回调参数必须有一个具体类型，否则编译不过。
+ */
+type HolderRect = {
+  width: number
+  height: number
+}
+
+/**
+ * 上一次 measureCanvas 是否走了兜底尺寸（没量到真实容器）。
+ * ★ 兜底 = 页面很可能还没挂载（onLoad 时机）或查询通道异常，
+ *   此时绝不能立刻画：uni 的 createCanvasContextAsync 在画布
+ *   不在 DOM 时会拿到 null 节点并在运行时内部抛
+ *   「Cannot read properties of null (reading 'node')」——
+ *   那是 uni-h5 x 的已知缺陷（result[0] 未判空），我们避免触发它。
+ */
+let lastMeasureWasFallback = false
+
+/**
+ * 测量画布容器并写入 canvasWidth / canvasHeight。
+ * ★ done 回调在**所有路径**下都会被调用（量到 / 没量到 / 抛异常），
+ *   调用方用它串行「先量再画」，避免量还没落地就画出一堆 0 坐标。
+ *
+ * ★ 查询组件用 setup 作用域捕获的 pageInstance，见其注释。
+ */
+function measureCanvas(done?: () => void): void {
+  try {
+    uni
+      .createSelectorQuery()
+      .in(pageInstance)
+      .select('.canvas-holder')
+      .boundingClientRect()
+      .exec((res: Array<HolderRect | null>) => {
+        const r = res.length > 0 ? res[0] : null
+        if (r == null || r.width <= 0) {
+          // 拿不到尺寸不能静默画一张 0 宽的图：退回窗口宽度，
+          // 让 drawGraph 的尺寸守卫生效。窗口宽度本身也要守卫：
+          // 冷启动早期个别端可能报 0，兜底 375 保证画布永远可见。
+          console.warn('[memory] 拿不到画布容器尺寸，退回窗口宽度')
+          lastMeasureWasFallback = true
+          canvasWidth.value = appStore.windowWidth > 0 ? appStore.windowWidth : 375
+          canvasHeight.value = CANVAS_MIN_HEIGHT
+        } else {
+          lastMeasureWasFallback = false
+          canvasWidth.value = Math.round(r.width)
+          // 高度 = 容器宽度（正方形构图最均衡），但不低于下限。
+          // 不用 vh 单位：图谱不需要占满整屏，上方还有导航栏和切换器
+          canvasHeight.value = Math.max(CANVAS_MIN_HEIGHT, Math.round(r.width))
+        }
+        if (done != null) done()
+      })
+  } catch (e) {
+    // 查询通道本身不可用（onLoad 时页面还没挂载等）：退回兜底尺寸。
+    // 绝不能让 measure 的异常把 onLoad / 绘制链一起带走
+    console.warn('[memory] 画布测量暂不可用（可能尚未挂载），使用兜底尺寸')
+    lastMeasureWasFallback = true
+    canvasWidth.value = appStore.windowWidth > 0 ? appStore.windowWidth : 375
+    canvasHeight.value = CANVAS_MIN_HEIGHT
+    if (done != null) done()
+  }
+}
+
+/** 页面是否还活着。卸载后置 false，切断所有延迟绘制 */
+let pageAlive = true
+
+/**
+ * 「先量后画」的唯一入口。
+ *
+ * ★ 任何想触发绘制的地方都必须走这里，不能直接 drawGraph()：
+ *   canvas 的位图尺寸必须与显示尺寸一致，而显示尺寸只有量完才知道。
+ *   直接画 = 在 0 宽画布上画 = 一笔都看不见。
+ *
+ * ★ 为什么要多一次延迟重试：
+ *   个别端首帧容器还没完成布局，这时测到的宽度偏小甚至为 0，
+ *   只画一次会留下空白画布。布局稳定后重画一次即可自愈。
+ *   paintGraph 每次都会重设位图与变换矩阵，重复调用是幂等的；
+ *   节点位置走 hashRatio 稳定散列，也不会「抖一下」。
+ *
+ * ★ 兜底尺寸路径（lastMeasureWasFallback）不立刻画：
+ *   兜底意味着页面多半还没挂载，此刻 createCanvasContextAsync
+ *   会在 uni-h5 x 内部撞上未判空的 null 节点直接抛错。
+ *   交给下面的延迟重试去画 —— 那时挂载早已完成。
+ */
+function measureThenDraw(): void {
+  measureCanvas(() => {
+    if (!lastMeasureWasFallback) {
+      drawGraph()
+    }
+    setTimeout(() => {
+      // 页面可能已经离开，别给已销毁的画布再画一次
+      if (!pageAlive) return
+      measureCanvas(() => {
+        drawGraph()
+      })
+    }, 120)
+  })
+}
+
+/** resize 监听解绑函数。onUnload 里必须调用，否则反复折叠会累积监听器 */
+let unbindResize: () => void = () => {}
+
+/** 折叠屏展开 / 横竖屏切换：重新测量并重画 */
+function bindResize(): void {
+  unbindResize = onWindowResize(() => {
+    // 断点变了列数也会变，先让 store 重新量
+    appStore.measure()
+    if (viewMode.value === 'graph' && nodes.value.length > 0) {
+      measureThenDraw()
+    } else {
+      measureCanvas()
+    }
+  })
+}
+
+// ────────────────────────────────────────────────────────
+// 图谱加载与绘制
+// ────────────────────────────────────────────────────────
+
+async function loadGraph(): Promise<void> {
+  graphLoading.value = true
+  graphFailed.value = false
+
+  try {
+    const res = await memoriesService.graph()
+    nodes.value = res.nodes
+    edges.value = res.edges
+    // 数据到了才画，且必须先量尺寸：量到之后回调里再画。
+    // ★ 不能在这里直接 drawGraph()，也不能靠裸 setTimeout 赌时序 ——
+    //   尺寸没落地时画布是 0 宽，画了也看不见（见 measureThenDraw 注释）。
+    measureThenDraw()
+  } catch (e) {
+    // ★ 不吞错误：给可点的重试入口
+    console.error('[memory] 记忆图谱加载失败', e)
+    errorText.value = messageOfError(e)
+    graphFailed.value = true
+  } finally {
+    graphLoading.value = false
+  }
+}
+
+/** 节点半径：weight（0~100）与 degree（关联条数）共同决定。
+ *  ★ 两者都要参与：只按 weight 的话「被很多事关联」的节点会显得不重要，
+ *  而关联度恰恰是用户想找的信息 */
+function radiusOf(n: GraphNode): number {
+  // 归一化到 0~1，再映射到半径区间
+  const w = n.weight > 100 ? 100 : n.weight
+  const wPart = w / 100
+  const d = n.degree > 8 ? 8 : n.degree
+  const dPart = d / 8
+  const ratio = wPart * 0.6 + dPart * 0.4
+  return NODE_MIN_RADIUS + (NODE_MAX_RADIUS - NODE_MIN_RADIUS) * ratio
+}
+
+/** 画图谱：先异步拿 canvas 上下文，再按「连线 → 节点 → 文字」三层绘制
+ *  （三层顺序不能反，否则后画的节点会盖住先画的连线端点）。
+ *
+ *  ★ 为什么必须用 uni.createCanvasContextAsync：
+ *    uni-app x 不支持旧版同步 uni.createCanvasContext —— 运行时根本
+ *    没有这个函数（uni-h5 x 运行时只留了 API 名常量、没有实现），
+ *    调用直接抛 "not a function"，且发生在 setTimeout 里无人捕获，
+ *    表现就是画布静默空白、错误态也不出现。
+ *    官方 API 是异步的 createCanvasContextAsync（Web/Android/iOS/
+ *    HarmonyOS 4.25+、微信小程序 4.41+），拿到 CanvasContext 后再
+ *    getContext('2d') 取 W3C 标准上下文；画完**不需要**（也没有）draw()。
+ */
+function drawGraph(): void {
+  if (canvasWidth.value <= 0 || canvasHeight.value <= 0) {
+    // 尺寸还没量出来，等 measure 回调里再画
+    return
+  }
+
+  uni.createCanvasContextAsync({
+    id: 'memory-graph-canvas',
+    success: (context: CanvasContext) => {
+      const ctx = context.getContext('2d')
+      if (ctx == null) {
+        console.error('[memory] 拿不到 canvas 2d 上下文')
+        return
+      }
+      paintGraph(ctx)
+    },
+    fail: (err: UniError) => {
+      // 拿不到上下文不再静默：给用户可见的错误态（AppEmpty 有重试按钮）
+      console.error('[memory] canvas 上下文获取失败', err)
+      errorText.value = '画布初始化失败'
+      graphFailed.value = true
+    },
+  })
+}
+
+/** 用 W3C 标准 2D 上下文实际绘制。节点布局（laidOut）也在这里算，
+ *  与 onCanvasActivate 的命中检测共用同一份坐标 */
+function paintGraph(ctx: CanvasRenderingContext2D): void {
+  // ★ 第一步必须先设位图尺寸（官方示例同款）：
+  //   H5 的 canvas 位图默认 300×150，不设的话 fillRect 会涂满默认位图
+  //   （看起来像整块底色），而节点坐标全落在位图外被裁掉——「空白画布」真凶之二。
+  //   位图 = CSS 尺寸 × dpr，再 scale(dpr)，绘制坐标仍是 CSS 像素。
+  const canvas = ctx.canvas
+  const dprRaw = uni.getDeviceInfo().devicePixelRatio
+  const dpr = dprRaw == null || dprRaw <= 0 ? 1 : dprRaw
+  // 优先用元素真实布局尺寸（inline style 已由 canvasStyle 设定），
+  // 拿不到时退回测量值，保证位图尺寸一定 > 0
+  const w = canvas.offsetWidth > 0 ? canvas.offsetWidth : canvasWidth.value
+  const h = canvas.offsetHeight > 0 ? canvas.offsetHeight : canvasHeight.value
+  // 位图尺寸 = CSS 尺寸 × dpr（标准做法）。赋值会重置上下文变换矩阵，
+  // 避免 drawGraph 多次调用时 scale 累积把节点越画越小 / 越画越偏。
+  canvas.width = Math.round(w * dpr)
+  canvas.height = Math.round(h * dpr)
+  // ★ 自校正缩放：某些 uni-h5 x 运行时 canvas.width 赋值不生效，
+  //   位图停在默认 300×150，导致多数节点被裁掉（只剩最左 1 个 + 悬空线）。
+  //   读回真实位图尺寸再算缩放比，保证 5 节点全部可见、连线完整。
+  const bw = canvas.width > 0 ? canvas.width : Math.round(w * dpr)
+  const bh = canvas.height > 0 ? canvas.height : Math.round(h * dpr)
+  const scaleX = bw / w
+  const scaleY = bh / h
+  // 兜底清掉任何累积变换（位图赋值若未生效则上一次 scale 仍残留）
+  ctx.setTransform(1, 0, 0, 1, 0, 0)
+  ctx.scale(scaleX, scaleY)
+
+  const pal = canvasPalette(appStore.isDark)
+
+  // ① 底色
+  ctx.fillStyle = pal.surface
+  ctx.fillRect(0, 0, w, h)
+
+  // ② 先算好所有节点位置，连线与命中检测共用同一份数据。
+  //    分两遍算会导致「点到的位置和画出来的位置差几像素」
+  const pad = NODE_MAX_RADIUS + 8
+  const usableW = w - pad * 2
+  const usableH = h - pad * 2
+  laidOut = []
+  for (const n of nodes.value) {
+    // graphX / graphY 是 0~1 的相对坐标，可能为 null（后端可空字段）
+    // null 时按 id 散列出一个稳定位置，避免所有节点叠在原点
+    const rx = n.graphX == null ? hashRatio(n.id, 0) : n.graphX
+    const ry = n.graphY == null ? hashRatio(n.id, 1) : n.graphY
+    laidOut.push({
+      x: pad + usableW * rx,
+      y: pad + usableH * ry,
+      r: radiusOf(n),
+      id: n.id,
+      title: n.title,
+    })
+  }
+
+  // ③ 连线（每条线独立 beginPath，避免路径累积把不相干的点连起来）
+  ctx.strokeStyle = pal.edge
+  ctx.lineWidth = 1
+  for (const e of edges.value) {
+    const a = findNode(e.sourceId)
+    const b = findNode(e.targetId)
+    // ★ 关联可能指向已被软删的节点，找不到就跳过这条线，
+    //   不能画一条指向 (0,0) 的线
+    if (a == null || b == null) continue
+    ctx.beginPath()
+    ctx.moveTo(a.x, a.y)
+    ctx.lineTo(b.x, b.y)
+    ctx.stroke()
+  }
+
+  // ④ 节点
+  for (const n of laidOut) {
+    ctx.beginPath()
+    ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2)
+    ctx.fillStyle = pal.nodeFill
+    ctx.fill()
+    ctx.strokeStyle = pal.nodeStroke
+    ctx.lineWidth = 1.5
+    ctx.stroke()
+  }
+
+  // ⑤ 关联最多的几个节点标名字。全标会糊成一片，
+  //   只标度数最高的 5 个——那是用户最可能想找的
+  const labelled = topNodes(5)
+  ctx.fillStyle = pal.nodeText
+  ctx.font = '12px sans-serif'
+  ctx.textAlign = 'center'
+  for (const n of labelled) {
+    ctx.fillText(n.title, n.x, n.y + n.r + 14)
+  }
+}
+
+/** 按 id 找已布局的节点 */
+function findNode(id: string): LaidOutNode | null {
+  for (const n of laidOut) {
+    if (n.id === id) return n
+  }
+  return null
+}
+
+/** 稳定散列：同一个 id 每次都得到同一个 0~1 的值。
+ *  ★ 不用 Math.random()：那样每次重画节点位置都在跳，
+ *    用户根本没法建立空间记忆 */
+function hashRatio(id: string, salt: number): number {
+  let h = salt * 131
+  for (let i = 0; i < id.length; i++) {
+    h = (h * 31 + id.charCodeAt(i)) % 100003
+  }
+  return h / 100003
+}
+
+/** 取度数最高的 n 个节点。degree 存的是后端返回值 */
+function topNodes(n: number): LaidOutNode[] {
+  const sorted: LaidOutNode[] = laidOut.slice()
+  // laidOut 的顺序与 nodes.value 一致，所以用下标去查 degree
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const di = degreeOf(nodes.value[i].id)
+      const dj = degreeOf(nodes.value[j].id)
+      if (dj > di) {
+        const tmp = sorted[i]
+        sorted[i] = sorted[j]
+        sorted[j] = tmp
+      }
+    }
+  }
+  const out: LaidOutNode[] = []
+  for (let i = 0; i < sorted.length && i < n; i++) {
+    out.push(sorted[i])
+  }
+  return out
+}
+
+function degreeOf(id: string): number {
+  for (const n of nodes.value) {
+    if (n.id === id) return n.degree
+  }
+  return 0
+}
+
+// ── 画布点击命中检测 ─────────────────────────────────────
+// ★ canvas 不告诉用户点中了什么，只能自己算。
+//   命中判定用「点到圆心距离 < 半径 + 容差」，
+//   容差给到半径的一半：小于手指精度时用户会反复点不中。
+
+/** 上次跳转的节点与时间，用于去重。
+ *  ★ 必须去重：一次手指抬起会同时触发 touchend 与 click，
+ *   两个处理器都跳一次的话用户会连开两个详情页。 */
+let lastHitId = ''
+let lastHitAt = 0
+
+function hitTest(x: number, y: number): LaidOutNode | null {
+  let best: LaidOutNode | null = null
+  let bestDist = 0
+  for (const n of laidOut) {
+    const dx = x - n.x
+    const dy = y - n.y
+    const dist = Math.sqrt(dx * dx + dy * dy)
+    const hit = n.r + NODE_MAX_RADIUS / 2
+    if (dist <= hit && (best == null || dist < bestDist)) {
+      best = n
+      bestDist = dist
+    }
+  }
+  return best
+}
+
+/** 点击与触摸共用的处理：命中后去重再跳 */
+function onCanvasActivate(e: UniCanvasTouchEvent): void {
+  const x = e.detail.x
+  const y = e.detail.y
+  const hit = hitTest(x, y)
+  // 点在空白处是正常操作（用户可能想拖动看图），不报错也不跳转
+  if (hit == null) return
+
+  const nowTs = Date.now()
+  if (lastHitId === hit.id && nowTs - lastHitAt < 500) {
+    // 500ms 内同一个节点不重复跳：这是 touchend + click 的正常配对
+    return
+  }
+  lastHitId = hit.id
+  lastHitAt = nowTs
+  onGoDetail(hit.id)
+}
+
+// ────────────────────────────────────────────────────────
+// 列表加载
+// ────────────────────────────────────────────────────────
+
+async function reloadFirstPage(): Promise<void> {
+  if (loadingMore.value) return
+
+  listLoading.value = true
+  listFailed.value = false
+  loadMoreFailed.value = false
+  page.value = 1
+
+  try {
+    const res = await memoriesService.list({
+      page: 1,
+      pageSize: PAGE_SIZE,
+      sortBy: 'occurredAt',
+      sortOrder: 'desc',
+    })
+    list.value = res.list
+    hasNext.value = res.hasNext
+  } catch (e) {
+    // ★ 不吞错误：整页错误态 + 可点的重试
+    console.error('[memory] 记忆列表加载失败', e)
+    errorText.value = messageOfError(e)
+    listFailed.value = true
+    list.value = []
+  } finally {
+    listLoading.value = false
+  }
+}
+
+async function loadNextPage(): Promise<void> {
+  if (!canLoadMore.value) return
+
+  loadingMore.value = true
+  loadMoreFailed.value = false
+  const next = page.value + 1
+
+  try {
+    const res = await memoriesService.list({
+      page: next,
+      pageSize: PAGE_SIZE,
+      sortBy: 'occurredAt',
+      sortOrder: 'desc',
+    })
+    // 竞态保护：翻页途中用户可能下拉重载了
+    if (page.value + 1 !== next) {
+      console.log('[memory] 翻页期间页码已变，丢弃这次结果')
+      return
+    }
+    const merged: Memory[] = list.value.slice()
+    for (const item of res.list) {
+      merged.push(item)
+    }
+    list.value = merged
+    page.value = next
+    hasNext.value = res.hasNext
+  } catch (e) {
+    // ★ 翻页失败只影响底部那一行，已加载内容留着
+    console.error(`[memory] 第 ${next} 页加载失败`, e)
+    errorText.value = messageOfError(e)
+    loadMoreFailed.value = true
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+function onReachBottom(): void {
+  loadNextPage()
+}
+
+// ────────────────────────────────────────────────────────
+// 交互
+// ────────────────────────────────────────────────────────
+
+function onGoDetail(id: string): void {
+  uni.navigateTo({
+    url: `/pages/memory/detail?id=${id}`,
+    fail: (err) => {
+      console.error('[memory] 跳转记忆详情失败', err)
+      uni.showToast({ title: '页面还没打开，请稍后再试', icon: 'none' })
+    },
+  })
+}
+
+function onGoTimeline(): void {
+  uni.navigateTo({
+    url: '/pages/memory/timeline',
+    fail: (err) => {
+      console.error('[memory] 跳转时间轴失败', err)
+      uni.showToast({ title: '页面还没打开，请稍后再试', icon: 'none' })
+    },
+  })
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  background-color: var(--color-bg);
+}
+
+// ── 视图切换器 ───────────────────────────────────────────
+.switcher {
+  width: 100%;
+  @include m.content-constrain;
+  flex-direction: row;
+  align-items: center;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: t.$space-xs;
+  margin-bottom: t.$space-xs;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+}
+
+.switch-item {
+  // ★ 88rpx 最小点击区
+  @include m.tap-target;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+  margin-right: t.$space-xs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-pill-bg);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-pill-border);
+}
+
+.switch-item--on {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.switch-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-2);
+}
+
+.switch-text--on {
+  font-weight: t.$weight-semibold;
+  color: var(--color-text-on-primary);
+}
+
+// ── 内容区 ───────────────────────────────────────────────
+// ★ 不用 vh 单位：页面是 flex: 1，body 撑满剩余空间
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+// ── 图谱 ─────────────────────────────────────────────────
+.graph-wrap {
+  flex: 1;
+  width: 100%;
+  @include m.content-constrain;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  align-items: center;
+  justify-content: center;
+}
+
+.canvas-holder {
+  width: 100%;
+  // 高度由 JS 测量后写到 canvas 的内联 style 上；
+  // 这里只给一个下限容器，保证 measure 能测到非零高度
+  min-height: 320px;
+  border-radius: t.$radius-lg;
+  overflow: hidden;
+  background-color: var(--color-bg-elevated);
+}
+
+.graph-canvas {
+  // 位图尺寸由 canvasStyle 决定（与显示尺寸必须一致，否则变形）
+  width: 100%;
+  background-color: var(--color-bg-elevated);
+}
+
+.legend {
+  width: 100%;
+  flex-direction: column;
+  margin-top: t.$space-md;
+}
+
+.legend-row {
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: t.$space-xs;
+}
+
+.legend-dot {
+  border-radius: t.$radius-pill;
+  background-color: var(--color-glacier);
+  margin-right: t.$space-sm;
+}
+
+.legend-dot--sm {
+  width: t.$space-sm;
+  height: t.$space-sm;
+}
+
+.legend-dot--lg {
+  width: t.$space-lg;
+  height: t.$space-lg;
+}
+
+.legend-text {
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+.graph-hint {
+  margin-top: t.$space-xs;
+  margin-bottom: t.$space-lg;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+// ── 网格 ─────────────────────────────────────────────────
+.content {
+  width: 100%;
+  @include m.content-constrain;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-sm;
+}
+
+// ★ 列数由 appStore.columnCount 决定（04 号 T4）。
+//   uni-app x 不支持 @media，所以断点必须走 JS 分档，
+//   再用 grid-cell--colN 这样的平铺类切换宽度——
+//   不能写 `.grid--col2 .grid-cell`，后代选择器在 web CSS 子集里不可靠。
+.grid {
+  width: 100%;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.grid-cell {
+  // ★ 整卡可点。高度给足 tap-target
+  min-height: t.$tap-min-size;
+  margin-bottom: t.$space-sm;
+}
+
+// 48% / 32% 而不是 50% / 33.3%：
+// 差出来的那点缝隙正好是卡片之间的间距，比 margin 更好控制
+.grid-cell--col1 {
+  width: 100%;
+}
+
+.grid-cell--col2 {
+  width: 48%;
+}
+
+.grid-cell--col3 {
+  width: 32%;
+}
+
+// ── 网格单元 ─────────────────────────────────────────────
+.cell-head {
+  flex-direction: row;
+  align-items: center;
+  margin-bottom: t.$space-xs;
+}
+
+.cell-icon {
+  font-size: t.$font-lg;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-2);
+}
+
+.cell-icon--blank {
+  color: var(--color-text-3);
+}
+
+// ★ 「已变化」标记：这个产品最想被用户看见的东西
+.cell-shift {
+  margin-left: t.$space-xs;
+  width: t.$space-sm;
+  height: t.$space-sm;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-glacier);
+}
+
+.cell-title {
+  font-size: t.$font-md;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+  // 两行省略：标题长度不可控，不截断会把卡片撑得高低不齐
+  @include m.text-ellipsis-lines(2);
+}
+
+.cell-desc {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+  @include m.text-ellipsis-lines(2);
+}
+
+.cell-foot {
+  flex-direction: row;
+  align-items: center;
+  margin-top: t.$space-xs;
+}
+
+.cell-time {
+  font-size: t.$font-xs;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-3);
+}
+
+// ── 列表底部状态 ─────────────────────────────────────────
+.list-foot {
+  min-height: t.$tap-min-size;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  padding-top: t.$space-md;
+  padding-bottom: t.$space-md;
+}
+
+.foot-text {
+  @include m.tap-target;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+  text-align: center;
+}
+
+// ── Tab 栏占位 ───────────────────────────────────────────
+// ★ 与 AppTabBar 高度等高
+.tab-placeholder {
+  height: t.$tabbar-height;
+  width: 100%;
+}
+
+// ── 导航栏右侧 ───────────────────────────────────────────
+.nav-action {
+  @include m.tap-target;
+  padding-left: t.$space-sm;
+  padding-right: t.$space-xs;
+}
+
+.nav-action-text {
+  font-size: t.$font-sm;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+}
+</style>

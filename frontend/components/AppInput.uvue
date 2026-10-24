@@ -1,0 +1,256 @@
+<!--
+  AppInput —— 基础输入框
+  ══════════════════════════════════════════════════════════════
+  职责：单行输入 / 数字输入 / 多行文本的统一封装，
+        内建 label、错误态、提示文案、一键清空。
+
+  props：
+    modelValue string当前值（v-model 双向绑定）
+    label      string    顶部标签，可为空
+    placeholder string    占位文案
+    type       'text' | 'number' | 'textarea'  控件类型，默认 text
+    error      string    错误文案，非空即进入错误态
+    hint       string    辅助提示，无 error 时才显示
+    maxlength  number    最大长度，默认 -1（不限制）
+    clearable  boolean   是否显示一键清空
+    autofocus  boolean   是否自动聚焦
+
+  emits：
+    update:modelValue (value: string) => void
+    blur() => void
+    focus() => void
+
+  设计约束：
+    1. 用原生 <input> / <textarea>，不用第三方组件。
+    2. 聚焦时边框转--color-primary；错误态转 --color-danger。
+    3. 所有文案包在 <text> 里（红线第 1 条）。
+    4. 字号不低于 $font-xs（04 号硬约束），最小点击区88rpx。
+    5. 颜色/间距/圆角全部走令牌，组件内零字面量。
+    6. 只用单类选择器，不用后代选择器。
+-->
+<template>
+  <view class="field">
+    <text v-if="label != ''" class="field-label">{{ label }}</text>
+
+    <view class="field-box" :class="boxClass">
+      <input
+        v-if="type != 'textarea'"
+        class="field-input"
+        :type="inputType"
+        :value="modelValue"
+        :placeholder="placeholder"
+        :placeholder-style="placeholderStyle"
+        :maxlength="maxlength"
+        :focus="autofocus"
+        :disabled="disabled"
+        @input="onInput"
+        @focus="onFocus"
+        @blur="onBlur"
+      />
+
+      <textarea
+        v-else
+        class="field-textarea"
+        :value="modelValue"
+        :placeholder="placeholder"
+        :placeholder-style="placeholderStyle"
+        :maxlength="maxlength"
+        :focus="autofocus"
+        :disabled="disabled"
+        @input="onAreaInput"
+        @focus="onFocus"
+        @blur="onBlur"
+      />
+
+      <view v-if="showClear" class="field-clear" @click="onClear">
+        <text class="field-clear-icon">✕</text>
+      </view>
+    </view>
+
+    <text v-if="error != ''" class="field-error">{{ error }}</text>
+    <text v-else-if="hint != ''" class="field-hint">{{ hint }}</text>
+  </view>
+</template>
+
+<script lang="uts" setup>
+/** 控件类型 */
+type InputType = 'text' | 'number' | 'textarea'
+
+const props = withDefaults(
+  defineProps<{
+    modelValue?: string
+    label?: string
+    placeholder?: string
+    type?: InputType
+    error?: string
+    hint?: string
+    maxlength?: number
+    clearable?: boolean
+    autofocus?: boolean
+    disabled?: boolean
+  }>(),
+  {
+    modelValue: '',
+    label: '',
+    placeholder: '',
+    type: 'text',
+    error: '',
+    hint: '',
+    maxlength: -1,
+    clearable: false,
+    autofocus: false,
+    disabled: false,
+  },
+)
+
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: string): void
+  (e: 'blur'): void
+  (e: 'focus'): void
+}>()
+
+/** 聚焦态：聚焦时边框转primary */
+const focused = ref<boolean>(false)
+
+/** 有值且允许清空时才显示清空按钮 */
+const showClear = computed<boolean>(() => props.clearable && props.modelValue.length > 0)
+
+/** number 类型映射到原生 type；textarea 不需要 */
+const inputType = computed<string>(() => (props.type == 'number' ? 'number' : 'text'))
+
+/**
+ * 占位文案样式。
+ * ★ 这里只能用 placeholder-style 传字符串，
+ *   不要写成 color: #xxx —— 那样是字面量，深色模式下也不会变。
+ *   字号交给输入控件继承，所以字符串里只给颜色。
+ */
+const placeholderStyle = computed<string>(() => {
+  return 'color: var(--color-text-3);'
+})
+
+/** 外框状态类：错误优先于聚焦 */
+const boxClass = computed<string>(() => {
+  if (props.error != '') {
+    return 'field-box--error'
+  }
+  if (focused.value) {
+    return 'field-box--focus'
+  }
+  return ''
+})
+
+function onInput(e: UniInputEvent): void {
+  emit('update:modelValue', e.detail.value)
+}
+
+/** textarea 的事件类型与 input 不同，必须分开接 */
+function onAreaInput(e: UniTextareaEvent): void {
+  emit('update:modelValue', e.detail.value)
+}
+
+function onFocus(): void {
+  focused.value = true
+  emit('focus')
+}
+
+function onBlur(): void {
+  focused.value = false
+  emit('blur')
+}
+
+function onClear(): void {
+  emit('update:modelValue', '')
+}
+</script>
+
+<style scoped lang="scss">
+@use '../styles/tokens.scss' as t;
+@use '../styles/mixins.scss' as m;
+
+.field {
+  width: 100%;
+  flex-direction: column;
+}
+
+// ── 标签 ─────────────────────────────────────────────────
+.field-label {
+  font-size: t.$font-sm;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+  margin-bottom: t.$space-xs;
+}
+
+// ── 输入外框 ─────────────────────────────────────────────
+.field-box {
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  min-height: t.$tap-min-size;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  border-radius: t.$radius-md;
+  background-color: var(--color-bg-elevated);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-divider);
+  transition-property: border-color;
+  transition-duration: t.$duration-fast;
+  transition-timing-function: t.$ease-standard;
+}
+
+.field-box--focus {
+  border-color: var(--color-primary);
+}
+
+.field-box--error {
+  border-color: var(--color-danger);
+}
+
+// ── 输入控件 ─────────────────────────────────────────────
+.field-input {
+  flex: 1;
+  height: t.$tap-min-size;
+  font-size: t.$font-md;
+  color: var(--color-text-1);
+  background-color: transparent;
+}
+
+.field-textarea {
+  flex: 1;
+  // 不给最小高度的话，部分平台 textarea 会塌成一条缝
+  min-height: t.$textarea-min-height;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-sm;
+  font-size: t.$font-md;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-1);
+  background-color: transparent;
+}
+
+// ── 一键清空 ─────────────────────────────────────────────
+.field-clear {
+  @include m.tap-target;
+  margin-left: t.$space-xs;
+}
+
+.field-clear-icon {
+  font-size: t.$font-sm;
+  color: var(--color-text-3);
+}
+
+// ── 错误 / 提示 ──────────────────────────────────────────
+.field-error {
+  margin-top: t.$space-xs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-danger);
+}
+
+.field-hint {
+  margin-top: t.$space-xs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+</style>

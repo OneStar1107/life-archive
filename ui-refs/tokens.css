@@ -1,0 +1,74 @@
+/* ==========================================================================
+   人生档案 · 冰川记忆 —— 设计令牌（严格取自 Ardot 设计稿）
+   ========================================================================== */
+
+:root {
+  /* ---- 品牌色 / 冰川蓝 ---- */
+  --c-ink: #0a2233;          /* 主文字（深藏蓝） */
+  --c-body: #5b7c90;         /* 正文灰蓝 */
+  --c-muted: #93b2c3;        /* 弱化文字 */
+  --c-accent: #0e5c7e;       /* 冰川深蓝（强调） */
+  --c-accent-deep: #08324e;
+  --c-glacier: #4fb0d9;      /* 冰川中蓝 */
+  --c-glacier-tab: #1e87b5;  /* 选中 Tab 渐变起点 */
+  --c-glacier-light: #7fd4f2;/* 冰川浅蓝 */
+  --c-on-blue-2: #cfe9f8;    /* 蓝色卡上的次级文字 */
+
+  /* ---- 浅色模式（冰川雾白 × 白） ---- */
+  --light-screen-bg: linear-gradient(225deg, #e7f1f9 0%, #f8fbfe 100%);
+  --light-halo: radial-gradient(circle at center, rgba(79, 176, 217, 0.5) 0%, rgba(79, 176, 217, 0) 70%);
+  --light-glass-bg: rgba(255, 255, 255, 0.58);
+  --light-glass-bd: rgba(255, 255, 255, 0.6);
+  --light-glass-hi: rgba(255, 255, 255, 0.7);
+  --light-glass-shadow: 0 10px 24px -4px rgba(13, 51, 71, 0.07);
+  --light-nav-bg: rgba(255, 255, 255, 0.5);
+  --light-nav-bd: rgba(255, 255, 255, 0.7);
+  --light-pill-bg: rgba(255, 255, 255, 0.55);
+  --light-pill-bd: rgba(255, 255, 255, 0.7);
+  --light-blue-grad: linear-gradient(180deg, rgba(79, 176, 217, 0.82) 0%, rgba(13, 92, 126, 0.66) 100%);
+  --light-blue-bd: rgba(255, 255, 255, 0.38);
+  --light-track-bg: rgba(23, 77, 102, 0.14);
+  --light-tab-inactive: #93b2c3;
+
+  /* ---- 深色模式（冰川蓝 × 黑） ---- */
+  --dark-screen-bg: linear-gradient(225deg, #000000 0%, #081217 100%);
+  --dark-halo: radial-gradient(circle at center, rgba(127, 212, 242, 0.22) 0%, rgba(127, 212, 242, 0) 70%);
+  --dark-glass-bg: rgba(255, 255, 255, 0.07);
+  --dark-glass-bd: rgba(255, 255, 255, 0.12);
+  --dark-glass-hi: rgba(255, 255, 255, 0.14);
+  --dark-glass-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.5);
+  --dark-nav-bg: rgba(255, 255, 255, 0.06);
+  --dark-nav-bd: rgba(255, 255, 255, 0.1);
+  --dark-pill-bg: rgba(255, 255, 255, 0.07);
+  --dark-pill-bd: rgba(255, 255, 255, 0.12);
+  --dark-blue-grad: linear-gradient(180deg, rgba(79, 176, 217, 0.6) 0%, rgba(13, 92, 126, 0.45) 100%);
+  --dark-blue-bd: rgba(255, 255, 255, 0.16);
+  --dark-track-bg: rgba(255, 255, 255, 0.1);
+  --dark-tab-inactive: #4e6b7a;
+
+  /* ---- 圆角（严格对应设计稿） ---- */
+  --r-screen: 52px;   /* 手机屏 */
+  --r-capsule: 36px;  /* 底部导航胶囊 */
+  --r-card-lg: 26px;  /* 图谱卡 / 简报卡 */
+  --r-card: 24px;     /* 记忆卡 / 睡眠卡 / 档案卡 */
+  --r-card-md: 22px;  /* 对照卡 / 联系卡 / 性格卡 / 边界卡 */
+  --r-card-sm: 20px;  /* 洞察卡 / 小卡 */
+  --r-inner: 16px;    /* 卡片内嵌小卡 */
+  --r-icon: 14px;     /* 图标块 */
+  --r-pill: 999px;    /* 胶囊 */
+  --r-tab: 26px;      /* 选中 Tab */
+
+  /* ---- 间距 ---- */
+  --sp-section: 80px; /* 区块内边距 */
+  --sp-row: 48px;     /* 屏幕行间距 */
+  --sp-col: 16px;     /* 列内间距 */
+  --sp-screen-x: 20px;/* 屏幕左右内边距 */
+  --sp-screen-gap: 14px; /* 屏幕内容纵向间距 */
+  --sp-nav: 18px;     /* 底部导航外边距 */
+  --sp-card: 16px;    /* 卡片内边距 */
+  --sp-card-lg: 18px;
+
+  /* ---- 字体 ---- */
+  --font: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+    system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}

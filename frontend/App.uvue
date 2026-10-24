@@ -1,0 +1,535 @@
+<!--
+  App.uvue
+  ══════════════════════════════════════════════════════════════
+  人生档案 · 冰川记忆 —— 应用根组件
+  ══════════════════════════════════════════════════════════════
+
+  职责：
+    1. 冷启动初始化（store hydrate）
+    2. 首启隐私政策同意弹窗（★ 未同意前不发起任何网络请求）
+    3. 订阅网络层事件（登录态失效 → 跳登录）
+    4. 全局网络状态横幅
+    5. 路由守卫挂载
+
+  ★ 注意：本文件**不允许**出现平台条件编译宏。
+    平台差异全部收敛在 core/platform/。
+-->
+<template>
+  <view class="app-root" :class="themeClass">
+    <!-- 全局网络状态横幅（断网时展示，可点击重试） -->
+    <view v-if="showOfflineBanner" class="offline-banner" @click="onRetryNetwork">
+      <text class="offline-banner__text">{{ offlineMessage }}</text>
+    </view>
+
+    <!-- 页面容器 -->
+    <slot></slot>
+
+    <!--
+      ★ 首启隐私政策同意弹窗
+      三端商店的共同硬要求：首次启动必须弹窗，用户同意后才能采集任何信息。
+      未同意前本文件不会调用任何设备信息 API，也不发起任何网络请求。
+    -->
+    <view v-if="showPrivacyDialog" class="privacy-mask">
+      <view class="privacy-dialog">
+        <text class="privacy-dialog__title">在开始之前</text>
+        <text class="privacy-dialog__body">
+          人生档案会记录你自己写下的感受、记忆与身体信号。所有内容只属于你，我们不会把它给任何人看。
+        </text>
+        <text class="privacy-dialog__detail">
+          我们收集的信息仅包括：账号凭证、你自己录入的内容、以及你选择授权的设备数据。
+          我们不采集通讯录、短信、位置轨迹。你可以随时在「你 → 设置」里导出或注销账号。
+        </text>
+        <text class="privacy-dialog__link" @click="onOpenPrivacy">{{ privacyPolicyUrl }}</text>
+
+        <view class="privacy-dialog__actions">
+          <AppButton variant="secondary" size="md" @click="onDeclinePrivacy">
+            <text>暂不使用</text>
+          </AppButton>
+          <AppButton variant="primary" size="md" @click="onAcceptPrivacy">
+            <text>我同意并继续</text>
+          </AppButton>
+        </view>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed, onUnmounted } from 'vue'
+import AppButton from '@/components/AppButton.uvue'
+import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { checkRoute, applyRedirect, LOGIN_PAGE, HOME_PAGE } from '@/core/router/guard'
+import { PRIVACY_POLICY_URL, SUPPORT_EMAIL } from '@/core/env/env'
+import { onNetworkChange, networkType } from '@/core/platform'
+import { clearAuthState } from '@/core/storage/secure'
+
+const appStore = useAppStore()
+const authStore = useAuthStore()
+
+const privacyPolicyUrl: string = PRIVACY_POLICY_URL
+const supportEmail: string = SUPPORT_EMAIL
+
+// ── 隐私弹窗 ──────────────────────────────────────────
+const showPrivacyDialog = ref<boolean>(false)
+// 「暂不使用」被点过之后不再强制弹，避免用户被反复打扰；
+// 但设置页里可以重新调起。
+const privacyDeclined = ref<boolean>(false)
+
+// ── 清理函数收集（★ 必须在 onUnmounted 调用，否则监听泄漏）──
+const cleanups: Array<() => void> = []
+
+// ── 主题 class ────────────────────────────────────────
+const themeClass = computed<string>(() => {
+  return appStore.isDark ? 'theme-dark' : 'theme-light'
+})
+
+// ── 离线横幅文案 ──────────────────────────────────────
+const offlineMessage = computed<string>(() => {
+  const t = appStore.networkType
+  if (t === 'none') {
+    return '当前没有网络连接。已记录的内容还在，联网后会自动同步。'
+  }
+  return '网络不太稳定，如果加载不出来可以点这里重试。'
+})
+
+const showOfflineBanner = computed<boolean>(() => {
+  return appStore.showOfflineBanner
+})
+
+// ────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────
+
+// onLaunch：冷启动。此时**还没有任何用户授权**，只能做不涉及设备信息的初始化
+onLaunch(() => {
+  // 1. 恢复本地状态（读本地存储，不涉及设备信息）
+  appStore.hydrate()
+  authStore.hydrate()
+
+  // 2. 绑定全局监听
+  const unbind = appStore.bindListeners()
+  cleanups.push(unbind)
+
+  // 3. 监听网络恢复
+  cleanups.push(
+    onNetworkChange((result: { isConnected: boolean; type: string }) => {
+      if (result.isConnected) {
+        // 恢复后刷新一次网络类型，让 UI 及时更新
+        appStore.refreshNetworkType()
+      }
+    }),
+  )
+
+  // 4. 订阅「登录态失效」事件 → 跳登录
+  //    ★ 这就是「拦截器不能自己做跳转」的落地方式：
+  //      网络层只 emit 事件，跳转这个 UI 决策由这里统一做。
+  authStore.bindExpiryListener(() => {
+    onNeedLogin()
+  })
+
+  // 5. 首启隐私弹窗
+  //    ★ 未同意前**不调用** networkType() 等任何设备信息 API
+  if (!appStore.privacyAccepted && !privacyDeclined.value) {
+    showPrivacyDialog.value = true
+  } else if (appStore.privacyAccepted) {
+    // 已同意才做设备相关初始化
+    appStore.refreshNetworkType()
+    // ★ 冷启动路由守卫：此前守卫只在隐私弹窗点击时才执行，
+    //   「已同意过隐私」的用户（含开发联调）冷启动永远不触发守卫，
+    //   未登录会被留在受保护页反复 401 且无处可去。
+    routeGuard()
+  }
+})
+
+onShow(() => {
+  // 前台恢复：刷新网络状态
+  if (appStore.privacyAccepted) {
+    appStore.refreshNetworkType()
+  }
+})
+
+onUnmounted(() => {
+  // ★ 清理全部监听，否则会泄漏
+  for (const fn of cleanups) {
+    try {
+      fn()
+    } catch (e) {
+      // 忽略清理异常
+    }
+  }
+  cleanups.length = 0
+})
+
+// onPageNotFound：路由不存在时兜底
+// ★ 某些 uni-app x 版本在冷启动早期触发本回调时，res 可能为 undefined，
+//   直接读 res.path 会抛 TypeError（实测控制台 App.uvue:165 崩溃）。
+//   必须做空值保护；HOME_PAGE 是 tabBar 页，applyRedirect 内部已改用 reLaunch。
+onPageNotFound((res) => {
+  const path: string = res != null && typeof res === 'object' ? (res as { path?: string }).path ?? '' : ''
+  console.warn(`[App] 页面未找到：${path || '(unknown)'}`)
+  applyRedirect(HOME_PAGE)
+})
+
+// ────────────────────────────────────────────────────────
+// 隐私弹窗操作
+// ────────────────────────────────────────────────────────
+
+function onAcceptPrivacy(): void {
+  appStore.acceptPrivacy()
+  showPrivacyDialog.value = false
+  // 同意之后才做设备信息采集
+  appStore.refreshNetworkType()
+  routeGuard()
+}
+
+function onDeclinePrivacy(): void {
+  privacyDeclined.value = true
+  showPrivacyDialog.value = false
+  uni.showToast({
+    title: '没有同意就不会记录任何东西',
+    icon: 'none',
+  })
+  // 不同意 → 回登录页之外无处可去，直接退出提示
+  setTimeout(() => {
+    routeGuard()
+  }, 800)
+}
+
+function onOpenPrivacy(): void {
+  // ★ 跳到内置的隐私政策页（三端商店要求：必须是可访问的 https 网页）
+  //   本文件不允许出现平台宏，App 端与 H5 的差异由该页自己处理。
+  uni.navigateTo({
+    url: '/pages/privacy/privacy',
+    fail: () => {
+      uni.showToast({ title: '请在浏览器中查看隐私政策', icon: 'none' })
+    },
+  })
+}
+
+// ────────────────────────────────────────────────────────
+// 路由与登录
+// ────────────────────────────────────────────────────────
+
+/** 路由守卫：冷启动与登录态变化时判定 */
+function routeGuard(targetUrl?: string): void {
+  const url = targetUrl ?? HOME_PAGE
+  const result = checkRoute(url, authStore.isLoggedIn, appStore.privacyAccepted)
+
+  if (result.action === 'redirect') {
+    console.log(`[App] 路由守卫：${result.reason}，${url} → ${result.url}`)
+    applyRedirect(result.url)
+  }
+}
+
+/** 登录态失效的处理：清凭证 + 跳登录 */
+function onNeedLogin(): void {
+  clearAuthState()
+  authStore.logoutLocal()
+  uni.showToast({
+    title: '登录已失效，请重新登录',
+    icon: 'none',
+  })
+  setTimeout(() => {
+    applyRedirect(LOGIN_PAGE)
+    authStore.unlockRedirect()
+  }, 1200)
+}
+
+/** 离线横幅点击：重新探测网络 */
+function onRetryNetwork(): void {
+  const t = networkType()
+  if (t === 'none') {
+    uni.showToast({
+      title: '还是连不上，检查一下网络吧',
+      icon: 'none',
+    })
+    return
+  }
+  appStore.refreshNetworkType()
+  uni.showToast({ title: '网络已恢复', icon: 'none' })
+}
+
+// 暴露给页面的方法
+defineExpose({
+  routeGuard,
+})
+</script>
+
+<style scoped>
+.app-root {
+  flex: 1;
+  background-color: var(--color-bg);
+}
+
+/* ── 离线横幅 ── */
+.offline-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 400;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: var(--space-xs);
+  padding-left: var(--space-md);
+  padding-right: var(--space-md);
+  background-color: var(--color-warning);
+}
+
+.offline-banner__text {
+  font-size: var(--font-sm);
+  color: var(--color-text-inverse);
+  line-height: 1.4;
+}
+
+/* ── 隐私弹窗 ── */
+.privacy-mask {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 500;
+  background-color: var(--color-mask);
+  align-items: center;
+  justify-content: center;
+  padding-left: var(--space-lg);
+  padding-right: var(--space-lg);
+}
+
+.privacy-dialog {
+  width: 100%;
+  max-width: 620rpx;
+  border-radius: var(--radius-lg);
+  background-color: var(--color-bg-elevated);
+  padding: var(--space-lg);
+  /* 底部叠加安全区，避免被 Home Indicator 压住 */
+  padding-bottom: calc(var(--space-lg) + constant(safe-area-inset-bottom));
+  padding-bottom: calc(var(--space-lg) + env(safe-area-inset-bottom));
+}
+
+.privacy-dialog__title {
+  font-size: var(--font-lg);
+  font-weight: 600;
+  color: var(--color-text-1);
+  margin-bottom: var(--space-sm);
+}
+
+.privacy-dialog__body {
+  font-size: var(--font-md);
+  color: var(--color-text-1);
+  line-height: 1.6;
+  margin-bottom: var(--space-sm);
+}
+
+.privacy-dialog__detail {
+  font-size: var(--font-sm);
+  color: var(--color-text-2);
+  line-height: 1.6;
+  margin-bottom: var(--space-sm);
+}
+
+.privacy-dialog__link {
+  font-size: var(--font-sm);
+  color: var(--color-primary);
+  text-decoration: underline;
+  margin-bottom: var(--space-lg);
+}
+
+.privacy-dialog__actions {
+  flex-direction: row;
+  justify-content: flex-end;
+}
+</style>
+
+<!--
+  ★ 全局样式（非 scoped）：只作用于 H5。
+  uni-app x 在 H5 上 custom:true 不完全生效，会同时渲染「原生 tabBar」
+  （<uni-tabbar> 元素，iconPath 指向不存在的图 → 裂图）和我们自己放在
+  页面里的 AppTabBar 组件，导致底部出现两个栏叠在一起。
+  这里把原生 tabBar 容器隐藏，只保留自定义的 AppTabBar。
+  原生三端没有 <uni-tabbar> 这个 DOM 元素，此规则无副作用。
+-->
+<style>
+uni-tabbar {
+  display: none !important;
+}
+
+/*
+  ★★★ tabBar 页底部预留区治理（H5 深色「底部分层」白带的根因） ★★★
+
+  uni-h5 对 tabBar 页**即使 custom:true** 仍按原生 tabBar 高度预留底部空间：
+    1. uni-app 根节点被加 .uni-app--showtabbar；
+    2. .uni-app--showtabbar uni-page-wrapper 被压短
+       calc(100% - var(--tab-bar-height) - safe-area)；
+    3. uni-page-body::after 再垫一块同高的透明占位块。
+  而原生栏本体已被上面的 display:none 隐藏 —— 三者叠加出一段
+  「无主」的透明区。body 背景也是透明的（框架给的
+  var(--background-color-content) 无人定义）→ 透出白色画布。
+  浅色主题白上贴白看不出来；深色主题下底部一条刺眼白带，
+  自定义 tabBar 的半透明底盖在上面整体发白，就是用户报的
+  「深色模式 dock 分层」。
+
+  custom 栏已经自带等高占位（AppTabBar + 各页底部 spacer），
+  所以这里把 uni 的预留空间全部取消，让页面铺满整个视口。
+  非 H5 端没有这些元素，规则不生效也无副作用。
+*/
+.uni-app--showtabbar uni-page-wrapper {
+  height: 100% !important;
+}
+
+uni-app uni-page-body::after {
+  display: none !important;
+}
+
+/*
+  ★★★ 主题 CSS 变量定义（全站唯一来源，与 theme.json 逐字一致） ★★★
+  为什么必须在这里定义：uni-app x 官方明确——theme.json **只**负责
+  pages.json/tabBar 的 @ 变量解析，页面自己的 CSS 变量框架**不会**注入。
+  之前所有页面写 var(--color-bg) 却没人定义 → 全部取初始值 →
+  白底黑字无卡片（「白茫茫」总根因）。
+
+  官方推荐模式（docs/api/theme-change.md）：
+    1. 全局样式定义 .theme-light / .theme-dark 两套同名变量；
+    2. 每个页面根节点 :class="themeClass" 按当前主题挂其中一个 class；
+    3. 变量随 class 级联到页面全部子节点与组件。
+  ★ App.uvue 的 <template> 会被 uni 运行时整体丢弃（render 被覆盖为
+    LayoutComponent，官方文档明确 App.uvue 不能写模板），所以根节点的
+    themeClass 绑定是死代码——变量只能靠每页根节点的 class 生效。
+
+  铁律：这里的色值必须与 theme.json 的同名令牌逐字一致，改一处要改两处。
+*/
+.theme-light {
+  --color-bg: #F8FBFE;
+  --color-bg-elevated: #FFFFFF;
+  --color-bg-sunken: #EAF2F8;
+  --color-glass: rgba(255, 255, 255, 0.58);
+  --color-glass-border: rgba(255, 255, 255, 0.60);
+  --color-text-1: #0A2233;
+  --color-text-2: #5B7C90;
+  --color-text-3: #93B2C3;
+  --color-text-on-primary: #FFFFFF;
+  --color-text-inverse: #F8FBFE;
+  --color-primary: #0E5C7E;
+  --color-primary-deep: #08324E;
+  --color-primary-soft: rgba(14, 92, 126, 0.10);
+  --color-accent: #0E5C7E;
+  --color-glacier: #4FB0D9;
+  --color-glacier-light: #7FD4F2;
+  --color-glacier-tab: #1E87B5;
+  --color-danger: #D64545;
+  --color-danger-soft: rgba(214, 69, 69, 0.10);
+  --color-success: #2FA84F;
+  --color-success-soft: rgba(47, 168, 79, 0.10);
+  --color-warning: #D9902F;
+  --color-warning-soft: rgba(217, 144, 47, 0.12);
+  --color-divider: rgba(10, 34, 51, 0.08);
+  --color-divider-strong: rgba(10, 34, 51, 0.14);
+  --color-mask: rgba(8, 32, 46, 0.45);
+  --color-skeleton: rgba(14, 92, 126, 0.08);
+  --color-tab-inactive: #93B2C3;
+  --color-nav-bg: rgba(255, 255, 255, 0.50);
+  --color-nav-border: rgba(255, 255, 255, 0.70);
+  --color-pill-bg: rgba(255, 255, 255, 0.55);
+  --color-pill-border: rgba(255, 255, 255, 0.70);
+  --color-track: rgba(23, 77, 102, 0.14);
+  --space-xxs: 4rpx;
+  --space-xs: 8rpx;
+  --space-sm: 16rpx;
+  --space-md: 24rpx;
+  --space-lg: 32rpx;
+  --space-xl: 48rpx;
+  --space-xxl: 64rpx;
+  --space-xxxl: 96rpx;
+  --radius-xs: 8rpx;
+  --radius-sm: 12rpx;
+  --radius-md: 16rpx;
+  --radius-lg: 24rpx;
+  --radius-xl: 32rpx;
+  --radius-pill: 999rpx;
+  --font-xs: 24rpx;
+  --font-sm: 26rpx;
+  --font-md: 30rpx;
+  --font-lg: 34rpx;
+  --font-xl: 40rpx;
+  --font-xxl: 48rpx;
+  --font-display: 56rpx;
+  --line-height-tight: 1.3;
+  --line-height-normal: 1.5;
+  --line-height-loose: 1.7;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --opacity-disabled: 0.45;
+  --opacity-muted: 0.7;
+  --opacity-overlay: 0.6;
+}
+
+.theme-dark {
+  --color-bg: #081217;
+  --color-bg-elevated: #0F1F27;
+  --color-bg-sunken: #050D11;
+  --color-glass: rgba(255, 255, 255, 0.07);
+  --color-glass-border: rgba(255, 255, 255, 0.12);
+  --color-text-1: #E6F1F7;
+  --color-text-2: #A8C2D0;
+  --color-text-3: #6B8999;
+  --color-text-on-primary: #FFFFFF;
+  --color-text-inverse: #081217;
+  --color-primary: #7FD4F2;
+  --color-primary-deep: #4FB0D9;
+  --color-primary-soft: rgba(127, 212, 242, 0.12);
+  --color-accent: #7FD4F2;
+  --color-glacier: #4FB0D9;
+  --color-glacier-light: #9FE0F7;
+  --color-glacier-tab: #4FB0D9;
+  --color-danger: #F07A7A;
+  --color-danger-soft: rgba(240, 122, 122, 0.14);
+  --color-success: #5FD08A;
+  --color-success-soft: rgba(95, 208, 138, 0.14);
+  --color-warning: #F0B45F;
+  --color-warning-soft: rgba(240, 180, 95, 0.16);
+  --color-divider: rgba(230, 241, 247, 0.10);
+  --color-divider-strong: rgba(230, 241, 247, 0.18);
+  --color-mask: rgba(0, 0, 0, 0.60);
+  --color-skeleton: rgba(127, 212, 242, 0.08);
+  --color-tab-inactive: #4E6B7A;
+  --color-nav-bg: rgba(255, 255, 255, 0.06);
+  --color-nav-border: rgba(255, 255, 255, 0.10);
+  --color-pill-bg: rgba(255, 255, 255, 0.07);
+  --color-pill-border: rgba(255, 255, 255, 0.12);
+  --color-track: rgba(255, 255, 255, 0.10);
+  --space-xxs: 4rpx;
+  --space-xs: 8rpx;
+  --space-sm: 16rpx;
+  --space-md: 24rpx;
+  --space-lg: 32rpx;
+  --space-xl: 48rpx;
+  --space-xxl: 64rpx;
+  --space-xxxl: 96rpx;
+  --radius-xs: 8rpx;
+  --radius-sm: 12rpx;
+  --radius-md: 16rpx;
+  --radius-lg: 24rpx;
+  --radius-xl: 32rpx;
+  --radius-pill: 999rpx;
+  --font-xs: 24rpx;
+  --font-sm: 26rpx;
+  --font-md: 30rpx;
+  --font-lg: 34rpx;
+  --font-xl: 40rpx;
+  --font-xxl: 48rpx;
+  --font-display: 56rpx;
+  --line-height-tight: 1.3;
+  --line-height-normal: 1.5;
+  --line-height-loose: 1.7;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --opacity-disabled: 0.45;
+  --opacity-muted: 0.7;
+  --opacity-overlay: 0.6;
+}
+</style>

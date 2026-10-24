@@ -1,0 +1,119 @@
+<!--
+  AppCard —— 玻璃拟态卡片
+  ══════════════════════════════════════════════════════════════
+  职责：全工程的内容容器。默认玻璃拟态（产品的冰川视觉语言），
+        实心变体用于需要明确分隔的场景。
+
+  props：
+    padding  'none' | 'sm' | 'md' | 'lg'    内边距，默认 md
+    variant  'solid' | 'glass'              视觉，默认 glass
+    radius   'none' | 'sm' | 'md' | 'lg' | 'xl'  圆角覆盖，默认走 variant
+
+  slots：
+    default   卡片内容（只有一个默认 slot）
+
+  设计约束：
+    1. 默认玻璃拟态 —— @include m.glass-card，这是产品的视觉语言。
+    2. 内边距与圆角全部走 mixin / 令牌，组件内零字面量。
+    3. 卡片本身不响应点击，需要点击请在外层套 view 加 @click。
+    4. 只用单类选择器，不用后代选择器。
+-->
+<template>
+  <view class="card" :class="rootClass">
+    <slot />
+  </view>
+</template>
+
+<script lang="uts" setup>
+/** 内边距档位 */
+type CardPadding = 'none' | 'sm' | 'md' | 'lg'
+/** 视觉形态 */
+type CardVariant = 'solid' | 'glass'
+/** 圆角覆盖；空串表示沿用 variant 的默认圆角 */
+type CardRadius = '' | 'none' | 'sm' | 'md' | 'lg' | 'xl'
+
+const props = withDefaults(
+  defineProps<{
+    padding?: CardPadding
+    variant?: CardVariant
+    radius?: CardRadius
+  }>(),
+  {
+    padding: 'md',
+    variant: 'glass',
+    radius: '',
+  },
+)
+
+/**
+ * 所有修饰类平铺到根节点。
+ * uni-app x 只支持 web CSS 子集，后代选择器不可靠，
+ * 所以不用 `.card--glass .card-pad--sm` 这种写法。
+ */
+const rootClass = computed<string[]>(() => {
+  const list: string[] = ['card--' + props.variant, 'card-pad--' + props.padding]
+  if (props.radius != '') {
+    list.push('card-radius--' + props.radius)
+  }
+  return list
+})
+</script>
+
+<style scoped lang="scss">
+@use '../styles/tokens.scss' as t;
+@use '../styles/mixins.scss' as m;
+
+.card {
+  width: 100%;
+  flex-direction: column;
+}
+
+// ── 视觉：玻璃拟态（默认）─────────────────────────────────
+.card--glass {
+  @include m.glass-card(t.$radius-lg);
+}
+
+// ── 视觉：实心 ───────────────────────────────────────────
+.card--solid {
+  @include m.card(t.$radius-lg);
+}
+
+// ── 内边距 ───────────────────────────────────────────────
+.card-pad--none {
+  padding: 0;
+}
+
+.card-pad--sm {
+  padding: t.$space-sm;
+}
+
+.card-pad--md {
+  padding: t.$space-md;
+}
+
+.card-pad--lg {
+  padding: t.$space-lg;
+}
+
+// ── 圆角覆盖 ─────────────────────────────────────────────
+// 放在视觉类之后声明，保证覆盖生效
+.card-radius--none {
+  border-radius: 0;
+}
+
+.card-radius--sm {
+  border-radius: t.$radius-sm;
+}
+
+.card-radius--md {
+  border-radius: t.$radius-md;
+}
+
+.card-radius--lg {
+  border-radius: t.$radius-lg;
+}
+
+.card-radius--xl {
+  border-radius: t.$radius-xl;
+}
+</style>

@@ -1,0 +1,947 @@
+<!--
+  pages/index/index —— 首页「旅途」（Tab 1）
+  ══════════════════════════════════════════════════════════════
+  这一页是整个产品的门面，要同时回答四个问题：
+    1. 今天过得怎么样？   → feelingsService.dailyStat()
+    2. 我有什么事要做？   → todosService.grouped()
+    3. 最近发生了什么？   → memoriesService.list()
+    4. 身体怎么样？       → healthService.overview()
+
+  ★ 三态铁律（05 号 T8 DoD）：
+    加载中 / 空态 / 错误态三者必须显式区分。
+    任何一张卡请求失败都不允许「白屏 + toast 一闪」，
+    而是要在卡片位置留下一句可读的话 + 一个可点的重试入口。
+
+  ★ 为什么四个数据源并发 + 各自独立 catch：
+    后端只有 health 挂了，不该让待办和记忆也一起消失。
+    所以不存在「一个 Promise.all 失败就整页报错」的写法。
+
+  设计约束：
+    1. 全部颜色/间距/圆角走 var(--xxx) 与 t.$xxx，页面内零字面量。
+    2. 不写 vh 与屏幕像素值；内容区高度靠 flex: 1。
+    3. 底部 Tab 栏用 AppTabBar，内容区留出等高占位。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar :title="navTitle" :show-back="false">
+      <template #right>
+        <view class="nav-action" @click="onOpenSettings">
+          <text class="nav-action-text">设置</text>
+        </view>
+      </template>
+    </AppNavBar>
+
+    <scroll-view class="page-body" scroll-y>
+      <!-- 问候区：首屏骨架屏时也要占位，避免标题闪现 -->
+      <view v-if="firstLoading" class="greet-block">
+        <view class="greet-line greet-line--hello" />
+        <view class="greet-line" />
+        <view class="greet-line greet-line--sub" />
+      </view>
+
+      <view v-else class="greet-block">
+        <text class="greet-hello">{{ greetingText }}</text>
+        <text class="greet-title">今天过得怎么样？</text>
+        <text class="greet-sub">{{ dateText }}</text>
+      </view>
+
+      <!-- 首屏骨架屏：只在「一个数据都还没到」时显示。
+           任何一张卡到位就换成真实内容，避免骨架与内容来回闪 -->
+      <view v-if="firstLoading" class="page-content">
+        <AppLoading type="skeleton" :rows="4" />
+      </view>
+
+      <!-- 整页错误态：只有四张卡全挂才走这里 -->
+      <AppEmpty
+        v-else-if="allFailed"
+        icon="⚠"
+        title="没能读到今天的内容"
+        :description="errorText"
+        action-text="重试一次"
+        @action="reloadAll"
+      />
+
+      <view v-else class="page-content">
+        <!-- ① 今日感受统计 -->
+        <view class="block">
+          <AppCard padding="md">
+            <view class="card-head">
+              <text class="card-title">今天的感受</text>
+              <view class="card-more" @click="onGoFeelingEdit">
+                <text class="card-more-text">记一笔</text>
+              </view>
+            </view>
+
+            <view v-if="feelingFailed" class="card-error" @click="retryFeeling">
+              <text class="card-error-text">这条没读到，点我再试一次</text>
+            </view>
+
+            <view v-else-if="hasFeeling" class="stat-box">
+              <view class="stat-row">
+                <!-- 极性色点：只表示「正/中/负」，不表示好坏 -->
+                <view class="polarity-dot" :class="polarityClass" />
+                <text class="stat-main">{{ statCount }} 次记录</text>
+                <text v-if="avgIntensityText != ''" class="stat-avg">平均强度 {{ avgIntensityText }}</text>
+              </view>
+              <view v-if="wordChips.length > 0" class="chip-row">
+                <view v-for="w in wordChips" :key="w" class="chip">
+                  <text class="chip-text">{{ w }}</text>
+                </view>
+              </view>
+            </view>
+
+            <view v-else class="stat-empty">
+              <text class="stat-empty-text">今天还没有记录。想说什么都可以，哪怕只是「有点累」。</text>
+            </view>
+          </AppCard>
+        </view>
+
+        <!-- ② 待办分组 -->
+        <view class="block">
+          <AppCard padding="md">
+            <view class="card-head">
+              <text class="card-title">时间与你</text>
+              <text v-if="todoTotal > 0" class="card-badge">{{ todoTotal }} 项</text>
+            </view>
+
+            <view v-if="todoFailed" class="card-error" @click="retryTodos">
+              <text class="card-error-text">待办没读到，点我再试一次</text>
+            </view>
+
+            <view v-else-if="todoTotal == 0" class="stat-empty">
+              <text class="stat-empty-text">没有待办，也没有逾期的。难得清净。</text>
+            </view>
+
+            <view v-else class="todo-box">
+              <!-- 逾期排最前：这是唯一一件「现在不做就会有后果」的事 -->
+              <view v-if="overdueList.length > 0" class="todo-group">
+                <text class="todo-group-title todo-group-title--warn">已经拖了几天</text>
+                <view
+                  v-for="td in overdueList"
+                  :key="td.id"
+                  class="todo-row"
+                  @click="onToggleTodo(td.id)"
+                >
+                  <view class="todo-check" />
+                  <text class="todo-title todo-title--warn">{{ td.title }}</text>
+                </view>
+              </view>
+
+              <view v-if="todayList.length > 0" class="todo-group">
+                <text class="todo-group-title">今天</text>
+                <view
+                  v-for="td in todayList"
+                  :key="td.id"
+                  class="todo-row"
+                  @click="onToggleTodo(td.id)"
+                >
+                  <view class="todo-check" />
+                  <text class="todo-title">{{ td.title }}</text>
+                </view>
+              </view>
+
+              <view v-if="upcomingList.length > 0" class="todo-group">
+                <text class="todo-group-title">接下来几天</text>
+                <view
+                  v-for="td in upcomingList"
+                  :key="td.id"
+                  class="todo-row"
+                  @click="onToggleTodo(td.id)"
+                >
+                  <view class="todo-check" />
+                  <text class="todo-title">{{ td.title }}</text>
+                </view>
+              </view>
+            </view>
+          </AppCard>
+        </view>
+
+        <!-- ③ 最近记忆节点 -->
+        <view class="block">
+          <AppCard padding="md">
+            <view class="card-head">
+              <text class="card-title">最近记下的</text>
+              <view class="card-more" @click="onGoMemoryTab">
+                <text class="card-more-text">全部</text>
+              </view>
+            </view>
+
+            <view v-if="memoryFailed" class="card-error" @click="retryMemories">
+              <text class="card-error-text">记忆没读到，点我再试一次</text>
+            </view>
+
+            <view v-else-if="recentList.length == 0" class="stat-empty">
+              <text class="stat-empty-text">还没有记忆节点。记一件今天发生的小事就够了。</text>
+            </view>
+
+            <view v-else class="memory-box">
+              <view
+                v-for="m in recentList"
+                :key="m.id"
+                class="memory-row"
+                @click="onGoMemoryDetail(m.id)"
+              >
+                <text v-if="hasIcon(m.icon)" class="memory-icon">{{ m.icon }}</text>
+                <text v-else class="memory-icon memory-icon--blank">◦</text>
+                <view class="memory-main">
+                  <text class="memory-title">{{ m.title }}</text>
+                  <text class="memory-time">{{ timeTextOf(m.occurredAt) }}</text>
+                </view>
+                <text class="memory-arrow">›</text>
+              </view>
+            </view>
+          </AppCard>
+        </view>
+
+        <!-- ④ 身体信号一句话概述
+             ★ 只陈述，不评价。绝不写「你今天睡得不好」这类判断，
+               summary 是后端给的自然语言描述，原样透传 -->
+        <view class="block">
+          <AppCard padding="md">
+            <view class="card-head">
+              <text class="card-title">身体的信号</text>
+              <text class="card-note">只是照给你看</text>
+            </view>
+
+            <view v-if="healthFailed" class="card-error" @click="retryHealth">
+              <text class="card-error-text">身体信号没读到，点我再试一次</text>
+            </view>
+
+            <view v-else-if="healthSummary != ''" class="health-box">
+              <text class="health-summary">{{ healthSummary }}</text>
+              <text v-if="streakText != ''" class="health-streak">{{ streakText }}</text>
+            </view>
+
+            <view v-else class="stat-empty">
+              <text class="stat-empty-text">还没有身体信号记录。记不记都可以。</text>
+            </view>
+          </AppCard>
+        </view>
+
+        <!-- 底部占位：把内容顶到 Tab 栏上方，否则最后一张卡会被压住 -->
+        <view class="tab-placeholder" />
+      </view>
+    </scroll-view>
+
+    <AppTabBar current="journey" />
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppCard from '@/components/AppCard.uvue'
+import AppEmpty from '@/components/AppEmpty.uvue'
+import AppLoading from '@/components/AppLoading.uvue'
+import AppTabBar from '@/components/AppTabBar.uvue'
+import { useAppStore } from '@/stores/app'
+import { feelingsService, memoriesService, todosService, healthService } from '@/services'
+import type { Memory, Todo, TodoGroup } from '@/services'
+import { messageOfError } from '@/core/http/error-code'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+import { fullTime, greetingOf, nowIso } from '@/core/utils/datetime'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 取消键：与 onUnload 里的 cancelByKey 必须成对，否则请求会打到已销毁的页面上 */
+const ABORT_KEY = 'pages/index/index'
+
+const appStore = useAppStore()
+
+// ── 三态 ─────────────────────────────────────────────────
+/** 首屏骨架屏：true 表示「一个数据都还没到」 */
+const firstLoading = ref<boolean>(true)
+/** 整页错误文案：取自 messageOfError，不自造 */
+const errorText = ref<string>('')
+
+/** 单卡失败标记。刻意做成四个独立布尔而不是一个 error 字段：
+ *  后端只有 health 挂了，不该让待办和记忆也一起消失 */
+const feelingFailed = ref<boolean>(false)
+const todoFailed = ref<boolean>(false)
+const memoryFailed = ref<boolean>(false)
+const healthFailed = ref<boolean>(false)
+
+/** 四张卡全挂 —— 只有这种情况才允许显示整页错误 */
+const allFailed = computed<boolean>(() => {
+  return feelingFailed.value && todoFailed.value && memoryFailed.value && healthFailed.value
+})
+
+// ── 数据 ─────────────────────────────────────────────────
+const statCount = ref<number>(0)
+const statPolarity = ref<string>('')
+const statAvg = ref<number>(-1)
+const statWords = ref<string[]>([])
+const overdueTodos = ref<Todo[]>([])
+const todayTodos = ref<Todo[]>([])
+const upcomingTodos = ref<Todo[]>([])
+const recentList = ref<Memory[]>([])
+const healthSummary = ref<string>('')
+const streakDays = ref<number>(0)
+
+/** 导航栏标题：用时段问候而不是「首页」，产品原型首页本就没有传统标题 */
+const now = ref<string>(nowIso())
+const navTitle = computed<string>(() => greetingOf(now.value))
+const greetingText = computed<string>(() => greetingOf(now.value))
+const dateText = computed<string>(() => fullTime(now.value))
+
+/** 今天是否有记录 */
+const hasFeeling = computed<boolean>(() => statCount.value > 0)
+
+/** 平均强度：后端可能返回 null（-1 是我们的「无值」哨兵），
+ *  端上不补默认值，只在有值时显示 */
+const avgIntensityText = computed<string>(() => {
+  if (statAvg.value < 0) return ''
+  // ★ 不用 toFixed：uts 的 number 在不同端映射到不同的原生数值类型，
+  //   toFixed 的可用性不一致。改成「先四舍五入到一位再字符串化」。
+  const scaled = Math.round(statAvg.value * 10)
+  const intPart = Math.floor(scaled / 10)
+  const decPart = scaled - intPart * 10
+  return `${intPart}.${decPart}`
+})
+
+/** 极性色点 class。★ 只映射「正/中/负」三档，不做「好/坏」暗示 */
+const polarityClass = computed<string>(() => {
+  if (statPolarity.value == 'positive') return 'polarity-dot--positive'
+  if (statPolarity.value == 'negative') return 'polarity-dot--negative'
+  if (statPolarity.value == 'neutral') return 'polarity-dot--neutral'
+  return 'polarity-dot--none'
+})
+
+/** 情绪词胶囊：最多 4 个，多了卡片会变得难读 */
+const wordChips = computed<string[]>(() => {
+  const src = statWords.value
+  const out: string[] = []
+  for (let i = 0; i < src.length; i++) {
+    if (out.length >= 4) break
+    const label = src[i]
+    if (label.length > 0 && out.indexOf(label) < 0) out.push(label)
+  }
+  return out
+})
+
+const overdueList = computed<Todo[]>(() => overdueTodos.value)
+const todayList = computed<Todo[]>(() => todayTodos.value)
+const upcomingList = computed<Todo[]>(() => upcomingTodos.value)
+
+/** 待办总数：completed 不计入（已完成的事不是「要做的事」） */
+const todoTotal = computed<number>(() => {
+  return overdueTodos.value.length + todayTodos.value.length + upcomingTodos.value.length
+})
+
+/** 连续记录天数：只陈述数字，不加「坚持得真好」这类评价 */
+const streakText = computed<string>(() => {
+  return streakDays.value > 0 ? `已经连续记录 ${streakDays.value} 天` : ''
+})
+
+/** 图标可能为 null（后端可空字段一律 T | null），模板里不能直接判长度 */
+function hasIcon(icon: string | null): boolean {
+  return icon != null && icon.length > 0
+}
+
+/** 记忆发生时间。列表里用完整格式，用户能看清「到底是哪天」 */
+function timeTextOf(iso: string): string {
+  return fullTime(iso)
+}
+
+// ────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(ABORT_KEY)
+  // 折叠屏展开 / 横竖屏切换后列数会变，进页面先量一次。
+  // 监听本身由 appStore.bindListeners 在 App 层统一管理，这里不重复绑，
+  // 否则一个 resize 事件会触发 N 次 measure。
+  appStore.measure()
+  now.value = nowIso()
+  reloadAll()
+})
+
+onShow(() => {
+  now.value = nowIso()
+  // 从「记一笔」返回时刷新统计，否则用户记完看不到变化
+  if (!firstLoading.value) {
+    loadFeeling()
+  }
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  // ★ 页面卸载必须取消该页在途请求，否则回调会更新已销毁的 ref
+  const n = cancelByKey(ABORT_KEY)
+  if (n > 0) {
+    console.log(`[index] 页面卸载，取消 ${n} 个在途请求`)
+  }
+})
+
+// 下拉刷新。pages.json 的 index 页已开enablePullDownRefresh:true
+async function onPullDownRefresh(): Promise<void> {
+  reloadAll()
+  // ★ 必须等四个请求都 settle 才能停止转圈。
+  //   这里用计数而不是 Promise.all：任何一个请求若意外 reject，
+  //   all 会立刻 reject，转圈就永远停不下来（这是最常见的下拉刷新卡死原因）。
+  await waitAllSettled()
+  uni.stopPullDownRefresh()
+}
+
+/** 等到「没有任何请求还在飞」为止。用计数器而非 Promise.all，保证不会卡死 */
+let pending = 0
+let settleHooks: Array<() => void> = []
+
+function beginRequest(): void {
+  pending += 1
+}
+
+function endRequest(): void {
+  pending -= 1
+  if (pending <= 0 && settleHooks.length > 0) {
+    const hooks = settleHooks
+    settleHooks = []
+    for (const h of hooks) h()
+  }
+}
+
+function waitAllSettled(): Promise<void> {
+  if (pending <= 0) return Promise.resolve()
+  return new Promise<void>((resolve) => {
+    settleHooks.push(resolve)
+  })
+}
+
+/** 全量重载：下拉刷新、整页「重试一次」、首次进入共用 */
+function reloadAll(): void {
+  firstLoading.value = true
+  errorText.value = ''
+  loadFeeling()
+  loadTodos()
+  loadMemories()
+  loadHealth()
+}
+
+// ────────────────────────────────────────────────────────
+// 四张卡的加载：各自独立 catch，互不牵连
+// ────────────────────────────────────────────────────────
+
+async function loadFeeling(): Promise<void> {
+  beginRequest()
+  try {
+    const res = await feelingsService.dailyStat({})
+    statCount.value = res.count
+    statPolarity.value = res.dominantPolarity == null ? '' : res.dominantPolarity
+    statAvg.value = res.averageIntensity == null ? -1 : res.averageIntensity
+    const words: string[] = []
+    for (const w of res.words) {
+      // refined 是「更精确的说法」，没有就退回 raw
+      words.push(w.refined.length > 0 ? w.refined : w.raw)
+    }
+    statWords.value = words
+    feelingFailed.value = false
+  } catch (e) {
+    // ★ 不吞错误：既记日志，又让卡片降级成可点的重试入口
+    console.error('[index] 今日感受统计加载失败', e)
+    errorText.value = messageOfError(e)
+    feelingFailed.value = true
+  } finally {
+    firstLoading.value = false
+    endRequest()
+  }
+}
+
+async function loadTodos(): Promise<void> {
+  beginRequest()
+  try {
+    const res: TodoGroup = await todosService.grouped()
+    overdueTodos.value = res.overdue
+    todayTodos.value = res.today
+    upcomingTodos.value = res.upcoming
+    todoFailed.value = false
+  } catch (e) {
+    console.error('[index] 待办分组加载失败', e)
+    errorText.value = messageOfError(e)
+    todoFailed.value = true
+  } finally {
+    firstLoading.value = false
+    endRequest()
+  }
+}
+
+async function loadMemories(): Promise<void> {
+  beginRequest()
+  try {
+    const res = await memoriesService.list({
+      page: 1,
+      pageSize: 3,
+      sortBy: 'occurredAt',
+      sortOrder: 'desc',
+    })
+    recentList.value = res.list
+    memoryFailed.value = false
+  } catch (e) {
+    console.error('[index] 最近记忆加载失败', e)
+    errorText.value = messageOfError(e)
+    memoryFailed.value = true
+  } finally {
+    firstLoading.value = false
+    endRequest()
+  }
+}
+
+async function loadHealth(): Promise<void> {
+  beginRequest()
+  try {
+    const res = await healthService.overview({ days: 7 })
+    // ★ summary 是后端给的自然语言描述，原样透传。
+    //   端上一律不改写成「建议」或「评价」——这是产品的硬立场。
+    healthSummary.value = res.summary
+    streakDays.value = res.streakDays
+    healthFailed.value = false
+  } catch (e) {
+    console.error('[index] 身体信号概览加载失败', e)
+    errorText.value = messageOfError(e)
+    healthFailed.value = true
+  } finally {
+    firstLoading.value = false
+    endRequest()
+  }
+}
+
+// ────────────────────────────────────────────────────────
+// 单卡重试：只重试这一张，不惊动其他三张
+// ────────────────────────────────────────────────────────
+
+function retryFeeling(): void {
+  feelingFailed.value = false
+  loadFeeling()
+}
+
+function retryTodos(): void {
+  todoFailed.value = false
+  loadTodos()
+}
+
+function retryMemories(): void {
+  memoryFailed.value = false
+  loadMemories()
+}
+
+function retryHealth(): void {
+  healthFailed.value = false
+  loadHealth()
+}
+
+// ────────────────────────────────────────────────────────
+// 交互
+// ────────────────────────────────────────────────────────
+
+/** 勾选待办：点一下就完成，不弹确认——这种小动作不该被拦 */
+function onToggleTodo(id: string): void {
+  todosService
+    .toggle(id)
+    .then(() => {
+      // 重新拉分组而不是本地改数组：后端对 yearly / monthly 规则
+      // 会自动生成下一期，本地改会漏掉这条业务规则
+      loadTodos()
+    })
+    .catch((e) => {
+      console.error('[index] 切换待办失败', e)
+      uni.showToast({ title: messageOfError(e), icon: 'none' })
+    })
+}
+
+function onGoFeelingEdit(): void {
+  navigateTo('/pages/feeling/edit')
+}
+
+function onGoMemoryDetail(id: string): void {
+  navigateTo(`/pages/memory/detail?id=${id}`)
+}
+
+function onOpenSettings(): void {
+  navigateTo('/pages/mine/settings')
+}
+
+function onGoMemoryTab(): void {
+  // 记忆是 Tab 页，必须走 switchTab；navigateTo 到 tabBar 页会失败
+  uni.switchTab({
+    url: '/pages/memory/index',
+    fail: () => {
+      console.error('[index] 切换到记忆 Tab 失败')
+      uni.showToast({ title: '页面还没打开，请稍后再试', icon: 'none' })
+    },
+  })
+}
+
+/**
+ * 统一的 navigateTo 包装。
+ * 失败必须给用户一句可见反馈，否则「点了没反应」是最难排查的体验问题。
+ */
+function navigateTo(url: string): void {
+  uni.navigateTo({
+    url,
+    fail: (err) => {
+      console.error(`[index] 跳转 ${url} 失败`, err)
+      uni.showToast({ title: '页面还没打开，请稍后再试', icon: 'none' })
+    },
+  })
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  background-color: var(--color-bg);
+}
+
+// ── 滚动内容区 ───────────────────────────────────────────
+// ★ 不用 vh 单位：页面本身已是 flex: 1，scroll-view 撑满剩余空间即可
+.page-body {
+  flex: 1;
+  width: 100%;
+}
+
+.page-content {
+  width: 100%;
+  @include m.content-constrain;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+}
+
+// ── 问候区 ───────────────────────────────────────────────
+.greet-block {
+  width: 100%;
+  @include m.content-constrain;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-md;
+  padding-bottom: t.$space-sm;
+}
+
+.greet-hello {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-primary);
+}
+
+.greet-title {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-xxl;
+  font-weight: t.$weight-bold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.greet-sub {
+  margin-top: t.$space-xs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+// 骨架态的占位块：宽度用百分比，天然适配不同屏宽，不需要写死数值
+.greet-line {
+  height: t.$font-xxl;
+  border-radius: t.$radius-sm;
+  background-color: var(--color-skeleton);
+  margin-bottom: t.$space-sm;
+}
+
+.greet-line--hello {
+  width: 30%;
+  height: t.$font-sm;
+}
+
+.greet-line--sub {
+  width: 55%;
+  height: t.$font-xs;
+  margin-bottom: 0;
+}
+
+// ── 区块间距 ─────────────────────────────────────────────
+.block {
+  margin-top: t.$space-md;
+}
+
+// ── 卡片头 ───────────────────────────────────────────────
+.card-head {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: t.$space-sm;
+}
+
+.card-title {
+  font-size: t.$font-md;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.card-more {
+  // ★ 独立可点区域，满足 88rpx
+  @include m.tap-target;
+  padding-left: t.$space-sm;
+}
+
+.card-more-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+}
+
+.card-badge {
+  font-size: t.$font-xs;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-3);
+}
+
+.card-note {
+  font-size: t.$font-xs;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-3);
+}
+
+// ── 卡片内错误态（可点重试）──────────────────────────────
+// ★ 05 号 T8 DoD：失败必须「看得见 + 点得动」，
+//   而不是 toast 一闪就没了
+.card-error {
+  @include m.tap-target;
+  padding-top: t.$space-xs;
+  padding-bottom: t.$space-xs;
+}
+
+.card-error-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-danger);
+}
+
+// ── 感受统计 ─────────────────────────────────────────────
+.stat-box {
+  flex-direction: column;
+}
+
+.stat-row {
+  flex-direction: row;
+  align-items: center;
+}
+
+.stat-main {
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+  margin-left: t.$space-xs;
+}
+
+.stat-avg {
+  margin-left: t.$space-xs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+// 极性三色。刻意用「冰川蓝 / 灰 / 暖橙」而不是「绿=好 / 红=坏」，
+// 因为正负情绪没有优劣之分，绿色会暗示「开心才是对的」
+.polarity-dot {
+  width: t.$space-sm;
+  height: t.$space-sm;
+  border-radius: t.$radius-pill;
+}
+
+.polarity-dot--positive {
+  background-color: var(--color-glacier);
+}
+
+.polarity-dot--neutral {
+  background-color: var(--color-text-3);
+}
+
+.polarity-dot--negative {
+  background-color: var(--color-warning);
+}
+
+.polarity-dot--none {
+  background-color: var(--color-divider-strong);
+}
+
+.chip-row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-top: t.$space-sm;
+}
+
+.chip {
+  background-color: var(--color-primary-soft);
+  border-radius: t.$radius-pill;
+  padding-left: t.$space-sm;
+  padding-right: t.$space-sm;
+  padding-top: t.$space-xxs;
+  padding-bottom: t.$space-xxs;
+  margin-right: t.$space-xs;
+  margin-bottom: t.$space-xs;
+}
+
+.chip-text {
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-primary);
+}
+
+.stat-empty {
+  padding-top: t.$space-xs;
+  padding-bottom: t.$space-xs;
+}
+
+.stat-empty-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 待办 ─────────────────────────────────────────────────
+.todo-box {
+  flex-direction: column;
+}
+
+.todo-group {
+  margin-bottom: t.$space-sm;
+}
+
+.todo-group-title {
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+  margin-bottom: t.$space-xxs;
+}
+
+.todo-group-title--warn {
+  color: var(--color-danger);
+}
+
+.todo-row {
+  // 整行可点，满足最小点击区
+  min-height: t.$tap-min-size;
+  flex-direction: row;
+  align-items: center;
+  padding-top: t.$space-xxs;
+  padding-bottom: t.$space-xxs;
+}
+
+.todo-check {
+  width: t.$space-md;
+  height: t.$space-md;
+  border-radius: t.$radius-pill;
+  // 1px 边框是全项目唯一允许的 px 字面量
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-divider-strong);
+  margin-right: t.$space-sm;
+}
+
+.todo-title {
+  flex: 1;
+  font-size: t.$font-md;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-1);
+}
+
+.todo-title--warn {
+  color: var(--color-danger);
+}
+
+// ── 记忆 ─────────────────────────────────────────────────
+.memory-box {
+  flex-direction: column;
+}
+
+.memory-row {
+  min-height: t.$tap-min-size;
+  flex-direction: row;
+  align-items: center;
+  padding-top: t.$space-xs;
+  padding-bottom: t.$space-xs;
+}
+
+.memory-icon {
+  width: t.$space-xl;
+  font-size: t.$font-lg;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-2);
+  text-align: center;
+}
+
+.memory-icon--blank {
+  color: var(--color-text-3);
+}
+
+.memory-main {
+  flex: 1;
+  flex-direction: column;
+  margin-left: t.$space-sm;
+}
+
+.memory-title {
+  font-size: t.$font-md;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+  @include m.text-ellipsis;
+}
+
+.memory-time {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+.memory-arrow {
+  font-size: t.$font-lg;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-3);
+  margin-left: t.$space-xs;
+}
+
+// ── 身体信号 ─────────────────────────────────────────────
+.health-box {
+  flex-direction: column;
+}
+
+.health-summary {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-1);
+}
+
+.health-streak {
+  margin-top: t.$space-xs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+// ── Tab 栏占位 ───────────────────────────────────────────
+// ★ 必须与 AppTabBar 高度等高，否则最后一张卡会被固定底栏压住
+.tab-placeholder {
+  height: t.$tabbar-height;
+  width: 100%;
+}
+
+// ── 导航栏右侧「设置」────────────────────────────────────
+.nav-action {
+  @include m.tap-target;
+  padding-left: t.$space-sm;
+  padding-right: t.$space-xs;
+}
+
+.nav-action-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+}
+</style>

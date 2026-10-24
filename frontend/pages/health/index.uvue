@@ -1,0 +1,998 @@
+<!--
+  pages/health/index.uvue
+  ══════════════════════════════════════════════════════════════
+  Tab 4「健康」—— 身体的信号
+  ══════════════════════════════════════════════════════════════
+
+  产品态度（★ 本页最容易写错的地方，不是技术问题）：
+    身体信号**不是绩效表**。所以本页刻意具备以下「不做」：
+      1. 不显示「达标 / 未达标」「超出目标」等评判词；
+      2. 趋势图的 narrative 直接用后端生成的自然语言，**不改写、不加评价**；
+      3. 连续记录天数只陈述数字，不夸大成成就（「你已坚持 30 天」这种话不能说）；
+      4. 录入表单不校验「是否达标」，只校验数值本身是否合法。
+
+  技术要点：
+    1. 趋势图用 view 柱状图而不是 <canvas>。
+       原因：uni-app x 的 canvas 在三端API 差异较大（鸿蒙 ArkUI 侧需 CanvasRenderingContext2D），
+       而本页只需要「相对高度」这一种表达，用 flex + 百分比高度即可，零兼容风险。
+    2. 三态严格区分：首屏加载 / 空内容 / 请求失败（含重试）。
+    3. 页面卸载时 cancelByKey(PAGE_KEY) 取消在途请求，
+       并用 disposed 标志阻止晚到的回调写已销毁页面的状态。
+
+  路由：tabBar 页，无返回按钮
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="身体的信号" :show-back="false">
+      <template #right>
+        <view class="nav-gear" @click="goSettings">
+          <text class="nav-gear-icon">⚙</text>
+        </view>
+      </template>
+    </AppNavBar>
+
+    <scroll-view
+      class="body"
+      scroll-y
+      :refresher-enabled="true"
+      :refresher-triggered="refreshing"
+      @refresherrefresh="onRefresh"
+      @scrolltolower="onLoadMore"
+    >
+      <view class="body-inner">
+        <!-- ── 失败态：可点击重试，绝不白屏也绝不只 toast 一闪 ── -->
+        <AppEmpty
+          v-if="errorText != ''"
+          title="没能取到你的身体信号"
+          :description="errorText"
+          action-text="再试一次"
+          @action="loadAll"
+        />
+
+        <!-- ── 首屏加载 ── -->
+        <AppLoading v-else-if="firstLoading" type="skeleton" :rows="4" />
+
+        <!-- ── 内容 ── -->
+        <template v-else>
+          <!--屏保文案：这句是本页的定调句，来自产品原型 -->
+          <view class="hero">
+            <text class="hero-title">身体的信号</text>
+            <text class="hero-sub">身体的信号不是绩效表。我不催你早睡、不逼你达标，只是把状态照给你看。</text>
+          </view>
+
+          <!-- 连续记录天数：只陈述数字，不说「坚持」「达成」 -->
+          <AppCard variant="solid" padding="lg" radius="lg">
+            <view class="streak">
+              <view class="streak-figure">
+                <text class="streak-num">{{ streakDays }}</text>
+                <text class="streak-unit">天</text>
+              </view>
+              <text class="streak-label">连续有记录</text>
+              <text v-if="overviewSummary != ''" class="streak-summary">{{ overviewSummary }}</text>
+            </view>
+          </AppCard>
+
+          <!-- ── 趋势切换 ── -->
+          <view class="section-head">
+            <text class="section-title">最近的趋势</text>
+          </view>
+
+          <view class="seg">
+            <view
+              v-for="tab in metricTabs"
+              :key="tab.value"
+              class="seg-item"
+              :class="tab.value == activeMetric ? 'seg-item--on' : ''"
+              @click="switchMetric(tab.value)"
+            >
+              <text class="seg-item-text" :class="tab.value == activeMetric ? 'seg-text--on' : ''">{{ tab.label }}</text>
+            </view>
+          </view>
+
+          <AppCard variant="solid" padding="lg" radius="lg">
+            <!-- 加载单个指标趋势 -->
+            <AppLoading v-if="trendLoading" type="spinner" text="正在看这条线" />
+
+            <template v-else>
+              <!-- 概览数字：平均 / 最低 / 最高，全部是陈述 -->
+              <view v-if="trendAverage != ''" class="trend-stats">
+                <view class="trend-stat">
+                  <text class="trend-stat-value">{{ trendAverage }}</text>
+                  <text class="trend-stat-label">平均</text>
+                </view>
+                <view class="trend-stat">
+                  <text class="trend-stat-value">{{ trendMin }}</text>
+                  <text class="trend-stat-label">最低</text>
+                </view>
+                <view class="trend-stat">
+                  <text class="trend-stat-value">{{ trendMax }}</text>
+                  <text class="trend-stat-label">最高</text>
+                </view>
+              </view>
+
+              <!-- 柱状图：高度按当前指标内的最大值归一化 -->
+              <view v-if="bars.length > 0" class="chart">
+                <view v-for="bar in bars" :key="bar.key" class="chart-col">
+                  <view class="chart-bar" :style="bar.style" />
+                  <text class="chart-label">{{ bar.label }}</text>
+                </view>
+              </view>
+
+              <text v-else class="trend-empty">这段时间还没有{{ activeMetricLabel }}的记录。</text>
+
+              <!-- ★ narrative 后端已生成，纯陈述。直接展示，禁止改写成建议 -->
+              <text v-if="trendNarrative != ''" class="trend-narrative">{{ trendNarrative }}</text>
+            </template>
+          </AppCard>
+
+          <!-- ── 录入 ── -->
+          <view class="section-head">
+            <text class="section-title">记一笔</text>
+          </view>
+
+          <AppCard variant="solid" padding="lg" radius="lg">
+            <view class="seg seg--wrap">
+              <view
+                v-for="tab in metricTabs"
+                :key="tab.value"
+                class="seg-item"
+                :class="formMetric == tab.value ? 'seg-item--on' : ''"
+                @click="formMetric = tab.value"
+              >
+                <text class="seg-item-text" :class="formMetric == tab.value ? 'seg-text--on' : ''">{{ tab.label }}</text>
+              </view>
+            </view>
+
+            <view class="form">
+              <AppInput
+                v-model="formValue"
+                :label="'数值（' + formUnit + '）'"
+                type="number"
+                placeholder="记下今天的数字"
+                :error="formError"
+                :disabled="submitting"
+              />
+
+              <view class="form-gap" />
+
+              <AppInput
+                v-model="formState"
+                label="此刻的感觉（可以不填）"
+                placeholder="比如：有点累 / 还挺清醒"
+                :maxlength="20"
+                :disabled="submitting"
+              />
+            </view>
+
+            <AppButton
+              block
+              :text="submitting ? '正在记下' : '记下来'"
+              :loading="submitting"
+              @click="onSubmit"
+            />
+          </AppCard>
+
+          <!-- ── 最近的记录（分页） ── -->
+          <view class="section-head">
+            <text class="section-title">最近的记录</text>
+          </view>
+
+          <AppEmpty
+            v-if="records.length == 0"
+            title="还没有记录"
+            description="身体信号不用天天记。想起来的时候记一笔，我会把它们放在一起给你看。"
+            action-text="记第一笔"
+            @action="scrollToForm"
+          />
+
+          <view v-else class="record-list">
+            <!-- 外层 view 承担间距：不给子组件加 class，避免样式穿透到组件内部 -->
+            <view v-for="item in records" :key="item.id" class="record">
+              <AppCard variant="glass" padding="md" radius="md">
+                <view class="record-row">
+                  <text class="record-type">{{ metricLabelOf(item.metricType) }}</text>
+                  <text class="record-date">{{ shortDate(item.measuredAt) }}</text>
+                </view>
+                <view class="record-row">
+                  <text class="record-value">{{ formatNumber(item.value) }}</text>
+                  <text class="record-unit">{{ item.unit }}</text>
+                </view>
+                <text v-if="item.subjectiveState != '' && item.subjectiveState != null" class="record-state">
+                  {{ item.subjectiveState }}
+                </text>
+              </AppCard>
+            </view>
+
+            <view class="list-foot">
+              <text v-if="loadingMore" class="list-foot-text">正在加载更多</text>
+              <text v-else-if="hasNext" class="list-foot-text" @click="onLoadMore">上拉加载更多</text>
+              <text v-else-if="records.length > 0" class="list-foot-text">— 到底了—</text>
+            </view>
+          </view>
+        </template>
+      </view>
+    </scroll-view>
+
+    <AppTabBar current="health" />
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppCard from '@/components/AppCard.uvue'
+import AppButton from '@/components/AppButton.uvue'
+import AppInput from '@/components/AppInput.uvue'
+import AppEmpty from '@/components/AppEmpty.uvue'
+import AppLoading from '@/components/AppLoading.uvue'
+import AppTabBar from '@/components/AppTabBar.uvue'
+import { healthService } from '@/services/health.service'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+import type { PageResult } from '@/core/http/types'
+import type { HealthMetric, HealthOverview, MetricType, Trend, TrendPoint } from '@/services/types'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 与 pages.json 的 path 一致，作为本页在途请求的取消分组键 */
+const PAGE_KEY: string = 'pages/health/index'
+
+// ────────────────────────────────────────────────────────────
+// 类型
+// ────────────────────────────────────────────────────────────
+
+/** 指标页签 */
+type MetricTab = {
+  value: MetricType
+  label: string
+  /** 录入表单与图表共用的单位；后端也会回传 unit，这里只作录入默认 */
+  unit: string
+}
+
+/** 图表里的一根柱子 */
+type ChartBar = {
+  key: string
+  /** 柱子高度的 style 串（百分比，随数据变化所以只能内联） */
+  style: string
+  /** 柱下方的日期标签；稀疏显示，避免密到看不清 */
+  label: string
+}
+
+// ────────────────────────────────────────────────────────────
+// 常量
+// ────────────────────────────────────────────────────────────
+
+/**
+ * ★ 只开放这三个指标。
+ *   需求明确只要 sleep / steps / mood_energy，
+ *   心率与体重留到有明确呈现方式时再加（现在加进来只会变成「打分」）。
+ */
+const metricTabs: MetricTab[] = [
+  { value: 'sleep', label: '睡眠', unit: '小时' },
+  { value: 'steps', label: '步数', unit: '次' },
+  { value: 'mood_energy', label: '心情与精力', unit: '级' },
+]
+
+const PAGE_SIZE: number = 10
+/** 趋势的天数窗口 */
+const TREND_DAYS: number = 30
+
+// ────────────────────────────────────────────────────────────
+// 状态
+// ────────────────────────────────────────────────────────────
+
+const overview = ref<HealthOverview | null>(null)
+const trend = ref<Trend | null>(null)
+const records = ref<HealthMetric[]>([])
+
+const activeMetric = ref<MetricType>('sleep')
+const formMetric = ref<MetricType>('sleep')
+
+const firstLoading = ref<boolean>(true)
+const trendLoading = ref<boolean>(false)
+const refreshing = ref<boolean>(false)
+const loadingMore = ref<boolean>(false)
+const submitting = ref<boolean>(false)
+
+const errorText = ref<string>('')
+const formError = ref<string>('')
+const formValue = ref<string>('')
+const formState = ref<string>('')
+
+const page = ref<number>(1)
+const hasNext = ref<boolean>(false)
+
+/**
+ * 下拉刷新时的在途请求计数。
+ * 三个请求并行，全部落地才收起指示器。
+ */
+const pending = ref<number>(0)
+
+/**
+ * ★ 页面是否已卸载。
+ *   cancelByKey 只能拦「还没发出/还在飞」的部分，
+ *   已经进入微任务队列的回调拦不住，所以还要用这个标志兜一层，
+ *   否则晚到的回调会去写一个已经销毁的页面。
+ */
+let disposed = false
+
+// ────────────────────────────────────────────────────────────
+// 取值
+// ────────────────────────────────────────────────────────────
+
+const streakDays = computed<number>(() => {
+  const o = overview.value
+  return o != null ? o.streakDays : 0
+})
+
+const overviewSummary = computed<string>(() => {
+  const o = overview.value
+  return o != null ? o.summary : ''
+})
+
+const activeMetricLabel = computed<string>(() => {
+  return labelOfMetric(activeMetric.value)
+})
+
+const formUnit = computed<string>(() => {
+  return unitOfMetric(formMetric.value)
+})
+
+const trendNarrative = computed<string>(() => {
+  const t = trend.value
+  return t != null ? t.narrative : ''
+})
+
+/** 概览数字：步数是整数，睡眠/心情保留一位小数 */
+const trendAverage = computed<string>(() => {
+  const t = trend.value
+  if (t == null || t.average == null) return ''
+  return formatNumber(t.average)
+})
+
+const trendMin = computed<string>(() => {
+  const t = trend.value
+  if (t == null || t.min == null) return ''
+  return formatNumber(t.min)
+})
+
+const trendMax = computed<string>(() => {
+  const t = trend.value
+  if (t == null || t.max == null) return ''
+  return formatNumber(t.max)
+})
+
+/**
+ * 把趋势点转成柱状图数据。
+ *
+ * ★ 为什么用百分比高度而不是 canvas：
+ *   本页只需要「相对高低」这一种信息，
+ *   flex + 百分比在三端表现完全一致，canvas 反而要处理三套 API。
+ *
+ * 高度按本指标内的最大值归一化 —— 用绝对值画会因量纲不同
+ * （睡眠 6.5 vs 步数 8000）让小量纲的柱子看不见。
+ */
+const bars = computed<ChartBar[]>(() => {
+  const t = trend.value
+  if (t == null) return []
+
+  const points: TrendPoint[] = t.points
+  if (points.length == 0) return []
+
+  let max = 0.0
+  for (const p of points) {
+    if (p.value > max) max = p.value
+  }
+  // 全为0（或负值）时给一个基准，避免除零
+  const base = max > 0 ? max : 1.0
+
+  const list: ChartBar[] = []
+  const n = points.length
+  for (let i = 0; i < n; i++) {
+    const p = points[i]
+    const ratio = p.value / base
+    // 保底2%，否则 0 值会画成一条看不见的线，看不出「这天确实没有记录」
+    let percent = ratio * 100.0
+    if (percent < 2.0) percent = 2.0
+
+    list.push({
+      key: p.date,
+      style: 'height:' + percent.toFixed(1) + '%;',
+      // 日期标签稀疏显示：30 根柱子全标日期会糊成一片
+      label: shouldLabel(i, n) ? dayOfMonth(p.date) : '',
+    })
+  }
+  return list
+})
+
+// ────────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(PAGE_KEY)
+  loadAll()
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  disposed = true
+  cancelByKey(PAGE_KEY)
+})
+
+// ────────────────────────────────────────────────────────────
+// 数据加载
+// ────────────────────────────────────────────────────────────
+
+/**
+ * 首屏 / 重试：概览 + 当前指标趋势 + 记录第一页。
+ * 三个请求并行，任一失败都能单独给出文案。
+ */
+function loadAll(): void {
+  if (disposed) return
+  firstLoading.value = true
+  errorText.value = ''
+
+  loadOverview()
+  loadTrend(activeMetric.value)
+  loadRecords(1, true)
+}
+
+/**
+ * 下拉刷新：保留已有内容，只把数据换成最新的。
+ * ★ 用在途计数而不是 setTimeout猜时间——
+ *   网络慢的时候定时器早就松手了，转圈会停而数据还没到。
+ */
+function onRefresh(): void {
+  if (disposed) return
+  refreshing.value = true
+  errorText.value = ''
+  pending.value = 3
+
+  loadOverview()
+  loadTrend(activeMetric.value)
+  loadRecords(1, true)
+}
+
+/** 三个并行请求各完成一个就减一，减到 0 才收起下拉指示器 */
+function settleOne(): void {
+  if (disposed) return
+  if (pending.value > 0) pending.value -= 1
+  if (pending.value == 0) refreshing.value = false
+}
+
+function loadOverview(): void {
+  healthService
+    .overview({ days: TREND_DAYS })
+    .then((res: HealthOverview) => {
+      if (disposed) return
+      overview.value = res
+      firstLoading.value = false
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      // ★ 不吞错：落日志 + 落到可见的错误态
+      console.error('[health] overview 失败', e)
+      firstLoading.value = false
+      errorText.value = describe(e)
+      settleOne()
+    })
+}
+
+function loadTrend(metric: MetricType): void {
+  trendLoading.value = true
+  healthService
+    .trend({ metricType: metric, days: TREND_DAYS })
+    .then((res: Trend) => {
+      if (disposed) return
+      trend.value = res
+      trendLoading.value = false
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[health] trend 失败', e)
+      trendLoading.value = false
+      // 单个指标失败不毁掉整页：概览和记录还能看
+      errorText.value = describe(e)
+      settleOne()
+    })
+}
+
+/** 记录分页。reset=true 表示重新从第一页开始（下拉刷新 / 切换指标） */
+function loadRecords(targetPage: number, reset: boolean): void {
+  page.value = targetPage
+
+  healthService
+    .list({ page: targetPage, pageSize: PAGE_SIZE, metricType: activeMetric.value })
+    .then((res: PageResult<HealthMetric>) => {
+      if (disposed) return
+      if (reset) {
+        records.value = res.list
+      } else {
+        records.value = records.value.concat(res.list)
+      }
+      hasNext.value = res.hasNext
+      loadingMore.value = false
+      firstLoading.value = false
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[health] 记录列表失败', e)
+      loadingMore.value = false
+      firstLoading.value = false
+      // 已经有内容时不清空列表，只提示；首屏才铺满错误态
+      if (records.value.length == 0) {
+        errorText.value = describe(e)
+      } else {
+        uni.showToast({ title: describe(e), icon: 'none' })
+      }
+      settleOne()
+    })
+}
+
+function onLoadMore(): void {
+  if (disposed) return
+  if (loadingMore.value || !hasNext.value) return
+  loadingMore.value = true
+  loadRecords(page.value + 1, false)
+}
+
+/** 切换指标：趋势与记录列表都跟着换 */
+function switchMetric(metric: MetricType): void {
+  if (disposed) return
+  if (activeMetric.value == metric) return
+  activeMetric.value = metric
+  trend.value = null
+  loadTrend(metric)
+  loadRecords(1, true)
+}
+
+// ────────────────────────────────────────────────────────────
+// 录入
+// ────────────────────────────────────────────────────────────
+
+function onSubmit(): void {
+  if (disposed) return
+  if (submitting.value) return
+  formError.value = ''
+
+  const raw = formValue.value.trim()
+  if (raw.length == 0) {
+    formError.value = '记一个数字就行'
+    return
+  }
+
+  const num = parseFloat(raw)
+  if (isNaN(num)) {
+    formError.value = '这看起来不是个数字'
+    return
+  }
+  // ★ 只校验数值本身是否合法，不校验「是否达标」——
+  //   达标与否不是这个App 的事。
+  if (num < 0) {
+    formError.value = '数值不能是负的'
+    return
+  }
+
+  submitting.value = true
+  const metric = formMetric.value
+
+  healthService
+    .create({
+      metricType: metric,
+      value: num,
+      unit: unitOfMetric(metric),
+      subjectiveState: formState.value.trim(),
+    })
+    .then((_res: HealthMetric) => {
+      if (disposed) return
+      submitting.value = false
+      formValue.value = ''
+      formState.value = ''
+      uni.showToast({ title: '记下了', icon: 'none' })
+      // 新记录可能改变连续天数与趋势，跟着刷新
+      loadOverview()
+      loadTrend(activeMetric.value)
+      loadRecords(1, true)
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      submitting.value = false
+      console.error('[health] 记录失败', e)
+      // 50004「身体信号数值超出合理范围」等业务错误由后端文案直接呈现
+      formError.value = describe(e)
+    })
+}
+
+/** 空态里的「记第一笔」：滚到录入卡片 */
+function scrollToForm(): void {
+  uni.showToast({ title: '在上面「记一笔」里记下就好', icon: 'none' })
+}
+
+function goSettings(): void {
+  uni.navigateTo({
+    url: '/pages/mine/settings',
+    fail: () => {
+      console.error('[health] 跳转设置失败')
+    },
+  })
+}
+
+// ────────────────────────────────────────────────────────────
+// 展示辅助
+// ────────────────────────────────────────────────────────────
+
+function labelOfMetric(metric: string): string {
+  for (const tab of metricTabs) {
+    if (tab.value == metric) return tab.label
+  }
+  return '身体信号'
+}
+
+function unitOfMetric(metric: string): string {
+  for (const tab of metricTabs) {
+    if (tab.value == metric) return tab.unit
+  }
+  return ''
+}
+
+/** 记录卡上的类型名（记录里可能出现本页没开放的指标） */
+function metricLabelOf(metric: string): string {
+  return labelOfMetric(metric)
+}
+
+/** 步数取整；睡眠与心情保留一位小数 */
+function formatNumber(value: number): string {
+  if (value >= 1000) {
+    return value.toFixed(0)
+  }
+  return value.toFixed(1)
+}
+
+/** ISO 时间 → MM-DD；解析不了就原样返回，绝不吞掉内容 */
+function shortDate(iso: string): string {
+  if (iso.length < 10) return iso
+  return iso.substring(5, 10)
+}
+
+/** YYYY-MM-DD → 日号 */
+function dayOfMonth(date: string): string {
+  if (date.length < 10) return ''
+  return date.substring(8, 10)
+}
+
+/**
+ * 30 根柱子只标 3 个日期。
+ * 全标的话在窄屏上会连成一片，反而什么都读不出来。
+ */
+function shouldLabel(index: number, total: number): boolean {
+  if (index == 0) return true
+  if (index == total - 1) return true
+  return index == Math.floor(total / 2)
+}
+
+/**
+ * 把任意异常转成能展示的中文。
+ * HttpError 自带 message（后端文案或网络层文案），其余归到通用提示。
+ */
+function describe(e: unknown): string {
+  if (e == null) return '出了点问题，稍后再试试'
+  const err = e as HttpErrorLike
+  if (err != null && typeof err.message === 'string' && err.message.length > 0) {
+    return err.message
+  }
+  return '出了点问题，稍后再试试'
+}
+
+/** 只取message，不关心其他字段 */
+type HttpErrorLike = {
+  message: string
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  width: 100%;
+  flex-direction: column;
+  background-color: var(--color-bg);
+}
+
+// ── 导航栏右侧齿轮 ────────────────────────────────────────
+.nav-gear {
+  @include m.tap-target;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-gear-icon {
+  font-size: t.$font-lg;
+  color: var(--color-text-2);
+}
+
+// ── 滚动容器 ──────────────────────────────────────────────
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+.body-inner {
+  flex-direction: column;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-sm;
+  // ★ 让开固定底栏 + Home Indicator，末条内容不会被 Tab 栏压住
+  padding-bottom: calc(#{t.$tabbar-height} + env(safe-area-inset-bottom));
+}
+
+// ── 顶部定调 ──────────────────────────────────────────────
+.hero {
+  flex-direction: column;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-md;
+}
+
+.hero-title {
+  font-size: t.$font-xl;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.hero-sub {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 连续记录天数 ──────────────────────────────────────────
+.streak {
+  flex-direction: column;
+}
+
+.streak-figure {
+  flex-direction: row;
+  align-items: flex-end;
+}
+
+.streak-num {
+  font-size: t.$font-display;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+  @include m.tabular-nums;
+}
+
+.streak-unit {
+  margin-left: t.$space-xxs;
+  margin-bottom: t.$space-xxs;
+  font-size: t.$font-md;
+  color: var(--color-text-2);
+}
+
+.streak-label {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+}
+
+.streak-summary {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 区块标题 ──────────────────────────────────────────────
+.section-head {
+  flex-direction: column;
+  padding-top: t.$space-lg;
+  padding-bottom: t.$space-sm;
+}
+
+.section-title {
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+// ── 分段选择器 ────────────────────────────────────────────
+.seg {
+  flex-direction: row;
+  margin-bottom: t.$space-sm;
+}
+
+// ★ 录入区有 3 个指标且允许换行，所以另给一个可折行的修饰类
+.seg--wrap {
+  flex-wrap: wrap;
+}
+
+.seg-item {
+  @include m.tap-target;
+  flex: 1;
+  margin-right: t.$space-xs;
+  margin-bottom: t.$space-xs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-bg-sunken);
+  align-items: center;
+  justify-content: center;
+}
+
+.seg-item--on {
+  background-color: var(--color-primary);
+}
+
+.seg-item-text {
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+}
+
+// ★ 选中态的配色挂在文字自己的类上。
+//   不用 `.seg-item--on .seg-item-text` 这种后代选择器——
+//   uni-app x 的 CSS 只支持 web 子集，后代选择器三端不可靠。
+.seg-text--on {
+  color: var(--color-text-on-primary);
+}
+
+// ── 趋势概览数字 ──────────────────────────────────────────
+.trend-stats {
+  flex-direction: row;
+  margin-bottom: t.$space-md;
+}
+
+.trend-stat {
+  flex: 1;
+  flex-direction: column;
+}
+
+.trend-stat-value {
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+  @include m.tabular-nums;
+}
+
+.trend-stat-label {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+}
+
+// ── 柱状图 ────────────────────────────────────────────────
+// ★ 用 flex + 百分比高度而不是 canvas：
+//   只需要表达相对高低，三端表现一致，且不需要处理 canvas 的三套 API。
+.chart {
+  flex-direction: row;
+  align-items: flex-end;
+  // 图区高度用令牌，不写屏幕像素值
+  height: t.$space-xxxl;
+  padding-bottom: t.$space-md;
+}
+
+.chart-col {
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  // 留出标签行的高度，否则柱子会顶到卡片上沿
+  height: 100%;
+}
+
+.chart-bar {
+  width: 60%;
+  // 高度由内联style 给出（按数据归一化）
+  background-color: var(--color-glacier);
+  border-radius: t.$radius-xs;
+}
+
+.chart-label {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+  @include m.tabular-nums;
+}
+
+.trend-empty {
+  padding-top: t.$space-md;
+  padding-bottom: t.$space-md;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+  text-align: center;
+}
+
+// ── narrative：后端生成的陈述句，原样展示 ────────────────
+.trend-narrative {
+  margin-top: t.$space-md;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 录入表单 ──────────────────────────────────────────────
+.form {
+  flex-direction: column;
+  margin-top: t.$space-md;
+  margin-bottom: t.$space-md;
+}
+
+.form-gap {
+  height: t.$space-sm;
+}
+
+// ── 记录列表 ──────────────────────────────────────────────
+.record-list {
+  flex-direction: column;
+}
+
+.record {
+  margin-bottom: t.$space-sm;
+}
+
+.record-row {
+  flex-direction: row;
+  align-items: baseline;
+}
+
+.record-type {
+  flex: 1;
+  font-size: t.$font-md;
+  font-weight: t.$weight-medium;
+  color: var(--color-text-1);
+}
+
+.record-date {
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+  @include m.tabular-nums;
+}
+
+.record-value {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-xl;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+  @include m.tabular-nums;
+}
+
+.record-unit {
+  margin-left: t.$space-xxs;
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+}
+
+.record-state {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+// ── 列表底部 ──────────────────────────────────────────────
+.list-foot {
+  @include m.tap-target;
+  align-items: center;
+  justify-content: center;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-md;
+}
+
+.list-foot-text {
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+}
+</style>

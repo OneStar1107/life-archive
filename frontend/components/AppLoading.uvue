@@ -1,0 +1,184 @@
+<!--
+  AppLoading —— 加载态
+  ══════════════════════════════════════════════════════════════
+  职责：两种形态二选一——
+        spinner  转圈 + 文案，用于短时等待（提交中、翻页）
+        skeleton 骨架屏，用于首屏 / 列表数据的结构占位
+
+  props：
+    text        string  提示文案（spinner 形态下显示）
+    fullscreen  boolean 是否铺满全屏并加半透明遮罩
+    type        'spinner' | 'skeleton'  形态，默认 spinner
+    rows        number骨架屏行数，默认 3
+
+  设计约束：
+    1. 全屏遮罩走 @include m.fixed-overlay，
+       不裸写 position: fixed; bottom: 0。
+    2. 转圈是纯 CSS 圆环，骨架屏走 @include m.skeleton，都不引图片。
+    3. 所有文案包在 <text> 里（红线第 1 条）。
+    4. 高度用 flex: 1 而不是 vh 单位与屏幕像素值。
+-->
+<template>
+  <view class="loading" :class="rootClass">
+    <!-- 转圈 -->
+    <view v-if="type == 'spinner'" class="spinner-box">
+      <view class="spinner" />
+      <text v-if="text != ''" class="spinner-text">{{ text }}</text>
+    </view>
+
+    <!-- 骨架屏 -->
+    <view v-else class="skeleton-box">
+      <view v-for="row in rowList" :key="row" class="skeleton-row">
+        <view class="skeleton-block" />
+        <view class="skeleton-lines">
+          <view class="skeleton-line" />
+          <view class="skeleton-line" />
+        </view>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script lang="uts" setup>
+/** 加载态形态 */
+type LoadingType = 'spinner' | 'skeleton'
+
+const props = withDefaults(
+  defineProps<{
+    text?: string
+    fullscreen?: boolean
+    type?: LoadingType
+    rows?: number
+  }>(),
+  {
+    text: '',
+    fullscreen: false,
+    type: 'spinner',
+    rows: 3,
+  },
+)
+
+/**
+ * 全屏时铺满四边并加遮罩，阻断底层点击。
+ * 非全屏时只在当前容器内居中，不干预布局。
+ */
+const rootClass = computed<string>(() => {
+  const list: string[] = []
+  if (props.fullscreen) {
+    list.push('loading--full')
+  } else {
+    list.push('loading--inline')
+  }
+  return list.join(' ')
+})
+
+/** 骨架屏行数：用数组长度表达行数，避免在模板里写 v-for 区间语法 */
+const rowList = computed<number[]>(() => {
+  const n = props.rows > 0 ? props.rows : 0
+  const list: number[] = []
+  for (let i = 0; i < n; i++) {
+    list.push(i)
+  }
+  return list
+})
+</script>
+
+<style scoped lang="scss">
+@use '../styles/tokens.scss' as t;
+@use '../styles/mixins.scss' as m;
+
+.loading {
+  align-items: center;
+  justify-content: center;
+}
+
+// ── 铺满全屏 ─────────────────────────────────────────────
+// ★ 固定定位统一走 mixin，禁止裸写 position: fixed; bottom: 0
+.loading--full {
+  @include m.fixed-overlay;
+}
+
+// ── 容器内居中 ───────────────────────────────────────────
+.loading--inline {
+  flex: 1;
+  width: 100%;
+}
+
+// ── 转圈形态 ─────────────────────────────────────────────
+.spinner-box {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: t.$space-lg;
+  padding-bottom: t.$space-lg;
+}
+
+.spinner {
+  width: t.$space-xl;
+  height: t.$space-xl;
+  border-radius: t.$radius-pill;
+  // 1px 边框是全项目唯一允许的 px 字面量
+  border-width: 1px;
+  border-style: solid;
+  border-top-color: transparent;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  border-left-color: var(--color-glacier);
+  animation-name: loading-spin;
+  animation-duration: t.$duration-slow;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.spinner-text {
+  margin-top: t.$space-sm;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+  text-align: center;
+}
+
+@keyframes loading-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// ── 骨架屏形态 ───────────────────────────────────────────
+.skeleton-box {
+  width: 100%;
+  flex-direction: column;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-sm;
+}
+
+.skeleton-row {
+  @include m.tap-target;
+  flex-direction: row;
+  align-items: center;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-sm;
+}
+
+.skeleton-block {
+  @include m.skeleton(t.$space-xl, t.$radius-md);
+  width: t.$space-xl;
+  height: t.$space-xl;
+}
+
+.skeleton-lines {
+  flex: 1;
+  flex-direction: column;
+  margin-left: t.$space-sm;
+}
+
+.skeleton-line {
+  @include m.skeleton(t.$space-sm, t.$radius-xs);
+  width: 100%;
+  height: t.$space-sm;
+  margin-top: t.$space-xs;
+}
+</style>

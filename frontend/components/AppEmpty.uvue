@@ -1,0 +1,123 @@
+<!--
+  AppEmpty —— 可重试的空状态页
+  ══════════════════════════════════════════════════════════════
+  ★ 这不是装饰性空态（05 号 T8硬要求）：
+    网络失败、内容为空、加载失败等场景都必须能让用户「重试」，
+    所以 actionText 有值时必须渲染出真正可点的按钮，
+    抛出 action 事件由页面决定重试什么。
+
+  props：
+    title       string  主文案（必填语义）
+    description string  补充说明，可为空
+    actionText  string  操作按钮文案；空串则不渲染按钮
+    icon        string  图标字符（emoji / 符号），默认 ❄
+
+  emits：
+    action      () => void  点击操作按钮
+
+  设计约束：
+    1. 上下留白用 $space-xxl 令牌，不用vh / 屏幕像素值。
+    2. 按钮复用 AppButton 的视觉规格，最小点击区 88rpx。
+    3. 所有文案包在 <text> 里（红线第 1 条）。
+    4. 图标用字符而非图片，避免多套位图（04 号 T8）。
+-->
+<template>
+  <view class="empty">
+    <text class="empty-icon">{{ icon }}</text>
+
+    <text class="empty-title">{{ title }}</text>
+
+    <text v-if="description != ''" class="empty-desc">{{ description }}</text>
+
+    <view v-if="actionText != ''" class="empty-action" @click="onAction">
+      <text class="empty-action-text">{{ actionText }}</text>
+    </view>
+  </view>
+</template>
+
+<script lang="uts" setup>
+const props = withDefaults(
+  defineProps<{
+    title?: string
+    description?: string
+    actionText?: string
+    icon?: string
+  }>(),
+  {
+    title: '这里还没有内容',
+    description: '',
+    actionText: '',
+    //❄ 与冰川主题一致，且无需位图资源
+    icon: '❄',
+  },
+)
+
+const emit = defineEmits<{
+  (e: 'action'): void
+}>()
+
+function onAction(): void {
+  emit('action')
+}
+</script>
+
+<style scoped lang="scss">
+@use '../styles/tokens.scss' as t;
+@use '../styles/mixins.scss' as m;
+
+.empty {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  // ★ 令牌留白，不写 vh 单位与屏幕像素值
+  padding-top: t.$space-xxl;
+  padding-bottom: t.$space-xxl;
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+}
+
+// ── 图标 ─────────────────────────────────────────────────
+.empty-icon {
+  font-size: t.$font-display;
+  line-height: t.$line-height-tight;
+  color: var(--color-glacier);
+  margin-bottom: t.$space-md;
+}
+
+// ── 文案 ─────────────────────────────────────────────────
+.empty-title {
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+  text-align: center;
+}
+
+.empty-desc {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+  text-align: center;
+}
+
+// ── 操作按钮 ─────────────────────────────────────────────
+// 视觉与 AppButton 的 primary 档保持一致，最小点击区 88rpx
+.empty-action {
+  @include m.tap-target;
+  margin-top: t.$space-lg;
+  padding-left: t.$space-xl;
+  padding-right: t.$space-xl;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-primary);
+}
+
+.empty-action-text {
+  font-size: t.$font-md;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-on-primary);
+  text-align: center;
+}
+</style>

@@ -1,0 +1,108 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "debug"
+      },
+      {
+        // ★ 发布签名配置项名固定为 release，signAlg 固定 SHA256withECDSA
+        // 见 docs/prompts/06-三端构建与真机调试.md C5
+        "name": "release",
+        "type": "release",
+        "signAlg": "SHA256withECDSA",
+        "keyAlias": "LifeArchiveKey",
+        "storeFile": "<占位：证书实体存放于仓库外 D:\\certs\\，本仓库只同步配置结构>",
+        "storePassword": "<占位：从环境变量注入，禁止写入仓库>",
+        "keyPassword": "<占位：从环境变量注入，禁止写入仓库>",
+        "signingVersion": "1",
+        "signingProfile": "<占位：发布 Profile（.p7b）路径，同样在仓库外>"
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "compatibleSdkVersion": "5.0.0(12)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      },
+      {
+        "name": "release",
+        "signingConfig": "release",
+        "compatibleSdkVersion": "5.0.0(12)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug",
+        "buildOption": {
+          "sourceOption": {
+            "modules": [
+              {
+                "name": "entry",
+                "targets": [
+                  {
+                    "name": "default",
+                    "applyToProducts": ["default"]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "release",
+        "buildOption": {
+          "sourceOption": {
+            "modules": [
+              {
+                "name": "entry",
+                "targets": [
+                  {
+                    "name": "default",
+                    "applyToProducts": ["release"]
+                  }
+                ]
+              }
+            ],
+            // release 模式不支持断点调试与热更新
+            "arkOptions": {
+              "obfuscation": {
+                "ruleOptions": {
+                  "enable": true,
+                  "files": ["./obfuscation-rules.txt"]
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": ["default", "release"]
+        }
+      ]
+    }
+  ]
+}

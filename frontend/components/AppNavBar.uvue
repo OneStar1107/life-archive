@@ -1,0 +1,173 @@
+<!--
+  AppNavBar —— 自定义导航栏
+  ══════════════════════════════════════════════════════════════
+  职责：因 pages.json 全局 navigationStyle: "custom"，
+        所有页面的顶部导航栏都应使用本组件，保证高度与返回行为一致。
+
+  props：
+    title       string    标题文案
+    showBack    boolean   是否显示返回按钮，默认 true
+    transparent boolean   是否透明（沉浸式头图场景），默认 false
+
+  emits：
+    back() => void  返回动作发生后触发（用于埋点 / 列表回滚）
+                ★ 这是「通知」不是「拦截」：
+                  本组件始终会执行返回，
+                  若页面需要「有未保存内容时先弹确认」，
+                  请把 showBack 设为 false，自行在 left 区域放按钮。
+
+  slots：
+    right       右侧操作区（可选），放 1~2 个图标按钮
+
+  设计约束：
+    1. 高度 = calc(var(--status-bar-height) + 88rpx)，走 @include m.navbar-height。
+    2. 返回箭头用 CSS 画的「‹」字符，不用图片文件
+       —— 避免为三端各备一套位图（04 号 T8）。
+    3. 标题文字必须包在 <text> 里（红线第 1 条）。
+    4. 背景色走 theme.json 的 CSS 变量，深色模式自动跟随。
+-->
+<template>
+  <view class="navbar" :class="[transparent ? 'navbar--transparent' : '', themeClass]">
+    <!-- 状态栏占位：让标题与返回键落在安全区下方 -->
+    <view class="navbar-status" />
+
+    <view class="navbar-bar">
+      <view class="navbar-side navbar-side--left">
+        <view v-if="showBack" class="navbar-back" @click="onBack">
+          <text class="navbar-back-icon">‹</text>
+        </view>
+      </view>
+
+      <text class="navbar-title">{{ title }}</text>
+
+      <view class="navbar-side navbar-side--right">
+        <slot name="right" />
+      </view>
+    </view>
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+
+const props = withDefaults(
+  defineProps<{
+    title?: string
+    showBack?: boolean
+    transparent?: boolean
+  }>(),
+  {
+    title: '',
+    showBack: true,
+    transparent: false,
+  },
+)
+
+const emit = defineEmits<{
+  (e: 'back'): void
+}>()
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+function onBack(): void {
+  // 先通知再返回：页面可在此做埋点或列表状态回滚
+  emit('back')
+  // 栈里只有一页时无法回退，退回首页而不是卡死
+  uni.navigateBack({
+    delta: 1,
+    fail: () => {
+      // ★ 兜底跳首页也要带 fail：与 stores/app.ts 的 setNavigationBarColor 同类，
+      //   这类 API 失败时是「返回被 reject 的 Promise」而不是同步 throw，
+      //   外层没有 try/catch 兜，极端时序下（栈里只有一页且首页尚未创建）
+      //   会冒一条未捕获 Promise 拒绝。这里静默忽略即可——
+      //   连首页都跳不过去时，说明页面栈尚未建立，此时弹错也没意义。
+      uni.switchTab({
+        url: '/pages/index/index',
+        fail: () => {
+          // 页面栈尚未建立：静默忽略
+        },
+      })
+    },
+  })
+}
+</script>
+
+<style scoped lang="scss">
+@use '../styles/tokens.scss' as t;
+@use '../styles/mixins.scss' as m;
+
+.navbar {
+  width: 100%;
+  // ★ 总高度 = calc(var(--status-bar-height) + 88rpx)，走 mixin 不写死数值
+  @include m.navbar-height;
+  flex-direction: column;
+  // ★ 不透明底（浅色 #F8FBFE / 深色 #081217），与页面底色一致。
+  //   半透明的 --color-nav-bg 在深色下会透出下层内容产生「分层感」，
+  //   且透明区一旦没有页面背景垫底（H5 tabBar 页预留区）就发白。
+  //   transparent 变体在下方覆盖回透明，不受影响。
+  background-color: var(--color-bg);
+}
+
+.navbar--transparent {
+  background-color: transparent;
+}
+
+// 状态栏 / 刘海高度：用原生变量，不写死数值
+.navbar-status {
+  width: 100%;
+  height: var(--status-bar-height, 0);
+  flex-shrink: 0;
+}
+
+// ── 内容行 ───────────────────────────────────────────────
+// ★ 只占满状态栏之外剩下的 88rpx，不要再叠加 navbar-height，否则高度翻倍
+.navbar-bar {
+  flex: 1;
+  flex-direction: row;
+  align-items: center;
+  padding-left: t.$space-sm;
+  padding-right: t.$space-sm;
+}
+
+// 左右两侧等宽，保证标题真正居中
+.navbar-side {
+  min-width: t.$tap-min-size;
+  flex-direction: row;
+  align-items: center;
+}
+
+.navbar-side--right {
+  justify-content: flex-end;
+}
+
+// ── 返回按钮 ─────────────────────────────────────────────
+.navbar-back {
+  @include m.tap-target;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.navbar-back-icon {
+  // CSS 字符箭头，不引图片
+  font-size: t.$font-xl;
+  font-weight: t.$weight-regular;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+// ── 标题 ─────────────────────────────────────────────────
+.navbar-title {
+  flex: 1;
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+  text-align: center;
+  // 长标题单行省略，不允许换行把导航栏撑高
+  @include m.text-ellipsis;
+  padding-left: t.$space-xs;
+  padding-right: t.$space-xs;
+}
+</style>

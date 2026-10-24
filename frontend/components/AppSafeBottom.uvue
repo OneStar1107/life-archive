@@ -1,0 +1,37 @@
+<!--
+  AppSafeBottom —— 底部安全区占位
+  ══════════════════════════════════════════════════════════════
+  职责：撑开底部 Home Indicator / 手势条的高度，
+        让固定底栏（Tab 栏、底部操作条）之上的内容不被压住。
+
+  用法：所有「固定底栏」页面都必须紧跟一个本组件，
+        内容区与底栏之间才算被正确让开。
+
+        一个带固定底栏的页面大致结构（示意，下面不是真实标签）：
+        根容器里放可滚动内容区，再放固定底栏，最后紧跟本组件
+        AppSafeBottom 撑开底部安全区，三者顺序不能乱。
+
+  slots：无（只有一个固定高度的占位 view）
+
+  设计约束：
+    1. 高度走 @include m.safe-bottom，不写死数值。
+    2. 全屏遮罩类页面不需要本组件（它自己铺满四边）。
+    3. 本组件不可见、不可点，只占高度。
+-->
+<template>
+  <view class="safe-bottom" />
+</template>
+
+<script lang="uts" setup>
+// 无 props / 无 emits：纯粹的占位块
+</script>
+
+<style scoped lang="scss">
+@use '../styles/mixins.scss' as m;
+
+.safe-bottom {
+  width: 100%;
+  // ★ 安全区高度由 mixin 提供（同时写 constant() 与 env() 两行）
+  @include m.safe-bottom;
+}
+</style>

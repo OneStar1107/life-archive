@@ -1,0 +1,77 @@
+# ── 环境变量与密钥（★ 零落库）────────────────
+.env
+.env.*
+!.env.example
+
+# ── 证书与签名实体（★ 一律存仓库外 D:\certs\）──
+*.p12
+*.jks
+*.keystore
+*.p7b
+*.cer
+*.csr
+*.mobileprovision
+*.provisionprofile
+*.keystore
+material/
+harmony-configs/**/signing/
+harmony-configs/**/*.p12
+harmony-configs/**/*.cer
+harmony-configs/**/*.p7b
+harmony-configs/**/*.csr
+
+# ── HBuilderX / DevEco 构建产物 ───────────────
+frontend/unpackage/
+unpackage/
+.hbuilderx/launchLocal.json
+.hvigor/
+.idea/
+*.hap
+*.app
+
+# ── 上传文件目录（禁止设在项目内）────────────
+uploads/
+storage/
+
+# ── 依赖与构建产物 ──────────────────────────
+node_modules/
+dist/
+build/
+.next/
+out/
+*.log
+npm-debug.log*
+yarn-error.log*
+coverage/
+.nyc_output/
+
+# ── QA / 临时验证工作区 ─────────────────────
+# qa-v50 是自动化测试与视觉校验的临时产物
+# （截图、探针脚本、node_modules 共约 69M），不纳入版本历史
+qa-v50/
+
+# ── AI 工作区数据 ───────────────────────────
+.workbuddy/memory/
+.workbuddy/tmp/
+
+# ── 系统 / 编辑器 ───────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+
+# ── OneDrive 同步冲突副本 ───────────────────
+*-[Cc]onflict*.html
+*-[Cc]onflict*.txt
+*.tmp
+~$*
+
+# ── 设计稿与备份归档（不进版本历史）──────────
+backup-v*/
+*.bak-*
+ui-refs/*.png
+ui-refs/*.pdf
+*.pdf
+
+# ── 构建/迁移临时残留（Prisma 等）──────────────────────
+_tmp_*

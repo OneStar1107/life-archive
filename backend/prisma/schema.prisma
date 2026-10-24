@@ -1,0 +1,515 @@
+// ══════════════════════════════════════════════════════════════
+// 人生档案 · 冰川记忆 —— Prisma Schema
+// 命名规范：model 大驼峰单数；表名 @map 复数下划线；字段下划线小写
+// 时间字段：createdAt / updatedAt / deletedAt（软删除）
+// 铁律：仅用 prisma migrate，禁止 db push
+// ══════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ────────────────────────────────────────────────────────────
+// 枚举
+// ────────────────────────────────────────────────────────────
+
+/// 用户状态：active 正常 / disabled 禁用 / pending 待激活
+enum UserStatus {
+  active
+  disabled
+  pending
+}
+
+/// 记录来源：手动录入 / 数据源导入 / 洞察生成
+enum RecordSource {
+  manual
+  import
+  insight
+}
+
+/// 情绪极性：正 / 中性 / 负
+enum SentimentPolarity {
+  positive
+  neutral
+  negative
+}
+
+/// 关系类型：记忆图谱的边
+enum RelationKind {
+  /// 情感关联
+  emotional
+  /// 因果关联
+  causal
+  /// 时间关联
+  temporal
+  /// 人物关联
+  person
+  /// 地点关联
+  location
+  /// 主题关联
+  topical
+}
+
+/// 待办状态
+enum TodoStatus {
+  pending
+  done
+  archived
+}
+
+/// 洞察类型
+enum InsightKind {
+  /// 潜在联系发现
+  connection
+  /// 情绪粒度识别
+  emotion_granularity
+  /// 信念矛盾检测
+  belief_conflict
+  /// 时间轴对照
+  timeline_diff
+  /// 自我距离化引导
+  self_distance
+}
+
+// ────────────────────────────────────────────────────────────
+// 账号体系
+// ────────────────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(uuid()) @db.Uuid
+  phone        String?    @unique @map("phone") @db.VarChar(20)
+  email        String?    @unique @map("email") @db.VarChar(128)
+  passwordHash String     @map("password_hash") @db.VarChar(72)
+  nickname     String?    @map("nickname") @db.VarChar(64)
+  avatarUrl    String?    @map("avatar_url") @db.VarChar(512)
+  status       UserStatus @default(active) @map("status")
+  /// 密码最后修改时间，用于强制下线旧令牌
+  tokenVersion Int        @default(1) @map("token_version")
+  lastLoginAt  DateTime?  @map("last_login_at")
+  lastLoginIp  String?    @map("last_login_ip") @db.VarChar(64)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  refreshTokens  RefreshToken[]
+  profile        Profile?
+  feelings       Feeling[]
+  memories       Memory[]
+  healthMetrics  HealthMetric[]
+  journeys       Journey[]
+  todos          Todo[]
+  insights       Insight[]
+  uploadedFiles  UploadedFile[]
+  /// 作为归属方的记忆关联
+  memoryRelations MemoryRelation[] @relation("RelationUser")
+
+  @@index([status])
+  @@index([deletedAt])
+  @@map("users")
+}
+
+/// Refresh Token 存哈希不存明文；familyId 用于检测重放攻击
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(128)
+  /// 同一次登录派生出的所有令牌共享 familyId；检测到重放时整族吊销
+  familyId  String    @map("family_id") @db.Uuid
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  /// 轮换时指向被替换的旧令牌，构成完整链路
+  replacedById String? @map("replaced_by_id") @db.Uuid
+  userAgent String?  @map("user_agent") @db.VarChar(512)
+  ip        String?  @map("ip") @db.VarChar(64)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@index([revokedAt])
+  @@map("refresh_tokens")
+}
+
+// ────────────────────────────────────────────────────────────
+// 「你」模块：基本资料 / 性格 / 边界
+// ────────────────────────────────────────────────────────────
+
+model Profile {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @unique @map("user_id") @db.Uuid
+
+  // 基本资料
+  realName   String? @map("real_name") @db.VarChar(64)
+  gender     String? @map("gender") @db.VarChar(16)
+  birthday   DateTime? @map("birthday") @db.Date
+  bloodType  String? @map("blood_type") @db.VarChar(8)
+  heightCm   Int?    @map("height_cm")
+  weightKg   Float?  @map("weight_kg")
+  /// 作息类型：早睡型 / 晚睡型 / 随机型
+  sleepPattern String? @map("sleep_pattern") @db.VarChar(32)
+  /// 饮食偏好
+  dietPreference String? @map("diet_preference") @db.VarChar(128)
+
+  // 性格（MBTI 由用户自填，允许留空）
+  mbti String? @db.VarChar(8)
+
+  // 边界：AI 明确不碰的内容
+  /// 读得懂这些
+  readableTopics String[] @default([]) @map("readable_topics")
+  /// 不碰这些
+  offLimitTopics String[] @default([]) @map("off_limit_topics")
+  /// 允许主动联系的时间段，JSON 数组：[{ "start": "22:00", "end": "08:00" }]
+  quietHours Json? @map("quiet_hours")
+
+  /// 数据来源授权开关
+  dataSourceConsent Boolean @default(false) @map("data_source_consent")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([deletedAt])
+  @@map("profiles")
+}
+
+// ────────────────────────────────────────────────────────────
+// 感受模块：情绪记录
+// ────────────────────────────────────────────────────────────
+
+model Feeling {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  /// 粗粒度情绪词（用户原话，如「难受」）
+  rawLabel String  @map("raw_label") @db.VarChar(64)
+  /// 精粒度情绪词（RULER 144 词，如「憋屈」「不甘」）
+  refinedLabel String? @map("refined_label") @db.VarChar(64)
+  /// 情绪强度 1~10
+  intensity Int @default(5) @map("intensity")
+  /// 极性
+  polarity SentimentPolarity @default(neutral) @map("polarity")
+
+  /// 记录内容
+  content String? @map("content") @db.Text
+  /// 触发事件
+  trigger String? @map("trigger") @db.Text
+
+  /// 来源
+  source RecordSource @default(manual) @map("source")
+
+  /// 发生时间（用户可补记过去）
+  happenedAt DateTime @default(now()) @map("happened_at")
+  /// 记录时间
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// 该感受关联的记忆节点
+  memories Memory[]
+
+  @@index([userId, happenedAt])
+  @@index([userId, polarity])
+  @@index([deletedAt])
+  @@map("feelings")
+}
+
+// ────────────────────────────────────────────────────────────
+// 记忆模块：节点 + 关系边 + 时间轴双时间戳
+// ────────────────────────────────────────────────────────────
+
+model Memory {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  /// 节点标题，如「夜跑」「老周」
+  title String @map("title") @db.VarChar(128)
+  /// 节点描述
+  description String? @map("description") @db.Text
+  /// 分类标签，JSON 数组：["运动","习惯"]
+  tags String[] @default([]) @map("tags")
+  /// 关联人物，JSON 数组
+  people String[] @default([]) @map("people")
+  /// 关联地点
+  location String? @map("location") @db.VarChar(128)
+  /// 节点在图谱中的坐标（0~1 归一化，前端可拖拽后回写）
+  graphX Float? @map("graph_x")
+  graphY Float? @map("graph_y")
+
+  /// 图标（emoji 或 iconfont 标识）
+  icon String? @map("icon") @db.VarChar(32)
+  /// 颜色令牌名，指向 theme.json，禁存十六进制
+  colorToken String? @map("color_token") @db.VarChar(32)
+
+  /// 关联的感受
+  feelingId String? @map("feeling_id") @db.Uuid
+
+  /// 权重 0~100，用于图谱节点大小
+  weight Int @default(50) @map("weight")
+
+  source RecordSource @default(manual) @map("source")
+
+  /// ★ 双时间戳：「当时的我」vs「现在的我」
+  /// 当时的我认为
+  pastSelfView String? @map("past_self_view") @db.Text
+  /// 现在的我以为
+  presentSelfView String? @map("present_self_view") @db.Text
+  /// 当时的时间
+  pastViewedAt DateTime? @map("past_viewed_at")
+  /// 审视变更的时间
+  presentViewedAt DateTime? @map("present_viewed_at")
+
+  /// 事件发生时间
+  occurredAt DateTime @default(now()) @map("occurred_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  feeling Feeling? @relation(fields: [feelingId], references: [id], onDelete: SetNull)
+
+  /// 出边
+  relationsFrom MemoryRelation[] @relation("RelationSource")
+  /// 入边
+  relationsTo   MemoryRelation[] @relation("RelationTarget")
+
+  @@index([userId, occurredAt])
+  @@index([userId, deletedAt])
+  @@index([feelingId])
+  @@map("memories")
+}
+
+/// 记忆图谱的边
+model MemoryRelation {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  sourceId String @map("source_id") @db.Uuid
+  targetId String @map("target_id") @db.Uuid
+
+  kind RelationKind @default(topical) @map("kind")
+  /// 关联强度 0~100
+  strength Int @default(50) @map("strength")
+  /// 关联说明
+  note String? @map("note") @db.VarChar(512)
+  /// 是否为系统自动发现的潜在联系
+  discovered Boolean @default(false) @map("discovered")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user   User   @relation("RelationUser", fields: [userId], references: [id], onDelete: Cascade)
+  source Memory @relation("RelationSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  target Memory @relation("RelationTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, targetId, kind])
+  @@index([userId])
+  @@index([targetId])
+  @@index([deletedAt])
+  @@map("memory_relations")
+}
+
+// ────────────────────────────────────────────────────────────
+// 健康模块：身体的信号（只记录，不做绩效评价）
+// ────────────────────────────────────────────────────────────
+
+model HealthMetric {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  /// 指标类型：sleep / steps / heart_rate / duration / mood_energy
+  metricType String @map("metric_type") @db.VarChar(32)
+  /// 数值
+  value Float @map("value")
+  /// 单位：小时 / 次 / bpm / 分钟
+  unit String @db.VarChar(16)
+
+  /// 主观状态：good / normal / bad（「有点累」「睡不好」）
+  subjectiveState String? @map("subjective_state") @db.VarChar(64)
+  /// 备注
+  note String? @map("note") @db.VarChar(512)
+
+  /// 测量时间
+  measuredAt DateTime @default(now()) @map("measured_at")
+  /// 数据来源：manual / health_connect / import
+  source RecordSource @default(manual) @map("source")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, metricType, measuredAt])
+  @@index([userId, measuredAt])
+  @@index([deletedAt])
+  @@map("health_metrics")
+}
+
+// ────────────────────────────────────────────────────────────
+// 旅途模块：去过的地方 / 常驻
+// ────────────────────────────────────────────────────────────
+
+model Journey {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  /// 地点名，如「杭州」「大理」
+  place String @map("place") @db.VarChar(128)
+  /// 是否为常驻城市
+  isResident Boolean @default(false) @map("is_resident")
+  /// 坐标
+  latitude  Float? @map("latitude")
+  longitude Float? @map("longitude")
+  /// 封面图
+  coverUrl String? @map("cover_url") @db.VarChar(512)
+
+  /// 起始日期
+  startedAt DateTime? @map("started_at") @db.Date
+  /// 结束日期（常驻为 null）
+  endedAt DateTime? @map("ended_at") @db.Date
+
+  /// 旅途中的感受
+  note String? @map("note") @db.Text
+  /// 关联的记忆节点，JSON 数组的 uuid
+  memoryIds String[] @default([]) @map("memory_ids")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt])
+  @@index([userId, isResident])
+  @@index([deletedAt])
+  @@map("journeys")
+}
+
+// ────────────────────────────────────────────────────────────
+// 待办 · 时间与你
+// ────────────────────────────────────────────────────────────
+
+model Todo {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  title String @map("title") @db.VarChar(256)
+  note String? @map("note") @db.Text
+
+  /// 类型：task 提醒事项 / birthday 生日 / festival 节日 / trip 出行
+  kind String @default("task") @map("kind") @db.VarChar(32)
+  status TodoStatus @default(pending) @map("status")
+
+  /// 计划时间
+  dueAt DateTime? @map("due_at")
+  /// 完成时间
+  completedAt DateTime? @map("completed_at")
+  /// 重复规则：none / yearly / monthly / weekly
+  repeatRule String @default("none") @map("repeat_rule") @db.VarChar(16)
+
+  /// 关联人物
+  people String[] @default([]) @map("people")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, dueAt])
+  @@index([userId, kind])
+  @@index([deletedAt])
+  @@map("todos")
+}
+
+// ────────────────────────────────────────────────────────────
+// 洞察模块：我是怎么一点点认识你的
+// ────────────────────────────────────────────────────────────
+
+model Insight {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  kind InsightKind @map("kind")
+  /// 洞察标题
+  title String @map("title") @db.VarChar(128)
+  /// 洞察正文
+  body String @map("body") @db.Text
+  /// 置信度 0~100
+  confidence Int @default(50) @map("confidence")
+  /// 依据的记忆节点，JSON 数组
+  evidenceMemoryIds String[] @default([]) @map("evidence_memory_ids")
+  /// 依据的感受，JSON 数组
+  evidenceFeelingIds String[] @default([]) @map("evidence_feeling_ids")
+
+  /// 用户是否已读
+  readAt DateTime? @map("read_at")
+  /// 用户是否采纳
+  adoptedAt DateTime? @map("adopted_at")
+  /// 用户反馈：like / dislike / none
+  feedback String? @map("feedback") @db.VarChar(16)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind, createdAt])
+  @@index([userId, readAt])
+  @@index([deletedAt])
+  @@map("insights")
+}
+
+// ────────────────────────────────────────────────────────────
+// 文件上传
+// ────────────────────────────────────────────────────────────
+
+model UploadedFile {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  /// 存储文件名（随机 UUID + 扩展名），不保留用户原始文件名
+  storageKey String @map("storage_key") @db.VarChar(256)
+  /// 原始文件名（仅用于展示）
+  originalName String @map("original_name") @db.VarChar(256)
+  /// MIME
+  mimeType String @map("mime_type") @db.VarChar(128)
+  /// 字节数
+  size Int @map("size")
+  /// 访问 URL
+  url String @map("url") @db.VarChar(512)
+  /// 用途：avatar / memory / journey / journal
+  purpose String @default("memory") @map("purpose") @db.VarChar(32)
+  /// 内容 SHA-256，用于秒传与去重
+  checksum String @map("checksum") @db.VarChar(64)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  /// 保留期：过期后由清理任务物理删除
+  expiresAt DateTime? @map("expires_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([checksum])
+  @@index([deletedAt])
+  @@map("uploaded_files")
+}

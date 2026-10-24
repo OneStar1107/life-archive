@@ -1,0 +1,280 @@
+<!--
+  pages/privacy/privacy —— 隐私政策
+  ══════════════════════════════════════════════════════════════
+  ★ 为什么本页内置一份政策正文，而不是拉远程 md/html：
+    1. uni.downloadFile 拉 md 回来没法渲染（没有 markdown 解析器，
+       塞进 <text> 会把「#」「**」这些符号原样显示出来）。
+    2. 拉 html 更糟：App 端没有内置浏览器，必须先有webview 页面；
+       而且远程 html 里的内联样式在 nvue/uvue 的 web 子集里大半不生效。
+    3. 商店审核要求「隐私政策在App 内可查」，这条不能依赖网络。
+    所以本页把要点**写死**在模板里，用<text> 分段展示。
+
+  ★ 文案口径必须与 App.uvue 的首启弹窗、以及
+    docs/privacy/privacy-policy.md 保持一致。
+    三处任何一处改了另外两处都要跟着改，否则用户会看到
+    「弹窗说不采集，政策页说采集」这种自相矛盾的内容。
+
+  TODO(待补充)：
+    - 主体名称（营业执照全称）尚未确定，拿到后替换下方「运营方」一段。
+    - docs/privacy/privacy-policy.md 尚未入库，正文以本文件为准，
+      文件补齐后反向同步。
+
+  设计约束：
+    1. 全部颜色/间距/圆角走 var(--xxx) 与 t.$xxx，页面内零字面量。
+    2. 文字全部包在 <text> 里（红线第 1 条）。
+    3. 不写 vh 与屏幕像素值。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="隐私政策" :show-back="true" />
+
+    <scroll-view class="body" scroll-y>
+      <view class="head">
+        <text class="head-title">在开始之前</text>
+        <text class="head-sub">人生档案会记录你自己写下的感受、记忆与身体信号。所有内容只属于你，我们不会把它给任何人看。</text>
+      </view>
+
+      <view class="content">
+        <!-- 一、我们收集什么 -->
+        <view class="chapter">
+          <text class="chapter-title">一、我们收集哪些信息</text>
+          <view class="chapter-body">
+            <text class="para">我们收集的信息仅包括三类：</text>
+            <text class="item">1. 账号凭证：你的手机号与加密后的密码。手机号只用于登录，在其他界面一律脱敏显示。</text>
+            <text class="item">2. 你自己录入的内容：感受记录、记忆节点、身体信号、待办与旅途，全部由你主动写下或导入。</text>
+            <text class="item">3. 你选择授权的设备数据：只有在你明确同意数据来源之后，我们才会读取你主动授权的那部分数据。</text>
+          </view>
+        </view>
+
+        <!-- 二、我们不收集什么 -->
+        <view class="chapter">
+          <text class="chapter-title">二、我们不收集什么</text>
+          <view class="chapter-body">
+            <text class="para">这几项我们明确不碰：</text>
+            <text class="item">不采集你的通讯录。</text>
+            <text class="item">不采集你的短信内容。</text>
+            <text class="item">不采集你的位置轨迹。</text>
+            <text class="item">不在你未同意的情况下读取任何设备标识或传感器数据。</text>
+            <text class="para para--gap">首次启动时我们会先弹出同意说明，在你点下「我同意并继续」之前，不会发起任何网络请求，也不会调用任何设备信息接口。</text>
+          </view>
+        </view>
+
+        <!-- 三、我们怎么用 -->
+        <view class="chapter">
+          <text class="chapter-title">三、我们怎么用这些信息</text>
+          <view class="chapter-body">
+            <text class="item">用于在你自己的设备上展示你记下的内容，并生成属于你的记忆图谱与时间轴。</text>
+            <text class="item">用于在你登录失效时刷新会话，避免你反复重新登录。</text>
+            <text class="item">用于生成「我是怎么一点点认识你的」这类观察。观察只是陈述，不是命令，也不构成对你的评价。</text>
+          </view>
+        </view>
+
+        <!-- 四、我们不给谁 -->
+        <view class="chapter">
+          <text class="chapter-title">四、我们不做什么</text>
+          <view class="chapter-body">
+            <text class="item">不出售你的个人信息。</text>
+            <text class="item">不把你的内容提供给任何第三方用于广告或画像。</text>
+            <text class="item">不做绩效打分、不催你早睡、不逼你达标。身体的信号只是照给你看。</text>
+          </view>
+        </view>
+
+        <!-- 五、你的权利 -->
+        <view class="chapter">
+          <text class="chapter-title">五、你可以随时做什么</text>
+          <view class="chapter-body">
+            <text class="item">导出：你可以拿回全部数据副本。</text>
+            <text class="item">更正与删除：任何一条记录都可以改或删。删错了就重来，我们不会保留副本。</text>
+            <text class="item">撤回同意：你可以撤回对隐私政策的同意，撤回后我们不再采集任何新信息。</text>
+            <text class="item">注销账号：在「你 → 设置」里可以申请注销，注销后数据一并清除。</text>
+          </view>
+        </view>
+
+        <!-- 六、联系我们 -->
+        <view class="chapter">
+          <text class="chapter-title">六、联系我们</text>
+          <view class="chapter-body">
+            <text class="item">客服邮箱：{{ supportEmail }}</text>
+            <text class="para para--gap">如果你觉得我们哪一条做得不对，直接写信告诉我们。我们会回。</text>
+            <text class="item">政策生效时间：2026年 10 月 3 日</text>
+          </view>
+        </view>
+
+        <view class="tail-gap" />
+      </view>
+
+      <!-- 「查看完整版」：本页已是精简版，完整版在独立 https 网页 -->
+      <view class="foot">
+        <AppButton variant="secondary" size="lg" block text="查看完整版" @click="onOpenFull" />
+        <text class="foot-hint">完整版是独立的网页，浏览器里可以打开</text>
+      </view>
+
+      <view class="safe-gap" />
+    </scroll-view>
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { computed } from 'vue'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import { useAppStore } from '@/stores/app'
+import AppButton from '@/components/AppButton.uvue'
+import { PRIVACY_POLICY_URL, SUPPORT_EMAIL } from '@/core/env/env'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+const supportEmail: string = SUPPORT_EMAIL
+
+/**
+ * 打开完整版。
+ *
+ * ★ 为什么不内嵌 web-view：
+ *   本工程目前没有 webview 页面，而 App 端也不允许直接用浏览器内核
+ *   打开一个 URL（uni-app x 不支持 5+ 运行时那套原生桥 API）。
+ *   所以这里退一步：把地址给用户，让他自己复制到浏览器打开。
+ *   这也是商店审核接受的做法之一——App 内可查 + 完整版可访问。
+ *
+ * TODO(待补充)：
+ *   等 docs/privacy/privacy-policy.md 部署到独立 https 页后，
+ *   这里可以改成「复制链接」而不是整段展示 URL。
+ */
+function onOpenFull(): void {
+  uni.showModal({
+    title: '隐私政策完整版',
+    content: `${PRIVACY_POLICY_URL}\n\n复制到浏览器即可打开完整版。`,
+    confirmText: '复制链接',
+    cancelText: '知道了',
+    success: (res) => {
+      if (!res.confirm) return
+      uni.setClipboardData({
+        data: PRIVACY_POLICY_URL,
+        success: () => {
+          uni.showToast({ title: '已复制，去浏览器粘贴打开', icon: 'none' })
+        },
+        fail: (err) => {
+          // 复制失败也要给反馈，否则用户会以为已经复制好了
+          console.error('[privacy] 复制隐私政策链接失败', err)
+          uni.showToast({ title: '复制失败，请手动记下地址', icon: 'none' })
+        },
+      })
+    },
+    fail: (err) => {
+      // showModal 本身极少失败，但失败了就必须让用户知道，
+      // 否则点「查看完整版」毫无反应
+      console.error('[privacy] 弹窗失败', err)
+      uni.showToast({ title: '请手动在浏览器打开完整版', icon: 'none' })
+    },
+  })
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  background-color: var(--color-bg);
+}
+
+// ★ 不用 vh 单位
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+// ── 头部 ─────────────────────────────────────────────────
+.head {
+  width: 100%;
+  @include m.content-constrain;
+  flex-direction: column;
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+  padding-top: t.$space-md;
+  padding-bottom: t.$space-lg;
+}
+
+.head-title {
+  font-size: t.$font-xl;
+  font-weight: t.$weight-bold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.head-sub {
+  margin-top: t.$space-sm;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 正文 ─────────────────────────────────────────────────
+.content {
+  width: 100%;
+  @include m.content-constrain;
+  flex-direction: column;
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+}
+
+.chapter {
+  margin-bottom: t.$space-lg;
+}
+
+.chapter-title {
+  font-size: t.$font-md;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+  margin-bottom: t.$space-sm;
+}
+
+.chapter-body {
+  flex-direction: column;
+}
+
+.para {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+  margin-bottom: t.$space-xs;
+}
+
+.para--gap {
+  margin-top: t.$space-xs;
+}
+
+.item {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+  margin-bottom: t.$space-xs;
+}
+
+.tail-gap {
+  height: t.$space-sm;
+  width: 100%;
+}
+
+// ── 底部操作 ─────────────────────────────────────────────
+.foot {
+  width: 100%;
+  @include m.content-constrain;
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+}
+
+.foot-hint {
+  margin-top: t.$space-sm;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+  text-align: center;
+}
+
+// ── 底部安全区 ───────────────────────────────────────────
+.safe-gap {
+  @include m.safe-bottom(t.$space-lg);
+  width: 100%;
+}
+</style>

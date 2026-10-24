@@ -1,0 +1,994 @@
+<!--
+  pages/mine/settings.uvue
+  ══════════════════════════════════════════════════════════════
+  设置
+  ══════════════════════════════════════════════════════════════
+
+  这一页放的是**合规相关的高风险动作**，设计上必须比普通设置更严肃：
+
+    0. 退出账号（安全动作，与注销严格区分）：
+       只清登录态，不动任何数据。放在「注销」上方、用蓝描边样式，
+       文案明确写「数据都还在」，避免用户把两个弄混。
+    1. 导出我的数据（《个人信息保护法》的数据可携带权）：
+       展示各表记录数，让用户看清楚「我的数据到底有多少、都在什么表里」。
+    2. ★ 注销账号：二次确认弹窗里必须写出**具体数字**
+       （「N 条记忆、M 次感受记录将被永久删除」），
+       而不是干巴巴一句「确定要注销吗」。
+       空泛的确认框是恶意或疏忽应用注销流程的常见手法，
+       用数字说话才是真的让用户知情。
+       视觉上用 danger 红色样式，和「退出账号」拉开距离。
+    3. 重新同意隐私政策：先 revokePrivacy() 再acceptPrivacy()，
+       顺序不能反——先清本地标记，再由用户明确点同意。
+
+  ★ 本文件不硬编码任何 URL：隐私政策与客服邮箱都从 @/core/env/env 取。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="设置" />
+
+    <scroll-view class="body" scroll-y>
+      <view class="body-inner">
+        <!-- ── 主题 ── -->
+        <view class="section-head">
+          <text class="section-title">外观</text>
+        </view>
+
+        <AppCard variant="solid" padding="lg" radius="lg">
+          <text class="card-title">主题</text>
+          <text class="card-desc">冰川记忆会跟随系统明暗，也可以在这里手动定下来。</text>
+
+          <view class="seg">
+            <view
+              v-for="opt in themeOptions"
+              :key="opt.value"
+              class="seg-item"
+              :class="themeMode == opt.value ? 'seg-item--on' : ''"
+              @click="onTheme(opt.value)"
+            >
+              <text class="seg-item-text" :class="themeMode == opt.value ? 'seg-text--on' : ''">{{ opt.label }}</text>
+            </view>
+          </view>
+        </AppCard>
+
+        <!-- ── 隐私政策 ── -->
+        <view class="section-head">
+          <text class="section-title">隐私</text>
+        </view>
+
+        <AppCard variant="solid" padding="lg" radius="lg">
+          <view class="row" @click="openPrivacy">
+            <view class="row-main">
+              <text class="row-title">隐私政策</text>
+              <text class="row-desc">我收集什么、怎么用、存多久，都写在里面</text>
+            </view>
+            <text class="row-arrow">›</text>
+          </view>
+
+          <view class="divider" />
+
+          <view class="row" @click="onReconsent">
+            <view class="row-main">
+              <text class="row-title">重新同意隐私政策</text>
+              <text class="row-desc">撤回当前同意，再由你重新确认一次</text>
+            </view>
+            <text class="row-arrow">›</text>
+          </view>
+
+          <text class="row-note">
+            当前状态：{{ privacyStateText }}
+          </text>
+        </AppCard>
+
+        <!-- ── 导出我的数据 ── -->
+        <view class="section-head">
+          <text class="section-title">我的数据</text>
+        </view>
+
+        <AppCard variant="solid" padding="lg" radius="lg">
+          <text class="card-title">导出我的数据</text>
+          <text class="card-desc">
+            这是《个人信息保护法》给你的权利：你可以随时把你的数据全部拿走。
+          </text>
+
+          <AppButton
+            variant="secondary"
+            size="md"
+            block
+            :text="exporting ? '正在清点' : '看看我有多少数据'"
+            :loading="exporting"
+            @click="onExport"
+          />
+
+          <!-- 导出结果：各表记录数 -->
+          <view v-if="exportResult != null" class="export">
+            <text class="export-time">清点于 {{ exportTime }}</text>
+
+            <view v-if="exportCounts.length > 0">
+              <view v-for="row in exportCounts" :key="row.key" class="export-row">
+                <text class="export-key">{{ row.key }}</text>
+                <text class="export-value">{{ row.value }}</text>
+              </view>
+            </view>
+            <text v-else class="export-empty">还没有任何记录</text>
+
+            <text v-if="downloadUrl == ''" class="export-note">
+              文件打包还在做，先给你看每一类有多少条。
+            </text>
+          </view>
+        </AppCard>
+
+        <!-- ── 退出账号（安全动作） ── -->
+        <view class="section-head">
+          <text class="section-title">账号</text>
+        </view>
+
+        <AppCard variant="solid" padding="lg" radius="lg">
+          <text class="card-title">退出账号</text>
+          <text class="card-desc">只是退出登录，你的记忆、感受、旅途都还在，下次用同一账号还能回来。</text>
+
+          <AppButton
+            variant="secondary"
+            size="md"
+            block
+            :text="loggingOut ? '正在退出' : '退出账号'"
+            :loading="loggingOut"
+            @click="onLogout"
+          />
+        </AppCard>
+
+        <!-- ── 注销账号（危险，红色区分） ── -->
+        <view class="section-head">
+          <text class="section-title">注销</text>
+        </view>
+
+        <AppCard variant="solid" padding="lg" radius="lg">
+          <text class="card-title">注销账号</text>
+          <text class="card-desc">注销会永久删除你的全部数据，且无法恢复。这一步我不会替你按。</text>
+
+          <AppButton
+            variant="danger"
+            size="md"
+            block
+            :text="deleting ? '正在注销' : '注销账号（永久删除）'"
+            :loading="deleting"
+            @click="onAskDelete"
+          />
+        </AppCard>
+
+        <!-- ── 关于 ── -->
+        <view class="section-head">
+          <text class="section-title">关于</text>
+        </view>
+
+        <AppCard variant="solid" padding="lg" radius="lg">
+          <view class="row row--static">
+            <view class="row-main">
+              <text class="row-title">人生档案</text>
+              <text class="row-desc">版本 {{ versionText }}</text>
+            </view>
+          </view>
+
+          <view class="divider" />
+
+          <view class="row" @click="openPrivacy">
+            <view class="row-main">
+              <text class="row-title">隐私政策</text>
+              <text class="row-desc">{{ privacyPolicyUrl }}</text>
+            </view>
+            <text class="row-arrow">›</text>
+          </view>
+
+          <view class="divider" />
+
+          <view class="row" @click="onCopyEmail">
+            <view class="row-main">
+              <text class="row-title">客服邮箱</text>
+              <text class="row-desc">{{ supportEmail }}</text>
+            </view>
+            <text class="row-arrow">›</text>
+          </view>
+        </AppCard>
+
+        <text class="footnote">冰川记忆 · 只属于你</text>
+      </view>
+    </scroll-view>
+
+    <AppSafeBottom />
+
+    <!-- ── 注销二次确认弹窗 ── -->
+    <view v-if="confirmVisible" class="mask" @click="onCancelDelete">
+      <view class="dialog" @click.stop="noop">
+        <text class="dialog-title">真的要注销吗</text>
+        <text class="dialog-body">{{ deleteWarning }}</text>
+        <text class="dialog-note">这一页的东西会一起没掉：你的感受、记忆、旅途、洞察。</text>
+
+        <view class="dialog-actions">
+          <AppButton variant="secondary" size="md" text="我再想想" :disabled="deleting" @click="onCancelDelete" />
+          <view class="dialog-gap" />
+          <AppButton
+            variant="primary"
+            size="md"
+            :text="deleting ? '正在注销' : '确认注销'"
+            :loading="deleting"
+            @click="onConfirmDelete"
+          />
+        </view>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppCard from '@/components/AppCard.uvue'
+import AppButton from '@/components/AppButton.uvue'
+import AppSafeBottom from '@/components/AppSafeBottom.uvue'
+import { usersService } from '@/services/users.service'
+import { useAppStore } from '@/stores/app'
+import { useAuthStore } from '@/stores/auth'
+import { clearAuthState } from '@/core/storage/secure'
+import { PRIVACY_POLICY_URL, SUPPORT_EMAIL } from '@/core/env/env'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+import type { AccountExport } from '@/services/types'
+// ★ 为什么这里没有 import '../../version.json'
+//   version.json 确实是打包期的版本号唯一源（由 scripts/bump-version.mjs 维护），
+//   但**运行时不读它**：uts 编译器是否支持静态 import .json 在本机无法实证
+//   （本机没有 uts 编译器，@dcloudio/uni-app-x 由 HBuilderX 注入而非 npm 安装），
+//   而 frontend/ 下没有任何既存的 JSON import 先例可依。
+//   为一个「显示版本号」的装饰性功能去赌 App 端能否编译通过，不划算。
+//   版本号因此只从 uni.getAppBaseInfo() 取，取不到就显示「未知」。
+//   ★ 将来若要接回 version.json，正确做法是让 bump-version.mjs 额外生成一个
+//     .uts 常量文件再 import 它 —— .uts 的 import 是可以确定编译通过的。
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 与 pages.json 的 path 一致 */
+const PAGE_KEY: string = 'pages/mine/settings'
+
+let disposed = false
+
+const appStore = useAppStore()
+const authStore = useAuthStore()
+
+/** ★ 隐私政策与客服邮箱统一从 env 取，本文件不硬编码任何 URL */
+const privacyPolicyUrl: string = PRIVACY_POLICY_URL
+const supportEmail: string = SUPPORT_EMAIL
+
+// ────────────────────────────────────────────────────────────
+// 类型与常量
+// ────────────────────────────────────────────────────────────
+
+/** 主题选项 */
+type ThemeOption = {
+  value: ThemeMode
+  label: string
+}
+
+/** 导出清点里的一行 */
+type CountRow = {
+  key: string
+  value: string
+}
+
+type ThemeMode = 'light' | 'dark' | 'follow-system'
+
+/**
+ * uni.getAppBaseInfo() 里本次关心的四个版本字段。
+ * ★ 用「非可选 + 可空」而不是 `?:`：本文件的写法是都不带可选符的 type 字面量，
+ *   保持一致的写法更稳。真正保险的是运行时的存在性判断 ——
+ *   字段缺失时为 undefined，`safeVersionField()` 里的 `v == null` 一并覆盖，
+ *   所以这里不依赖编译期可选性。
+ */
+type AppVersionInfo = {
+  appVersion: string | number | null
+  appVersionCode: string | number | null
+  version: string | number | null
+  versionCode: string | number | null
+}
+
+const themeOptions: ThemeOption[] = [
+  { value: 'follow-system', label: '跟随系统' },
+  { value: 'light', label: '浅色' },
+  { value: 'dark', label: '深色' },
+]
+
+// ────────────────────────────────────────────────────────────
+// 状态
+// ────────────────────────────────────────────────────────────
+
+const exporting = ref<boolean>(false)
+const deleting = ref<boolean>(false)
+const confirmVisible = ref<boolean>(false)
+const loggingOut = ref<boolean>(false)
+
+const exportResult = ref<AccountExport | null>(null)
+const exportTime = ref<string>('')
+const exportCounts = ref<CountRow[]>([])
+const downloadUrl = ref<string>('')
+
+const versionText = ref<string>('')
+
+// ────────────────────────────────────────────────────────────
+// 取值
+// ────────────────────────────────────────────────────────────
+
+const themeMode = computed<string>(() => appStore.themeMode)
+
+const privacyStateText = computed<string>(() => {
+  return appStore.privacyAccepted ? '已同意' : '未同意'
+})
+
+/**
+ * ★ 注销警告文案：必须写出具体数量。
+ *   「你的 N 条记忆、M 次感受记录将被永久删除，无法恢复」
+ *   ——空泛的「确定吗」不构成知情。
+ */
+const deleteWarning = computed<string>(() => {
+  const res = exportResult.value
+  if (res == null) {
+    return '注销后你的全部记忆、感受记录与旅途记录将被永久删除，无法恢复。'
+  }
+  return '注销后你的 ' + describeCounts(res) + ' 将被永久删除，无法恢复。'
+})
+
+// ────────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(PAGE_KEY)
+  loadVersion()
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  disposed = true
+  // 导出 / 注销的请求不能在页面销毁后才回来
+  cancelByKey(PAGE_KEY)
+})
+
+// ────────────────────────────────────────────────────────────
+// 主题
+// ────────────────────────────────────────────────────────────
+
+function onTheme(mode: ThemeMode): void {
+  if (disposed) return
+  // setTheme 内部会写本地存储并同步系统 UI（状态栏 / 导航栏）
+  appStore.setTheme(mode)
+  uni.showToast({ title: '换好了', icon: 'none' })
+}
+
+// ────────────────────────────────────────────────────────────
+// 隐私
+// ────────────────────────────────────────────────────────────
+
+function openPrivacy(): void {
+  uni.navigateTo({
+    url: '/pages/privacy/privacy',
+    fail: () => {
+      console.error('[settings] 打开隐私政策失败')
+      uni.showToast({ title: '请在浏览器里查看隐私政策', icon: 'none' })
+    },
+  })
+}
+
+/**
+ * 重新同意隐私政策。
+ * ★ 顺序：先 revoke 再 accept。
+ *   反过来的话，中间那一瞬本地标记是「已同意」，
+ *   一旦用户在这一步关掉App，就留下了一个从没真正同意过的状态。
+ */
+function onReconsent(): void {
+  appStore.revokePrivacy()
+
+  uni.showModal({
+    title: '重新确认',
+    content: '你已经撤回过一次同意。要重新开启的话，请再点一次同意。',
+    confirmText: '我同意',
+    cancelText: '先不',
+    // ★ 回调参数类型用官方全局类型名，不用内联对象类型 ——
+    // uts/Kotlin 严格类型检查下内联标注与官方签名不匹配会导致 Android 编译失败
+    // （H5 的 esbuild 不查类型所以侥幸能跑），教训见 core/platform/index.ts
+    success: (res: ShowModalSuccess) => {
+      if (disposed) return
+      if (res.confirm) {
+        appStore.acceptPrivacy()
+        uni.showToast({ title: '谢谢你还愿意留下', icon: 'none' })
+      } else {
+        // 用户反悔：把撤回也撤回，回到原来的「已同意」
+        appStore.acceptPrivacy()
+        uni.showToast({ title: '好，还是原来的约定', icon: 'none' })
+      }
+    },
+    fail: (e: unknown) => {
+      console.error('[settings] 重新同意弹窗失败', e)
+      // 弹窗失败时恢复原状，不能让用户卡在「未同意」
+      appStore.acceptPrivacy()
+    },
+  })
+}
+
+function onCopyEmail(): void {
+  uni.setClipboardData({
+    data: supportEmail,
+    success: () => {
+      uni.showToast({ title: '邮箱已复制', icon: 'none' })
+    },
+    fail: (e: unknown) => {
+      console.error('[settings] 复制邮箱失败', e)
+      uni.showToast({ title: '复制失败，手动记一下：' + supportEmail, icon: 'none' })
+    },
+  })
+}
+
+// ────────────────────────────────────────────────────────────
+// 导出
+// ────────────────────────────────────────────────────────────
+
+function onExport(): void {
+  if (disposed) return
+  if (exporting.value) return
+  exporting.value = true
+
+  usersService
+    .exportData()
+    .then((res: AccountExport) => {
+      if (disposed) return
+      exporting.value = false
+      exportResult.value = res
+      exportTime.value = shortDateTime(res.exportedAt)
+      downloadUrl.value = res.downloadUrl != null ? res.downloadUrl! : ''
+      exportCounts.value = buildCountRows(res)
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      exporting.value = false
+      console.error('[settings] 导出失败', e)
+      uni.showToast({ title: describe(e), icon: 'none' })
+    })
+}
+
+/** 把 counts 对象摊平成可展示的行；键译成中文 */
+function buildCountRows(res: AccountExport): CountRow[] {
+  const rows: CountRow[] = []
+  const names: Record<string, string> = {
+    memories: '记忆',
+    feelings: '感受',
+    journeys: '旅途',
+    todos: '待办',
+    healthMetrics: '身体信号',
+    insights: '洞察',
+    relations: '记忆关联',
+    files: '文件',
+  }
+
+  for (const key in res.counts) {
+    const value = res.counts[key]
+    const label = names[key] != null ? names[key] : key
+    rows.push({ key: label, value: value.toString() + ' 条' })
+  }
+  return rows
+}
+
+/** 「N 条记忆 · M 次感受」这样的紧凑摘要，给注销确认用 */
+function describeCounts(res: AccountExport): string {
+  const names: Record<string, string> = {
+    memories: '条记忆',
+    feelings: '次感受',
+    journeys: '段旅途',
+    todos: '件事',
+    healthMetrics: '条身体信号',
+    insights: '条洞察',
+  }
+
+  const parts: string[] = []
+  // 固定顺序输出，避免对象键序不稳定导致两次弹窗文案不一致
+  const order: string[] = ['memories', 'feelings', 'journeys', 'todos', 'healthMetrics', 'insights']
+  for (const key of order) {
+    const v = res.counts[key]
+    if (v == null) continue
+    if (v == 0) continue
+    parts.push(v.toString() + ' ' + names[key])
+  }
+
+  if (parts.length == 0) return '全部记录'
+  return parts.join('、')
+}
+
+// ────────────────────────────────────────────────────────────
+// 退出账号（安全动作）
+// ────────────────────────────────────────────────────────────
+
+/**
+ * 退出账号：只清登录态，不动任何数据。
+ * ★ 与「注销」是两件不同的事，曾经有用户把两者弄混、误点了注销：
+ *   退出 = 换号 / 临时离开，数据都留着；
+ *   注销 = 永久删除账号与全部数据。
+ *   所以这里单独做一个按钮，并且文案写清「数据都还在」。
+ */
+function onLogout(): void {
+  if (disposed) return
+  if (loggingOut.value) return
+  if (!authStore.isLoggedIn) {
+    // 本地已经没有登录态，直接回登录页即可
+    // ★ 必须显式给 fail 回调：uni-app x 的 uni.reLaunch 失败时是
+    //   「返回被 reject 的 Promise」而不是同步 throw，外层 try/catch 抓不住，
+    //   会冒成未捕获拒绝（PAGEERROR）。传了 fail 回调，框架内部消费这次拒绝。
+    uni.reLaunch({
+      url: '/pages/login/login',
+      fail: () => {
+        // 页面栈未就绪时的预期失败：静默忽略
+      },
+    })
+    return
+  }
+  loggingOut.value = true
+  authStore
+    .logout()
+    .then(() => {
+      if (disposed) return
+      loggingOut.value = false
+      uni.showToast({ title: '已退出账号', icon: 'none' })
+      setTimeout(() => {
+        uni.reLaunch({
+          url: '/pages/login/login',
+          fail: () => {
+            // 页面栈未就绪时的预期失败：静默忽略
+          },
+        })
+      }, 800)
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      loggingOut.value = false
+      console.error('[settings] 退出账号失败', e)
+      // ★ 即便后端失败，store.logout() 内部也已清掉本地登录态，
+      //   所以仍然回到登录页，避免用户卡在「已登录」的死状态。
+      uni.reLaunch({
+        url: '/pages/login/login',
+        fail: () => {
+          // 页面栈未就绪时的预期失败：静默忽略
+        },
+      })
+    })
+}
+
+// ────────────────────────────────────────────────────────────
+// 注销
+// ────────────────────────────────────────────────────────────
+
+/**
+ * 点「我要注销」。
+ * ★ 先拉一次导出数据：没有具体数字就没法写出有意义的确认文案。
+ */
+function onAskDelete(): void {
+  if (disposed) return
+  if (deleting.value) return
+
+  uni.showModal({
+    title: '注销前先看清',
+    content: '我先数一下你有多少数据，确认页里会写清楚。',
+    showCancel: false,
+    confirmText: '好',
+    success: () => {
+      if (disposed) return
+      // 拉数据 → 拿到数字 → 弹正式确认框
+      prepareDelete()
+    },
+    fail: (e: unknown) => {
+      console.error('[settings] 预检弹窗失败', e)
+      prepareDelete()
+    },
+  })
+}
+
+function prepareDelete(): void {
+  usersService
+    .exportData()
+    .then((res: AccountExport) => {
+      if (disposed) return
+      exportResult.value = res
+      confirmVisible.value = true
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[settings] 注销前清点失败', e)
+      // ★ 清点失败也要让用户能注销：
+      //   拦着不给注销是更糟的体验。退回到无数字的警告文案。
+      exportResult.value = null
+      confirmVisible.value = true
+    })
+}
+
+function onCancelDelete(): void {
+  if (deleting.value) return
+  confirmVisible.value = false
+}
+
+/**
+ * 确认注销。
+ * ★ 失败时**不**清本地登录态——
+ *   后端可能因为什么原因拒绝了，用户得能看到原因并留在页面上。
+ */
+function onConfirmDelete(): void {
+  if (disposed) return
+  if (deleting.value) return
+  deleting.value = true
+
+  usersService
+    .deleteAccount()
+    .then((_res: { success: boolean }) => {
+      if (disposed) return
+      deleting.value = false
+      confirmVisible.value = false
+      // 后端确认注销后才清本地
+      clearAuthState()
+      authStore.logoutLocal()
+      uni.showToast({ title: '账号已注销', icon: 'none' })
+      setTimeout(() => {
+        uni.reLaunch({
+          url: '/pages/login/login',
+          fail: () => {
+            // 页面栈未就绪时的预期失败：静默忽略
+          },
+        })
+      }, 1000)
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      deleting.value = false
+      console.error('[settings] 注销失败', e)
+      // 留在确认框里，让用户读到后端给的原因
+      uni.showToast({ title: describe(e), icon: 'none' })
+    })
+}
+
+function noop(): void {
+  // 点击弹窗内容区不关闭弹窗（配合 @click.stop 一起用）
+}
+
+// ────────────────────────────────────────────────────────────
+// 关于
+// ────────────────────────────────────────────────────────────
+
+/**
+ * 版本号不硬编码，运行时从 uni.getAppBaseInfo() 取。
+ *
+ * ★ 原来那句是根因所在：
+ *     info.version + ' (' + info.versionCode.toString() + ')'
+ *   GetAppBaseInfoResult 里**没有** versionCode 字段（只有 appVersionCode），
+ *   且 version 已废弃、它给的是**引擎版本号**而不是应用版本号；
+ *   于是 info.versionCode 恒为 undefined，.toString() 直接抛 TypeError，
+ *   每次都掉进 catch —— 版本号恒显示「未知」，问题被完全掩盖。
+ *   现在每个字段取值前都先做存在性与类型判断，绝不裸调 .toString()。
+ */
+function loadVersion(): void {
+  const fromRuntime = readRuntimeVersion()
+  if (fromRuntime.length > 0) {
+    versionText.value = fromRuntime
+    return
+  }
+
+  // 取不到才是真的读不到。用 warn 而不是 error：
+  // 版本号显示不下不影响使用，但要留一条线索便于以后定位。
+  console.warn('[settings] 取不到版本号：uni.getAppBaseInfo() 未给出应用版本字段')
+  versionText.value = '未知'
+}
+
+/** 版本号字段的统一取值口径：存在且是 string / number 才认，其余一律空串（不抛） */
+function safeVersionField(v: unknown): string {
+  if (v == null) return ''
+  if (typeof v === 'string') return v
+  if (typeof v === 'number') return v.toString()
+  return ''
+}
+
+/** 一组候选值里取第一个非空的（保持改写前的「优先 / 回落」顺序） */
+function firstNonEmpty(candidates: string[]): string {
+  for (const c of candidates) {
+    if (c.length > 0) return c
+  }
+  return ''
+}
+
+/** 拼成 "name (code)"；缺哪部分就省哪部分，不拼半成品 */
+function joinVersion(name: string, code: string): string {
+  if (name.length == 0) return ''
+  if (code.length == 0) return name
+  return name + ' (' + code + ')'
+}
+
+/**
+ * 运行时取应用版本：appVersion / appVersionCode 优先，取不到再回落
+ * 已废弃的 version / versionCode。
+ * ★ uni.getAppBaseInfo() 在 H5 下**是存在的**（它不是原生端专属 API）；
+ *   只有整体不可用时才会走到 catch，那才是真的取不到。
+ */
+function readRuntimeVersion(): string {
+  try {
+    // 经 unknown 中转：GetAppBaseInfoResult 的字段随引擎版本漂移，
+    // 这里只关心下面四个版本字段，不与具体类型定义绑死。
+    const info = uni.getAppBaseInfo() as unknown as AppVersionInfo
+    if (info == null) return ''
+    const name = firstNonEmpty([safeVersionField(info.appVersion), safeVersionField(info.version)])
+    const code = firstNonEmpty([safeVersionField(info.appVersionCode), safeVersionField(info.versionCode)])
+    return joinVersion(name, code)
+  } catch (e) {
+    return ''
+  }
+}
+
+
+// ────────────────────────────────────────────────────────────
+// 辅助
+// ────────────────────────────────────────────────────────────
+
+/** ISO → YYYY-MM-DD HH:mm */
+function shortDateTime(iso: string): string {
+  if (iso.length < 16) return iso
+  return iso.substring(0, 16).replace('T', ' ')
+}
+
+/** 把任意异常转成能展示的中文 */
+function describe(e: unknown): string {
+  if (e == null) return '出了点问题，稍后再试试'
+  const err = e as HttpErrorLike
+  if (err != null && typeof err.message === 'string' && err.message.length > 0) {
+    return err.message
+  }
+  return '出了点问题，稍后再试试'
+}
+
+/** 只取 message */
+type HttpErrorLike = {
+  message: string
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  width: 100%;
+  flex-direction: column;
+  background-color: var(--color-bg);
+}
+
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+.body-inner {
+  flex-direction: column;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-lg;
+}
+
+// ── 区块标题 ──────────────────────────────────────────────
+.section-head {
+  flex-direction: column;
+  padding-top: t.$space-lg;
+  padding-bottom: t.$space-sm;
+}
+
+.section-title {
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.card-title {
+  font-size: t.$font-md;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.card-desc {
+  margin-top: t.$space-xxs;
+  margin-bottom: t.$space-md;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 分段选择器 ────────────────────────────────────────────
+.seg {
+  flex-direction: row;
+}
+
+.seg-item {
+  @include m.tap-target;
+  flex: 1;
+  margin-right: t.$space-xs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-bg-sunken);
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.seg-item--on {
+  background-color: var(--color-primary);
+}
+
+.seg-item-text {
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+}
+
+// ★ 不用后代选择器（uni-app x 的 CSS 只支持 web 子集）
+.seg-text--on {
+  color: var(--color-text-on-primary);
+}
+
+// ── 行 ────────────────────────────────────────────────────
+.row {
+  @include m.tap-target;
+  flex-direction: row;
+  align-items: center;
+}
+
+.row--static {
+  min-height: t.$tap-min-size;
+}
+
+.row-main {
+  flex: 1;
+  flex-direction: column;
+}
+
+.row-title {
+  font-size: t.$font-md;
+  color: var(--color-text-1);
+}
+
+.row-desc {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+.row-arrow {
+  margin-left: t.$space-sm;
+  font-size: t.$font-xl;
+  color: var(--color-text-3);
+}
+
+.row-note {
+  margin-top: t.$space-sm;
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+}
+
+.divider {
+  height: 1px;
+  margin-top: t.$space-sm;
+  margin-bottom: t.$space-sm;
+  background-color: var(--color-divider);
+}
+
+// ── 导出结果 ──────────────────────────────────────────────
+.export {
+  flex-direction: column;
+  margin-top: t.$space-md;
+  padding-top: t.$space-md;
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: var(--color-divider);
+}
+
+.export-time {
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+  @include m.tabular-nums;
+}
+
+.export-row {
+  flex-direction: row;
+  align-items: center;
+  padding-top: t.$space-xs;
+  padding-bottom: t.$space-xs;
+}
+
+.export-key {
+  flex: 1;
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+}
+
+.export-value {
+  font-size: t.$font-sm;
+  color: var(--color-text-1);
+  @include m.tabular-nums;
+}
+
+.export-empty {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  color: var(--color-text-3);
+}
+
+.export-note {
+  margin-top: t.$space-sm;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+// ── 页脚 ──────────────────────────────────────────────────
+.footnote {
+  margin-top: t.$space-xl;
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+  text-align: center;
+}
+
+// ── 注销确认弹窗 ──────────────────────────────────────────
+// ★ 唯一允许「四边都写死0」的场景：它必须铺满并吃掉底层点击。
+.mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: t.$z-dialog;
+  background-color: var(--color-mask);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-left: t.$space-lg;
+  padding-right: t.$space-lg;
+}
+
+.dialog {
+  width: 100%;
+  border-radius: t.$radius-lg;
+  background-color: var(--color-bg-elevated);
+  padding: t.$space-lg;
+  padding-bottom: calc(#{t.$space-lg} + env(safe-area-inset-bottom));
+}
+
+.dialog-title {
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+  margin-bottom: t.$space-sm;
+}
+
+.dialog-body {
+  font-size: t.$font-md;
+  line-height: t.$line-height-loose;
+  color: var(--color-danger);
+  margin-bottom: t.$space-sm;
+}
+
+.dialog-note {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+  margin-bottom: t.$space-lg;
+}
+
+.dialog-actions {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.dialog-gap {
+  width: t.$space-sm;
+}
+</style>

@@ -1,0 +1,11 @@
+{
+  "appName": "人生档案",
+  "appNameEn": "LifeArchive",
+  "bundleName": "com.lifearchive.app",
+  "versionName": "1.0.0",
+  "versionCode": 100,
+  "minVersionCode": 100,
+  "buildChannel": "dev",
+  "updatedAt": "2026-10-02",
+  "note": "版本号唯一源。任何版本变更必须通过 `node scripts/bump-version.mjs <patch|minor|major>`，禁止手改 manifest.json 与 harmony-configs。"
+}

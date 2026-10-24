@@ -1,0 +1,205 @@
+<!--
+  AppTabBar —— 底部 Tab 栏
+  ══════════════════════════════════════════════════════════════
+  职责：5 个 Tab 的固定底栏。抽成组件而不是在 5 个页面各写一份，
+        因为底部栏涉及「安全区叠加 + 选中态 + 跳转」三件事，
+        复制 5 份一定会出现某一页忘了叠加安全区（04 号 T2 点名的最高频事故）。
+
+  pages.json 里 tabBar.custom = true，所以本组件就是「自定义 tabBar」的全部实现。
+
+  props：
+    current  'journey' | 'feeling' | 'memory' | 'health' | 'mine'  当前选中项
+
+  slots：无
+
+  设计约束：
+    1. ★ 固定定位走 @include m.fixed-bottom-bar —— 禁止裸写 position: fixed; bottom: 0，
+       否则会被 Home Indicator / 手势条压住。
+    2. 图标用 unicode 字符，**不引图片文件**
+       （pages.json 的 iconPath 是原生 tabBar 的遗留配置，自定义栏不读它；
+        而且为三端各备一套位图是 04 号 T8 明确禁止的）。
+    3. 选中态 = 冰川圆底 + 白色文字（对齐 ui-refs/tokens.css 的 --r-tab）。
+    4. 所有文字包在 <text> 里（红线第 1 条）。
+    5. 只用单类选择器，不用后代选择器（CSS 子集限制）。
+    6. 点击事件名是 @click（红线第 4 条，不是 tap 那一套）。
+-->
+<template>
+  <view class="tabbar" :class="themeClass">
+    <view class="tabbar-inner">
+      <view
+        v-for="item in items"
+        :key="item.key"
+        class="tabbar-item"
+        :class="item.key === current ? 'tabbar-item--on' : ''"
+        @click="onTap(item.key)"
+      >
+        <!--
+          选中态圆底单独一层view 承载。
+          不用 background-image: linear-gradient(...) 的原因：
+          uni-app x 对「var() 套在 linear-gradient() 里」的解析三端不一致，
+          轻则渐变丢失变成透明，重则整项文字跟着变白看不见。
+          theme.json 已经把选中 Tab 的渐变端点固化成 --color-glacier-tab，
+          直接用它当底色是等价且稳定的做法。
+        -->
+        <view v-if="item.key === current" class="tabbar-pill" />
+        <view class="tabbar-icon">
+          <text class="tabbar-glyph" :class="item.key === current ? 'tabbar-glyph--on' : ''">{{
+            item.glyph
+          }}</text>
+        </view>
+        <text class="tabbar-label" :class="item.key === current ? 'tabbar-label--on' : ''">{{
+          item.label
+        }}</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+
+/** Tab 标识。与 pages.json 的 tabBar.list 顺序、文案保持一致 */
+type TabKey = 'journey' | 'feeling' | 'memory' | 'health' | 'mine'
+
+/** 单个 Tab 的静态描述 */
+type TabItem = {
+  key: TabKey
+  label: string
+  /** unicode 字符图标，避免引入位图 */
+  glyph: string
+  /** 路由。与 pages.json tabBar.list 的 pagePath 一致（带前导斜杠） */
+  url: string
+}
+
+const props = withDefaults(
+  defineProps<{
+    current?: TabKey
+  }>(),
+  {
+    current: 'journey',
+  },
+)
+
+/**
+ * Tab 表。
+ * ★ 顺序、文案、路由必须与 pages.json 的 tabBar.list 一致，
+ *   否则自定义栏与原生栏切换时会「跳到别的页」。
+ */
+const items: TabItem[] = [
+  { key: 'journey', label: '旅途', glyph: '✦', url: '/pages/index/index' },
+  { key: 'feeling', label: '感受', glyph: '◈', url: '/pages/feeling/index' },
+  { key: 'memory', label: '记忆', glyph: '⬢', url: '/pages/memory/index' },
+  { key: 'health', label: '健康', glyph: '∿', url: '/pages/health/index' },
+  { key: 'mine', label: '你', glyph: '☺', url: '/pages/mine/index' },
+]
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+function onTap(key: TabKey): void {
+  // 重复点当前 Tab 不做任何事：否则 switchTab 会重置页面栈，
+  // 用户在长列表里想「回到顶部」时会莫名其妙地闪一下
+  if (key === props.current) return
+
+  uni.switchTab({
+    url: itemUrlOf(key),
+    fail: () => {
+      // 目标 Tab 页面还没建出来时（比如 health / mine 尚未实现），
+      // 至少要让用户知道发生了什么，而不是点了没反应
+      console.error(`[AppTabBar] 切换到 ${key} 失败`)
+      uni.showToast({ title: '这个页面还在路上', icon: 'none' })
+    },
+  })
+}
+
+function itemUrlOf(key: TabKey): string {
+  for (const it of items) {
+    if (it.key === key) return it.url
+  }
+  return '/pages/index/index'
+}
+</script>
+
+<style scoped lang="scss">
+@use '../styles/tokens.scss' as t;
+@use '../styles/mixins.scss' as m;
+
+.tabbar {
+  // ★ 固定底栏统一走 mixin：自带 safe-bottom 叠加与z 层级
+  // ★ 底色用不透明的 --color-bg-elevated（浅色纯白 / 深色 #0F1F27），
+  //   不再用半透明的 --color-nav-bg：半透明底叠在框架预留的透明区上
+  //   会透出白色画布（深色下整体发白），不透明底在任何背景下都稳定。
+  @include m.fixed-bottom-bar(var(--color-bg-elevated));
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: var(--color-nav-border);
+}
+
+.tabbar-inner {
+  width: 100%;
+  height: t.$tabbar-height;
+  flex-direction: row;
+  align-items: center;
+  // 内容最大宽度约束：平板上 5 个 Tab 不然会被拉得极开
+  max-width: t.$content-max-width;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: t.$space-xs;
+  padding-right: t.$space-xs;
+}
+
+.tabbar-item {
+  flex: 1;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  // ★ 整个 item 就是可点区域，满足 88rpx 最小点击区
+  @include m.tap-target;
+  // 选中态圆底是绝对定位，必须显式给父级建立定位上下文，
+  // 否则各端会按页面根节点算坐标，Tab 会整体偏移
+  position: relative;
+}
+
+// ── 选中态圆底 ─────────────────────────────────────────────
+// 四边内缩而不是「居中 + 负margin」：负margin 里的calc() 在部分端解析失败，
+// 内缩方案只用固定令牌，稳得多
+.tabbar-pill {
+  position: absolute;
+  left: t.$space-xs;
+  right: t.$space-xs;
+  top: t.$space-xs;
+  bottom: t.$space-xs;
+  border-radius: t.$radius-xl;
+  background-color: var(--color-glacier-tab);
+}
+
+// ── 图标 ─────────────────────────────────────────────────
+.tabbar-icon {
+  align-items: center;
+  justify-content: center;
+}
+
+.tabbar-glyph {
+  font-size: t.$font-xl;
+  line-height: t.$line-height-tight;
+  color: var(--color-tab-inactive);
+}
+
+.tabbar-glyph--on {
+  color: var(--color-text-on-primary);
+}
+
+// ── 文案 ─────────────────────────────────────────────────
+.tabbar-label {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-tight;
+  color: var(--color-tab-inactive);
+}
+
+.tabbar-label--on {
+  font-weight: t.$weight-semibold;
+  color: var(--color-text-on-primary);
+}
+</style>

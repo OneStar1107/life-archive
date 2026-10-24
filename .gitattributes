@@ -1,0 +1,39 @@
+# ── 换行符统一 LF，避免鸿蒙工具链在 CRLF 下解析失败 ──
+* text=auto eol=lf
+
+*.sh text eol=lf
+*.mjs text eol=lf
+*.ts text eol=lf
+*.uts text eol=lf
+*.uvue text eol=lf
+*.scss text eol=lf
+*.json text eol=lf
+*.json5 text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+
+# ── 二进制，禁止行尾转换 ──
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.mp3 binary
+*.mp4 binary
+
+# ── 签名与证书实体：即使误 add 也无法入库 ──
+*.p12 binary
+*.keystore binary
+*.jks binary
+*.p7b binary
+*.cer binary
+*.mobileprovision binary
+
+# 提示词文档 linguist 统计：视作文档而非代码
+docs/prompts/*.md linguist-documentation

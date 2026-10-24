@@ -1,0 +1,666 @@
+<!--
+  pages/journey/index.uvue
+  ══════════════════════════════════════════════════════════════
+  Tab 1「旅途」—— 你去过的地方
+  ══════════════════════════════════════════════════════════════
+
+  ★★ 关于地图（合规硬约束，不是技术选择）★★
+    国内地图能力需要测绘资质与专门审批，本版本**刻意不接地图 SDK**。
+    所以本页不给地图，而是：
+      1. 明确告知「坐标已记录，地图能力待接入」——不含糊、不假装有；
+      2. 把经纬度以文字形式列出来（数据本来就在库里，没浪费）。
+
+    ★ 绝不能做的事：用CSS 画一个假的「地图」轮廓再放几个点。
+      那会让用户以为这是真地图，属于误导。
+
+  数据来源：
+    journeysService.timeline()  时间轴分段（含停留天数、常驻标记）
+    journeysService.mapPoints() 仅有经纬度的点位
+
+  ★ timeline() 与 mapPoints() 都是全量返回、无分页参数，
+    所以本页的「上拉加载」只在分段列表仍有剩余时触发。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="你去过的地方" :show-back="false" />
+
+    <scroll-view
+      class="body"
+      scroll-y
+      :refresher-enabled="true"
+      :refresher-triggered="refreshing"
+      @refresherrefresh="onRefresh"
+      @scrolltolower="onLoadMore"
+    >
+      <view class="body-inner">
+        <!-- ── 失败态 ── -->
+        <AppEmpty
+          v-if="errorText != ''"
+          title="没能取到你的旅途"
+          :description="errorText"
+          action-text="再试一次"
+          @action="loadAll"
+        />
+
+        <!-- ── 首屏加载 ── -->
+        <AppLoading v-else-if="firstLoading" type="skeleton" :rows="5" />
+
+        <template v-else>
+          <!-- 统计：常驻 N 城 / 去过 M 地 -->
+          <view class="hero">
+            <text class="hero-title">你去过的地方</text>
+            <text class="hero-sub">我只记你去过哪儿、待了多久，不记你在哪做过什么。</text>
+          </view>
+
+          <view class="stat-row">
+            <view class="stat">
+              <text class="stat-num">{{ residentCount }}</text>
+              <text class="stat-label">常驻</text>
+            </view>
+            <view class="stat">
+              <text class="stat-num">{{ visitedCount }}</text>
+              <text class="stat-label">去过的地方</text>
+            </view>
+          </view>
+
+          <!-- 全部为空时的空态 -->
+          <AppEmpty
+            v-if="segments.length == 0"
+            title="还没有旅途记录"
+            description="回来过的地方、待过的城市，都可以记一笔。我只记地点和时间。"
+            action-text="记第一段"
+            @action="scrollToHint"
+          />
+
+          <template v-else>
+            <!-- ── 时间轴 ── -->
+            <view class="section-head">
+              <text class="section-title">时间轴</text>
+            </view>
+
+            <view class="timeline">
+              <view v-for="(seg, index) in segments" :key="seg.id" class="tl-row">
+                <!-- 轴线与节点：纯 CSS，不引图片 -->
+                <view class="tl-rail">
+                  <view class="tl-dot" :class="seg.isResident ? 'tl-dot--resident' : ''" />
+                  <view v-if="index < segments.length - 1" class="tl-line" />
+                </view>
+
+                <view class="tl-card">
+                  <AppCard variant="glass" padding="md" radius="md">
+                    <view class="tl-head">
+                      <text class="tl-place">{{ seg.place }}</text>
+                      <!-- 常驻用特殊标记：这是「现在在这里」，不是一段行程 -->
+                      <view v-if="seg.isResident" class="tl-badge">
+                        <text class="tl-badge-text">常驻</text>
+                      </view>
+                    </view>
+
+                    <text class="tl-date">{{ dateRangeOf(seg) }}</text>
+
+                    <text v-if="seg.days != null" class="tl-days">停留 {{ seg.days }} 天</text>
+
+                    <text v-if="hasNote(seg.note)" class="tl-note">{{ seg.note }}</text>
+
+                    <view v-if="coordOf(seg.id) != ''" class="tl-coord">
+                      <text class="tl-coord-label">坐标</text>
+                      <text class="tl-coord-value">{{ coordOf(seg.id) }}</text>
+                    </view>
+                  </AppCard>
+                </view>
+              </view>
+            </view>
+
+            <!-- ── 地图占位说明 ── -->
+            <view class="section-head">
+              <text class="section-title">地图</text>
+            </view>
+
+            <AppCard variant="solid" padding="lg" radius="lg">
+              <text class="map-title">坐标已记录，地图能力待接入</text>
+              <text class="map-desc">
+                国内的地图能力需要专门的测绘资质，我们还在走流程。在那之前，你的坐标都好好地存在这里，一处都没丢。
+              </text>
+            </AppCard>
+
+            <!-- 坐标列表：把原始数值亮出来，而不是藏着不给看 -->
+            <view v-for="point in mapPoints" :key="point.id" class="point">
+              <AppCard variant="glass" padding="md" radius="md">
+                <view class="point-head">
+                  <text class="point-place">{{ point.place }}</text>
+                  <view v-if="point.isResident" class="tl-badge">
+                    <text class="tl-badge-text">常驻</text>
+                  </view>
+                </view>
+                <text class="point-coord">{{ coordOfPoint(point.latitude, point.longitude) }}</text>
+                <text v-if="hasNote(point.note)" class="point-note">{{ point.note }}</text>
+              </AppCard>
+            </view>
+
+            <AppEmpty
+              v-if="mapPoints.length == 0"
+              title="还没有能定位的记录"
+              description="给一段旅途填上经纬度，这里就会列出坐标。"
+            />
+
+            <view class="list-foot">
+              <text v-if="loadingMore" class="list-foot-text">正在加载更多</text>
+              <text v-else-if="hasNext" class="list-foot-text" @click="onLoadMore">上拉加载更多</text>
+              <text v-else-if="segments.length > 0" class="list-foot-text">— 到底了 —</text>
+            </view>
+          </template>
+        </template>
+      </view>
+    </scroll-view>
+
+    <AppTabBar current="journey" />
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppCard from '@/components/AppCard.uvue'
+import AppEmpty from '@/components/AppEmpty.uvue'
+import AppLoading from '@/components/AppLoading.uvue'
+import AppTabBar from '@/components/AppTabBar.uvue'
+import { journeysService } from '@/services/journeys.service'
+import { cancelByKey, setAbortScope, clearAbortScope } from '@/core/http/cancel'
+import type { PageResult } from '@/core/http/types'
+import type { Journey, MapPoint, TimelineSegment } from '@/services/types'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 与 pages.json 的 path 一致 */
+const PAGE_KEY: string = 'pages/journey/index'
+
+const PAGE_SIZE: number = 20
+
+/** 页面是否已卸载：拦住晚到的回调，避免写已销毁的页面 */
+let disposed = false
+
+const segments = ref<TimelineSegment[]>([])
+const mapPoints = ref<MapPoint[]>([])
+const extraJourneys = ref<Journey[]>([])
+
+const firstLoading = ref<boolean>(true)
+const refreshing = ref<boolean>(false)
+const loadingMore = ref<boolean>(false)
+const errorText = ref<string>('')
+
+const page = ref<number>(1)
+const hasNext = ref<boolean>(false)
+/** 下拉刷新时的在途请求计数 */
+const pending = ref<number>(0)
+
+// ────────────────────────────────────────────────────────────
+// 取值
+// ────────────────────────────────────────────────────────────
+
+const residentCount = computed<number>(() => {
+  let n = 0
+  for (const seg of segments.value) {
+    if (seg.isResident) n += 1
+  }
+  return n
+})
+
+/** 去过的地点数：常驻 + 非常驻，同一地点只算一次 */
+const visitedCount = computed<number>(() => {
+  const names = new Set<string>()
+  for (const seg of segments.value) {
+    names.add(seg.place)
+  }
+  for (const j of extraJourneys.value) {
+    names.add(j.place)
+  }
+  return names.size
+})
+
+// ────────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(PAGE_KEY)
+  loadAll()
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  disposed = true
+  cancelByKey(PAGE_KEY)
+})
+
+// ────────────────────────────────────────────────────────────
+// 数据加载
+// ────────────────────────────────────────────────────────────
+
+function loadAll(): void {
+  if (disposed) return
+  firstLoading.value = true
+  errorText.value = ''
+  pending.value = 2
+
+  loadTimeline()
+  loadMapPoints()
+  loadJourneys(1, true)
+}
+
+/** 下拉刷新：保留内容，只换最新数据 */
+function onRefresh(): void {
+  if (disposed) return
+  refreshing.value = true
+  errorText.value = ''
+  pending.value = 3
+
+  loadTimeline()
+  loadMapPoints()
+  loadJourneys(1, true)
+}
+
+function settleOne(): void {
+  if (disposed) return
+  if (pending.value > 0) pending.value -= 1
+  if (pending.value == 0) refreshing.value = false
+}
+
+function loadTimeline(): void {
+  journeysService
+    .timeline()
+    .then((res: TimelineSegment[]) => {
+      if (disposed) return
+      segments.value = res
+      firstLoading.value = false
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[journey] timeline 失败', e)
+      firstLoading.value = false
+      errorText.value = describe(e)
+      settleOne()
+    })
+}
+
+function loadMapPoints(): void {
+  journeysService
+    .mapPoints()
+    .then((res: MapPoint[]) => {
+      if (disposed) return
+      mapPoints.value = res
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[journey] mapPoints 失败', e)
+      // 坐标是附加信息，取不到不该让整页报错；
+      // 但要留痕，不能静默
+      uni.showToast({ title: describe(e), icon: 'none' })
+      settleOne()
+    })
+}
+
+/** 旅途列表分页：用来去重统计地点数，也保证长列表能翻页 */
+function loadJourneys(targetPage: number, reset: boolean): void {
+  page.value = targetPage
+
+  journeysService
+    .list({ page: targetPage, pageSize: PAGE_SIZE })
+    .then((res: PageResult<Journey>) => {
+      if (disposed) return
+      if (reset) {
+        extraJourneys.value = res.list
+      } else {
+        extraJourneys.value = extraJourneys.value.concat(res.list)
+      }
+      hasNext.value = res.hasNext
+      loadingMore.value = false
+      firstLoading.value = false
+      settleOne()
+    })
+    .catch((e: unknown) => {
+      if (disposed) return
+      console.error('[journey] 列表失败', e)
+      loadingMore.value = false
+      firstLoading.value = false
+      errorText.value = describe(e)
+      settleOne()
+    })
+}
+
+function onLoadMore(): void {
+  if (disposed) return
+  if (loadingMore.value || !hasNext.value) return
+  loadingMore.value = true
+  loadJourneys(page.value + 1, false)
+}
+
+// ────────────────────────────────────────────────────────────
+// 展示辅助
+// ────────────────────────────────────────────────────────────
+
+function hasNote(note: string | null): boolean {
+  return note != null && note.length > 0
+}
+
+/**
+ * 起止日期文案。
+ * 三种形态：常驻（只有起始）、进行中的一段（只有起始）、完整区间。
+ */
+function dateRangeOf(seg: TimelineSegment): string {
+  const from = shortDate(seg.startedAt)
+  const to = shortDate(seg.endedAt)
+
+  if (from == '' && to == '') return '时间未记录'
+  if (to == '') {
+    // 常驻与进行中的段落都归到这里；常驻由上面的徽标区分
+    return from == '' ? '时间未记录' : from + ' 起'
+  }
+  return from + ' — ' + to
+}
+
+/** ISO 或 YYYY-MM-DD → MM-DD；解析不了就原样返回，不吞内容 */
+function shortDate(iso: string | null): string {
+  if (iso == null || iso.length < 10) return ''
+  return iso.substring(5, 10)
+}
+
+/** 分段没有经纬度字段，按 id 去点位表里查 */
+function coordOf(segmentId: string): string {
+  for (const p of mapPoints.value) {
+    if (p.id == segmentId) {
+      return coordOfPoint(p.latitude, p.longitude)
+    }
+  }
+  return ''
+}
+
+/** 经纬度文案；缺一个就明说缺，不编造 */
+function coordOfPoint(lat: number | null, lng: number | null): string {
+  if (lat == null || lng == null) return '未记录坐标'
+  return lat.toFixed(4) + ', ' + lng.toFixed(4)
+}
+
+/** 时间轴本身是全量返回的，暂无更多可加载 */
+function scrollToHint(): void {
+  uni.showToast({ title: '记下地点和时间，我就会算出来', icon: 'none' })
+}
+
+/** 把任意异常转成能展示的中文 */
+function describe(e: unknown): string {
+  if (e == null) return '出了点问题，稍后再试试'
+  const err = e as HttpErrorLike
+  if (err != null && typeof err.message === 'string' && err.message.length > 0) {
+    return err.message
+  }
+  return '出了点问题，稍后再试试'
+}
+
+/** 只取 message，不关心其他字段 */
+type HttpErrorLike = {
+  message: string
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  width: 100%;
+  flex-direction: column;
+  background-color: var(--color-bg);
+}
+
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+.body-inner {
+  flex-direction: column;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-sm;
+  // ★ 让开固定底栏 + Home Indicator
+  padding-bottom: calc(#{t.$tabbar-height} + env(safe-area-inset-bottom));
+}
+
+// ── 顶部 ──────────────────────────────────────────────────
+.hero {
+  flex-direction: column;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-md;
+}
+
+.hero-title {
+  font-size: t.$font-xl;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.hero-sub {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 统计 ──────────────────────────────────────────────────
+.stat-row {
+  flex-direction: row;
+  margin-bottom: t.$space-sm;
+}
+
+.stat {
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  padding-top: t.$space-md;
+  padding-bottom: t.$space-md;
+  border-radius: t.$radius-lg;
+  background-color: var(--color-bg-elevated);
+}
+
+.stat-num {
+  font-size: t.$font-xxl;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+  @include m.tabular-nums;
+}
+
+.stat-label {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-xs;
+  color: var(--color-text-2);
+}
+
+// ── 区块标题 ──────────────────────────────────────────────
+.section-head {
+  flex-direction: column;
+  padding-top: t.$space-lg;
+  padding-bottom: t.$space-sm;
+}
+
+.section-title {
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+// ── 时间轴 ────────────────────────────────────────────────
+.timeline {
+  flex-direction: column;
+}
+
+.tl-row {
+  flex-direction: row;
+}
+
+// 轴线列：固定宽度，让卡片左缘对齐
+.tl-rail {
+  width: t.$space-lg;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tl-dot {
+  width: t.$space-sm;
+  height: t.$space-sm;
+  margin-top: t.$space-md;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-glacier);
+}
+
+// ★ 常驻的节点填实并换成主色：
+//   「现在在这里」和「曾经去过」是两种东西，视觉上必须分得开
+.tl-dot--resident {
+  background-color: var(--color-primary);
+}
+
+.tl-line {
+  flex: 1;
+  width: 1px;
+  margin-top: t.$space-xs;
+  background-color: var(--color-divider);
+}
+
+.tl-card {
+  flex: 1;
+  margin-bottom: t.$space-sm;
+}
+
+.tl-head {
+  flex-direction: row;
+  align-items: center;
+}
+
+.tl-place {
+  flex: 1;
+  font-size: t.$font-lg;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.tl-badge {
+  padding-left: t.$space-sm;
+  padding-right: t.$space-sm;
+  padding-top: t.$space-xxs;
+  padding-bottom: t.$space-xxs;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-primary-soft);
+}
+
+.tl-badge-text {
+  font-size: t.$font-xs;
+  color: var(--color-primary);
+}
+
+.tl-date {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+  @include m.tabular-nums;
+}
+
+.tl-days {
+  margin-top: t.$space-xxs;
+  font-size: t.$font-sm;
+  color: var(--color-text-2);
+  @include m.tabular-nums;
+}
+
+.tl-note {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+.tl-coord {
+  flex-direction: row;
+  align-items: center;
+  margin-top: t.$space-sm;
+}
+
+.tl-coord-label {
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+}
+
+.tl-coord-value {
+  margin-left: t.$space-xs;
+  font-size: t.$font-xs;
+  color: var(--color-text-2);
+  @include m.tabular-nums;
+}
+
+// ── 地图占位说明 ──────────────────────────────────────────
+.map-title {
+  font-size: t.$font-md;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.map-desc {
+  margin-top: t.$space-sm;
+  font-size: t.$font-sm;
+  line-height: t.$line-height-loose;
+  color: var(--color-text-2);
+}
+
+// ── 坐标列表 ──────────────────────────────────────────────
+.point {
+  margin-top: t.$space-sm;
+}
+
+.point-head {
+  flex-direction: row;
+  align-items: center;
+}
+
+.point-place {
+  flex: 1;
+  font-size: t.$font-md;
+  color: var(--color-text-1);
+}
+
+.point-coord {
+  margin-top: t.$space-xs;
+  font-size: t.$font-sm;
+  color: var(--color-primary);
+  @include m.tabular-nums;
+}
+
+.point-note {
+  margin-top: t.$space-xs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+}
+
+// ── 列表底部 ──────────────────────────────────────────────
+.list-foot {
+  @include m.tap-target;
+  align-items: center;
+  justify-content: center;
+  padding-top: t.$space-sm;
+  padding-bottom: t.$space-md;
+}
+
+.list-foot-text {
+  font-size: t.$font-xs;
+  color: var(--color-text-3);
+}
+</style>

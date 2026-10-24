@@ -1,0 +1,22 @@
+{
+    "version" : "1.0",
+    "configurations" : [
+        {
+            "distPathBuild" : "D:/hbuild-build",
+            "distPathDev" : "D:/hbuild-dev",
+            "type" : "uni-app:app-harmony"
+        },
+        {
+            "distPathBuild" : "D:/hbuild-build",
+            "distPathDev" : "D:/hbuild-dev",
+            "playground" : "standard",
+            "type" : "uni-app:app-android"
+        },
+        {
+            "distPathBuild" : "D:/hbuild-build",
+            "distPathDev" : "D:/hbuild-dev",
+            "playground" : "standard",
+            "type" : "uni-app:app-ios"
+        }
+    ]
+}

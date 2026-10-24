@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "app_name",
+      "value": "人生档案"
+    },
+    {
+      "name": "internet_reason",
+      "value": "用于人生档案加载你记录的感受、记忆与身体信号，例如同步记忆图谱、获取旅途列表与身体信号趋势"
+    },
+    {
+      "name": "network_info_reason",
+      "value": "用于判断当前网络是否可用，在无网络时为你显示可重试的离线提示而不是空白页面"
+    },
+    {
+      "name": "download_reason",
+      "value": "用于把你选中的图片保存到本地相册，作为记忆节点或旅途封面的素材"
+    }
+  ]
+}

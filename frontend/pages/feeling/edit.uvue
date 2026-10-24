@@ -1,0 +1,724 @@
+<!--
+  pages/feeling/edit —— 记一次感受
+  ══════════════════════════════════════════════════════════════
+  ★ 这一页是整个产品最核心的交互：情绪粒度细化。
+
+  用户说「难受」，我们不满足于存一个「难受」。
+  选中粗粒度词后立刻调 feelingsService.refine()拿到精粒度候选
+  （憋屈 / 不甘 / 被忽视 / 孤单 / 心酸 …），
+  让用户点得更准。存的是「憋屈」，三个月后回看才有价值。
+
+  为什么 refine 不做防抖也不显示 loading：
+    后端 refine 走本地 RULER 词表，不调大模型（见 feelings.service.ts 注释），
+    响应在 10ms 级。加防抖反而会让「点了没反应」显得更慢。
+    但仍然要有 loading 与错误态——网络层有 15s 超时，不能假设它一定快。
+
+  ★ 表单里所有「可选」字段都留空即可提交，不做必填校验。
+    情绪记录最怕的就是「表单太长记不下来」。
+
+  设计约束：
+    1. 全部颜色/间距/圆角走 var(--xxx) 与 t.$xxx，页面内零字面量。
+    2. 文字全部包在 <text> 里（红线第 1 条）。
+    3. 横向滚动用 scroll-view scroll-x，不能用 flex-wrap 硬换行。
+-->
+<template>
+  <view class="page" :class="themeClass">
+    <AppNavBar title="记一下" :show-back="true" />
+
+    <scroll-view class="body" scroll-y>
+      <view class="content">
+        <!-- ① 情绪选择：横向滚动的胶囊按钮组 -->
+        <view class="field">
+          <text class="field-label">现在的感觉是</text>
+
+          <scroll-view class="pill-scroll" scroll-x :show-scrollbar="false">
+            <view class="pill-row">
+              <view
+                v-for="w in EMOTION_WORDS"
+                :key="w.raw"
+                class="pill"
+                :class="rawLabel == w.raw ? 'pill--on' : ''"
+                @click="onPickRaw(w.raw, w.polarity)"
+              >
+                <text class="pill-text" :class="rawLabel == w.raw ? 'pill-text--on' : ''">{{
+                  w.raw
+                }}</text>
+              </view>
+            </view>
+          </scroll-view>
+        </view>
+
+        <!-- ② ★ 精粒度候选：选了粗粒度词才出现。
+             这是「难受」→「憋屈」的那一步，也是产品真正的差异点 -->
+        <view v-if="rawLabel != ''" class="field">
+          <view class="refine-head">
+            <text class="field-label">更接近哪一种</text>
+            <text class="refine-hint">{{ refineHint }}</text>
+          </view>
+
+          <AppLoading v-if="refineLoading" type="spinner" text="在找更准的说法" />
+
+          <view v-else-if="refineFailed" class="refine-error" @click="loadRefine">
+            <text class="refine-error-text">没找到更细的说法，点我再试一次</text>
+            <text class="refine-error-text">不选也可以直接保存</text>
+          </view>
+
+          <scroll-view v-else class="pill-scroll" scroll-x :show-scrollbar="false">
+            <view class="pill-row">
+              <view
+                v-for="c in candidates"
+                :key="c.refined"
+                class="pill pill--refine"
+                :class="refinedLabel == c.refined ? 'pill--on' : ''"
+                @click="onPickRefined(c.refined)"
+              >
+                <text
+                  class="pill-text"
+                  :class="refinedLabel == c.refined ? 'pill-text--on' : ''"
+                >
+                  {{ c.refined }}
+                </text>
+              </view>
+            </view>
+          </scroll-view>
+
+          <text v-if="!refineLoading && !refineFailed && candidates.length == 0" class="refine-none">
+            这次的词库里没有更细的说法，用「{{ rawLabel }}」就好。
+          </text>
+        </view>
+
+        <!-- ③ 强度 1~10：不用 slider，用 10 个格子。
+             理由：slider 的拖拽在小屏上精度差、鸿蒙上样式不可控；
+             而「1~10」本质是离散选择，点格子比拖滑块更快也更准。 -->
+        <view class="field">
+          <view class="intensity-head">
+            <text class="field-label">有多强</text>
+            <text class="intensity-value">{{ intensity }} / 10</text>
+          </view>
+          <view class="intensity-row">
+            <view
+              v-for="i in INTENSITY_CELLS"
+              :key="i"
+              class="intensity-cell"
+              :class="i <= intensity ? 'intensity-cell--on' : ''"
+              @click="onPickIntensity(i)"
+            >
+              <text class="intensity-cell-text" :class="i <= intensity ? 'intensity-cell-text--on' : ''">{{
+                i
+              }}</text>
+            </view>
+          </view>
+          <view class="intensity-scale">
+            <text class="intensity-scale-text">轻微</text>
+            <text class="intensity-scale-text">很强烈</text>
+          </view>
+        </view>
+
+        <!-- ④ 内容 + 触发事件 -->
+        <view class="field">
+          <AppInput
+            v-model="content"
+            label="想说的话（可以不写）"
+            placeholder="发生了什么？"
+            type="textarea"
+            :maxlength="1000"
+          />
+        </view>
+
+        <view class="field">
+          <AppInput
+            v-model="trigger"
+            label="是什么触发了这个感受（可以不写）"
+            placeholder="比如：工作反复改方案"
+            :maxlength="200"
+          />
+        </view>
+
+        <!-- ⑤ 时间：默认现在，可以改成更早。
+             补记过去是这个产品的重要用法（「昨天那会儿很难受」）。 -->
+        <view class="field">
+          <text class="field-label">什么时候</text>
+
+          <view class="time-row">
+            <picker mode="date" :value="datePart" @change="onPickDate">
+              <view class="time-box">
+                <text class="time-text">{{ datePart }}</text>
+              </view>
+            </picker>
+
+            <picker mode="time" :value="timePart" @change="onPickTime">
+              <view class="time-box">
+                <text class="time-text">{{ timePart }}</text>
+              </view>
+            </picker>
+
+            <view class="time-now" @click="onResetToNow">
+              <text class="time-now-text">回到现在</text>
+            </view>
+          </view>
+
+          <text v-if="!isNow" class="time-note">补记：这一刻发生在 {{ happenedAtText }}</text>
+        </view>
+
+        <view class="submit-wrap">
+          <AppButton
+            variant="primary"
+            size="lg"
+            block
+            :loading="submitting"
+            :disabled="!canSubmit"
+            :text="submitText"
+            @click="onSubmit"
+          />
+          <text v-if="!canSubmit" class="submit-reminder">先选一个情绪词吧</text>
+        </view>
+
+        <view class="tail-gap" />
+      </view>
+    </scroll-view>
+  </view>
+</template>
+
+<script lang="uts" setup>
+import { ref, computed } from 'vue'
+import { useAppStore } from '@/stores/app'
+import AppNavBar from '@/components/AppNavBar.uvue'
+import AppInput from '@/components/AppInput.uvue'
+import AppButton from '@/components/AppButton.uvue'
+import AppLoading from '@/components/AppLoading.uvue'
+import { feelingsService } from '@/services'
+import type { EmotionWord, Polarity } from '@/services'
+import { messageOfError, messageOf, CODE } from '@/core/http/error-code'
+import { cancelByKey, setAbortScope, clearAbortScope, RaceGuard } from '@/core/http/cancel'
+import { fullTime, nowIso } from '@/core/utils/datetime'
+
+const themeClass = computed<string>(() => useAppStore().isDark ? 'theme-dark' : 'theme-light')
+
+/** ★ 取消键：与 onUnload 的 cancelByKey 成对 */
+const ABORT_KEY = 'pages/feeling/edit'
+
+/**
+ * 粗粒度情绪词表。
+ * ★ 顺序是刻意的：先难后好，先强后弱。
+ *   把「难受」放在第一个，是因为如果用户点进来就为了倾诉，
+ *   他最可能想找的就是这个词。
+ *   顺序乱了会让「最需要的那几个」沉到横向滚动条的后面。
+ */
+const EMOTION_WORDS: EmotionWord[] = [
+  { raw: '难受', refined: '', polarity: 'negative' },
+  { raw: '难过', refined: '', polarity: 'negative' },
+  { raw: '生气', refined: '', polarity: 'negative' },
+  { raw: '焦虑', refined: '', polarity: 'negative' },
+  { raw: '委屈', refined: '', polarity: 'negative' },
+  { raw: '孤独', refined: '', polarity: 'negative' },
+  { raw: '累', refined: '', polarity: 'neutral' },
+  { raw: '还行', refined: '', polarity: 'neutral' },
+  { raw: '一般', refined: '', polarity: 'neutral' },
+  { raw: '开心', refined: '', polarity: 'positive' },
+  { raw: '安心', refined: '', polarity: 'positive' },
+  { raw: '感恩', refined: '', polarity: 'positive' },
+  { raw: '有希望', refined: '', polarity: 'positive' },
+]
+
+/** 强度 1~10 */
+const INTENSITY_CELLS: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+
+const rawLabel = ref<string>('')
+const refinedLabel = ref<string>('')
+const polarity = ref<string>('')
+const intensity = ref<number>(5)
+const content = ref<string>('')
+const trigger = ref<string>('')
+const submitting = ref<boolean>(false)
+
+// refine 的三态
+const refineLoading = ref<boolean>(false)
+const refineFailed = ref<boolean>(false)
+const candidates = ref<string[]>([])
+
+/** 时间：拆成 date / time 两段存，picker 才能各自绑定 */
+const datePart = ref<string>('')
+const timePart = ref<string>('')
+
+/**
+ * ★竞态守卫：用户连续点几个情绪词，会连发多个 refine 请求。
+ *   后发的先到时，如果不做守卫，先发的响应会覆盖候选列表，
+ *   出现「我选了『生气』，候选却是『难过』的词」。
+ */
+const refineGuard = new RaceGuard()
+
+// ────────────────────────────────────────────────────────
+// 计算属性
+// ────────────────────────────────────────────────────────
+
+const canSubmit = computed<boolean>(() => {
+  return rawLabel.value.length > 0 && !submitting.value
+})
+
+const submitText = computed<string>(() => {
+  return submitting.value ? '正在记下' : '记下来'
+})
+
+/** refine 的引导文案。刻意写得不像教程，像一句自然的追问 */
+const refineHint = computed<string>(() => {
+  return `「${rawLabel.value}」这个词还可以更具体一点`
+})
+
+/** 组装给后端的 happenedAt：YYYY-MM-DDTHH:mm:ss */
+const happenedAt = computed<string>(() => {
+  return `${datePart.value}T${timePart.value}:00`
+})
+
+const happenedAtText = computed<string>(() => {
+  return fullTime(happenedAt.value)
+})
+
+/** 用户有没有把时间改成「不是现在」 */
+const isNow = computed<boolean>(() => {
+  return happenedAt.value.slice(0, 16) === nowIso().slice(0, 16)
+})
+
+// ────────────────────────────────────────────────────────
+// 生命周期
+// ────────────────────────────────────────────────────────
+
+onLoad(() => {
+  // ★ 设置自动取消域：本页发起的所有请求都会归到该 key 下，
+  //   onUnload 时 cancelByKey 一次性取消，避免回调写到已销毁的页面上
+  setAbortScope(ABORT_KEY)
+  resetToNow()
+})
+
+onUnload(() => {
+  // ★ 先清域再取消：清掉后续请求的自动归属，再按 key 取消在途请求
+  clearAbortScope()
+  // ★ 页面卸载必须取消在途请求（尤其是还在飞的 refine），
+  //   否则响应会打到已销毁的 ref 上
+  const n = cancelByKey(ABORT_KEY)
+  if (n > 0) {
+    console.log(`[feeling/edit] 页面卸载，取消 ${n} 个在途请求`)
+  }
+})
+
+function resetToNow(): void {
+  const n = nowIso()
+  datePart.value = n.slice(0, 10)
+  timePart.value = n.slice(11, 16)
+}
+
+// ────────────────────────────────────────────────────────
+// 情绪选择
+// ────────────────────────────────────────────────────────
+
+function onPickRaw(raw: string, pol: string): void {
+  // 再点同一个词 = 取消选择。用户改主意时不该被逼着「换一个再换回来」
+  if (rawLabel.value === raw) {
+    rawLabel.value = ''
+    refinedLabel.value = ''
+    polarity.value = ''
+    candidates.value = []
+    refineFailed.value = false
+    return
+  }
+
+  rawLabel.value = raw
+  polarity.value = pol
+  // 换词时清掉旧的精炼选择，否则会存下「A 的原话 + B 的精炼词」
+  refinedLabel.value = ''
+  candidates.value = []
+  refineFailed.value = false
+
+  loadRefine()
+}
+
+function onPickRefined(refined: string): void {
+  refinedLabel.value = refinedLabel.value === refined ? '' : refined
+}
+
+function onPickIntensity(v: number): void {
+  intensity.value = v
+}
+
+// ────────────────────────────────────────────────────────
+// refine：情绪粒度细化
+// ────────────────────────────────────────────────────────
+
+async function loadRefine(): Promise<void> {
+  const raw = rawLabel.value
+  if (raw.length === 0) return
+
+  const ticket = refineGuard.next()
+  refineLoading.value = true
+  refineFailed.value = false
+
+  try {
+    // ★ 只在用户明确是负向情绪时才传 polarity。
+    //   后端据此缩小词库范围；正向情绪不传，避免候选里混入中性词。
+    const res = await feelingsService.refine({
+      rawLabel: raw,
+      polarity: asPolarity(polarity.value),
+    })
+    // 竞态检查：已有更新的请求发出，本次结果作废
+    if (!refineGuard.isCurrent(ticket)) {
+      console.log('[feeling/edit] refine 返回时已不是最新一次，丢弃')
+      return
+    }
+    const list: string[] = []
+    for (const c of res.candidates) {
+      if (c.refined.length > 0) list.push(c.refined)
+    }
+    candidates.value = list
+  } catch (e) {
+    // ★ 不吞错误：给可点的重试入口，并明确告诉用户「不选也能存」
+    console.error('[feeling/edit] 情绪粒度细化失败', e)
+    if (refineGuard.isCurrent(ticket)) {
+      refineFailed.value = true
+    }
+  } finally {
+    if (refineGuard.isCurrent(ticket)) {
+      refineLoading.value = false
+    }
+  }
+}
+
+/** 只在三个合法值时才传，避免给后端塞一个它不认的字符串 */
+function asPolarity(p: string): Polarity | undefined {
+  if (p === 'positive') return 'positive'
+  if (p === 'negative') return 'negative'
+  if (p === 'neutral') return 'neutral'
+  return undefined
+}
+
+// ────────────────────────────────────────────────────────
+// 时间选择
+// ────────────────────────────────────────────────────────
+
+function onPickDate(e: UniPickerDateChangeEvent): void {
+  const v = e.detail.value
+  // picker 返回 YYYY-MM-DD；部分端会把picker 置空（用户取消）
+  if (v != null && v.length > 0) {
+    datePart.value = v
+  } else {
+    console.log('[feeling/edit] 用户取消了日期选择，保留原值')
+  }
+}
+
+function onPickTime(e: UniPickerTimeChangeEvent): void {
+  const v = e.detail.value
+  if (v != null && v.length > 0) {
+    timePart.value = v
+  } else {
+    console.log('[feeling/edit] 用户取消了时间选择，保留原值')
+  }
+}
+
+function onResetToNow(): void {
+  resetToNow()
+}
+
+// ────────────────────────────────────────────────────────
+// 提交
+// ────────────────────────────────────────────────────────
+
+async function onSubmit(): Promise<void> {
+  if (submitting.value) return
+  if (rawLabel.value.length === 0) {
+    uni.showToast({ title: '先选一个情绪词', icon: 'none' })
+    return
+  }
+  // 端上先拦一道明显越界的强度，避免白跑一次请求
+  if (intensity.value < 1 || intensity.value > 10) {
+    uni.showToast({ title: messageOf(CODE.FEELING_INTENSITY_INVALID), icon: 'none' })
+    return
+  }
+
+  submitting.value = true
+
+  try {
+    await feelingsService.create({
+      rawLabel: rawLabel.value,
+      refinedLabel: refinedLabel.value.length > 0 ? refinedLabel.value : undefined,
+      intensity: intensity.value,
+      polarity: asPolarity(polarity.value),
+      content: content.value.length > 0 ? content.value : undefined,
+      trigger: trigger.value.length > 0 ? trigger.value : undefined,
+      happenedAt: happenedAt.value,
+    })
+    uni.showToast({ title: '记下了', icon: 'none' })
+    // ★ 返回而不是 redirectTo：用户可能想接着记第二条，
+    //   redirectTo 会把列表页也弹掉，回到更早的页面
+    setTimeout(() => {
+      uni.navigateBack({
+        delta: 1,
+        fail: () => {
+          console.error('[feeling/edit] 保存成功但返回失败')
+          uni.switchTab({
+            url: '/pages/feeling/index',
+            fail: () => {
+              console.error('[feeling/edit] 回退到感受 Tab 也失败')
+            },
+          })
+        },
+      })
+    }, 600)
+  } catch (e) {
+    // ★ 不吞错误：给用户看后端文案（如 10008密码强度类比照的校验失败）
+    console.error('[feeling/edit] 保存失败', e)
+    uni.showToast({ title: messageOfError(e), icon: 'none' })
+  } finally {
+    // 失败也要解锁，否则按钮永远转圈
+    submitting.value = false
+  }
+}
+</script>
+
+<style scoped lang="scss">
+@use '../../styles/tokens.scss' as t;
+@use '../../styles/mixins.scss' as m;
+
+.page {
+  flex: 1;
+  background-color: var(--color-bg);
+}
+
+// ★ 不用 vh 单位
+.body {
+  flex: 1;
+  width: 100%;
+}
+
+.content {
+  width: 100%;
+  @include m.content-constrain;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  padding-top: t.$space-md;
+}
+
+// ── 字段 ─────────────────────────────────────────────────
+.field {
+  flex-direction: column;
+  margin-bottom: t.$space-lg;
+}
+
+.field-label {
+  font-size: t.$font-sm;
+  font-weight: t.$weight-medium;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-2);
+  margin-bottom: t.$space-xs;
+}
+
+// ── 胶囊按钮组（横向滚动）────────────────────────────────
+// ★ 用 scroll-view scroll-x 而不是 flex-wrap：
+//   13 个词换行会把页面拉得很长，横向滚动只占一行
+.pill-scroll {
+  width: 100%;
+  white-space: nowrap;
+}
+
+.pill-row {
+  flex-direction: row;
+  align-items: center;
+  padding-right: t.$space-md;
+}
+
+.pill {
+  // ★ 胶囊本身是最小点击区 88rpx
+  @include m.tap-target;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  border-radius: t.$radius-pill;
+  background-color: var(--color-pill-bg);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-pill-border);
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  margin-right: t.$space-xs;
+}
+
+.pill--on {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+// 精炼候选的胶囊略小一点：视觉上从属，
+// 让用户分得清「我选的是原话」还是「我选的是精炼词」
+.pill--refine {
+  padding-left: t.$space-sm;
+  padding-right: t.$space-sm;
+}
+
+.pill-text {
+  font-size: t.$font-md;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.pill-text--on {
+  font-weight: t.$weight-semibold;
+  color: var(--color-text-on-primary);
+}
+
+// ── 精炼候选区 ───────────────────────────────────────────
+.refine-head {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.refine-hint {
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+  margin-left: t.$space-xs;
+  margin-bottom: t.$space-xs;
+}
+
+.refine-error {
+  @include m.tap-target;
+  padding-top: t.$space-xs;
+  padding-bottom: t.$space-xxs;
+}
+
+.refine-error-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-danger);
+}
+
+.refine-none {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+  margin-top: t.$space-xs;
+}
+
+// ── 强度选择 ─────────────────────────────────────────────
+.intensity-head {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.intensity-value {
+  font-size: t.$font-sm;
+  font-weight: t.$weight-semibold;
+  line-height: t.$line-height-normal;
+  color: var(--color-primary);
+}
+
+.intensity-row {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.intensity-cell {
+  // ★ 高度直接给到 tap-target 的 88rpx 下限：这是唯一一处
+  //   10 个格子还能排进一行的排法（宽度比高度小，高度撑满点击区）。
+  //   如果为了「好看」压到 60rpx，手指会点不准——这是可用性问题不是审美问题。
+  width: t.$space-xl;
+  height: t.$tap-min-size;
+  border-radius: t.$radius-sm;
+  background-color: var(--color-bg-sunken);
+  align-items: center;
+  justify-content: center;
+  margin-right: t.$space-xs;
+  margin-bottom: t.$space-xs;
+}
+
+.intensity-cell--on {
+  background-color: var(--color-glacier);
+}
+
+.intensity-cell-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-2);
+}
+
+.intensity-cell-text--on {
+  font-weight: t.$weight-semibold;
+  color: var(--color-text-on-primary);
+}
+
+.intensity-scale {
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+.intensity-scale-text {
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+// ── 时间选择 ─────────────────────────────────────────────
+.time-row {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.time-box {
+  // ★ picker 的触发区必须够大
+  @include m.tap-target;
+  padding-left: t.$space-md;
+  padding-right: t.$space-md;
+  border-radius: t.$radius-md;
+  background-color: var(--color-bg-elevated);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-divider);
+  margin-right: t.$space-sm;
+}
+
+.time-text {
+  font-size: t.$font-md;
+  line-height: t.$line-height-tight;
+  color: var(--color-text-1);
+}
+
+.time-now {
+  @include m.tap-target;
+  padding-left: t.$space-sm;
+  padding-right: t.$space-sm;
+}
+
+.time-now-text {
+  font-size: t.$font-sm;
+  line-height: t.$line-height-tight;
+  color: var(--color-primary);
+}
+
+.time-note {
+  margin-top: t.$space-xs;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+}
+
+// ── 提交 ─────────────────────────────────────────────────
+.submit-wrap {
+  flex-direction: column;
+  margin-top: t.$space-sm;
+}
+
+.submit-reminder {
+  margin-top: t.$space-sm;
+  font-size: t.$font-xs;
+  line-height: t.$line-height-normal;
+  color: var(--color-text-3);
+  text-align: center;
+}
+
+.tail-gap {
+  // 底部叠加安全区：没有固定底栏，但保存按钮不该被 Home Indicator压住
+  @include m.safe-bottom(t.$space-lg);
+  width: 100%;
+  height: t.$space-lg;
+}
+</style>
