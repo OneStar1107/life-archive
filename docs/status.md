@@ -17,7 +17,7 @@
 | H5 双主题全量巡检（34 项） | ✅ 全过（检测器经 mutant 26/26 反向验证） |
 | 前端单元测试 | ✅ jest 105 条全过 |
 | 文档体系（AGENTS/PRD/TODO/工程约定） | ✅ 建成 |
-| 开源门面（README 双语 + 脱敏） | ✅ 2026-10-25 完成（CH-010） |
+| 开源上线（GitHub `OneStar1107/life-archive`） | ✅ 2026-10-25 完成（CH-010）：双语门面 + 脱敏 + MIT + 单 commit 干净历史 |
 | Android 真机链路（签名 / 联调前置 / runbook） | ✅ 配置与文档就绪（CH-006） |
 | **Android 真机主流程验证** | ⛔ **未做**——等装机验证，见 CH-009 |
 | **三端商店上架** | ⛔ **未做**——需软著 / ICP / APP 备案，见 TODO T-03 |
@@ -32,7 +32,7 @@
 
 ## 下一步
 
-1. **GitHub 上传收尾**（CH-010）：选许可证 → 建库 `life-archive` → push（进行中，等用户定许可证与认证方式）
+1. **补传 CI 文件**（CH-010 遗留）：`.github/workflows/ci.yml` 因本机网络拦截 `workflows` 路径未能上传。在能直连 github.com 的网络（或挂梯子）下执行 `git push --force origin main` 一步补上——本地 main 已含该文件
 2. **Android 真机验证主流程**（PRD `CH-009`）：装云打包 apk → 登录 → 列表刷数据 → 断网横幅；通过后回填 `test-matrix.md` 并还原联调临时改动
 3. **评估「遗忘仪式」落地**（TODO `N-01`）：原型已验证，要做先移 PRD 建条目等确认
 4. 补齐营业执照主体全称（TODO `T-03` 的前置）
