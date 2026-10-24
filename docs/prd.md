@@ -89,6 +89,14 @@
 - **状态**：🟡 待确认（等用户装机验证结果；联调临时改动还原也依赖这一步）
 - **落点**：待定（预计只动 test-matrix.md + 还原两处临时改动）
 
+### CH-010 项目开源：GitHub 仓库上线（life-archive）
+
+- **问题**：项目要作为开源项目公开（库名 `life-archive`，账号 OneStar1107），需要门面、脱敏、清理三件事一起做
+- **规则**：① 公开仓库零个人信息（无真实邮箱 / 无内网 IP / 无真实口令）；② git 历史里残留的敏感信息不带入公开仓库——用当前已脱敏代码做**单次初始提交**（开发叙事已由本文件变更记录承载）；③ 根目录门面干净（个人笔记与违规脚本移位）；④ MIT 许可证；⑤ 提交态不含联调临时改动（cleartext / DEV_BASE_URL）
+- **状态**：✅ 已实现（2026-10-25）
+- **落点**：`README.md`（双语门面重写）、`docs/status.md`（滚动状态拆出，README 从此只做门面）、`LICENSE`（MIT）、`docs/project/灵感tips.txt`（原根目录，产品创意集对访客有价值）、`scripts/qa-v67-capsule.mjs`（原根目录 `qa-v67-capsule.js`，路径参数化）、`docs/project/占位符取值表.md`（删 DCloud 账号邮箱）、`docs/release/android-device-runbook.md` + `test-matrix.md`（局域网 IP → 占位符）、`.gitignore`（`_tmp_*`，清掉 5 个 Prisma 残留）；远端 `OneStar1107/life-archive` 单 commit `51a91a8`
+- **遗留**：`.github/workflows/ci.yml` 未能上传——本机代理只放行 `api.github.com`，`github.com` 被墙，且网络层对 `workflows` 路径整体拦截（Git Data API 与 Contents API 均 404，已用 probe 文件二分定位）。本地 main 已含该文件，**在可直连 github.com 的网络下执行 `git push --force origin main` 一步补上**
+
 ---
 
 ## 二、变更记录
@@ -105,3 +113,4 @@
 | CH-006 | 2026-10-05 | `348fece` `6dfa408` | Android 链路三件套（runbook / 签名 / 前置） | README ✅ / TODO — |
 | CH-007 | 2026-10-05 | `343f66e` | 图标代码生成 + appid 登记 | README ✅ / TODO — |
 | CH-008 | 2026-10-05 | `04e1640` | uts 回调类型改官方类型名 | README ✅ / TODO — |
+| CH-010 | 2026-10-25 | 远端 `51a91a8` | 开源上线：双语门面 + 脱敏 + 清理 + MIT | README ✅ / TODO — |
