@@ -2290,7 +2290,9 @@
   position: absolute;
   left: 0;
   right: 0;
-  top: calc(50% + 34px);
+  /* v102：提示挪到输入框上方（原来浮在框下，压住下面的内容） */
+  top: auto;
+  bottom: calc(100% + 7px);
   text-align: center;
   font-size: 11.5px;
   color: var(--ink-3);
@@ -2300,6 +2302,8 @@
   letter-spacing: 0em;}
 
 .vn-hint[data-on] { opacity: calc(1 - var(--pull, 0)); }
+/* 提示浮在内容上方，给一点晕让压在文字上也读得清 */
+.vn-hint { text-shadow: 0 1px 3px var(--frame-bg), 0 0 8px var(--frame-bg); }
 
 .vn-hint[data-armed] { opacity: 1; color: var(--red, #e5484d); }
 
