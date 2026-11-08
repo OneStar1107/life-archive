@@ -106,7 +106,7 @@ pnpm install && pnpm prisma migrate deploy && pnpm seed && pnpm start:dev
 ```text
 .
 ├── index.html                        # 在线落地页（GitHub Pages 入口）
-├── 人生档案-产品概念原型.html          # 原型本体（单文件，双击即跑）
+├── prototype/index.html              # 原型本体（单文件，零依赖，Pages 可直接打开）
 ├── docs/
 │   ├── screenshots/                  # README 截图
 │   ├── prd.md / todo.md / status.md  # 人 + AI 协作文档体系
