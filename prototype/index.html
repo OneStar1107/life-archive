@@ -2090,10 +2090,11 @@
     font-size:12.5px;color:var(--text-dim);line-height:1.95;
   }
   .chat-empty b{display:block;font-size:13.5px;color:var(--text);font-weight:600;margin-bottom:6px;}
-  /* v98：语音位换成发送键（保留蓝底）；右侧那个收起来，避免两个发送键并存
-     聚焦时页面发送键仍在，手机输入法的「发送」键（enterkeyhint=send）也能直接发 */
-  .chat-send.chat-lead{flex-shrink:0;}
-  .chat-send.chat-tail{display:none;}
+  /* v99：右侧按钮双态——没有文本时是语音键，有文本时变成发送键（蓝底不变） */
+  .chat-send{flex-shrink:0;}
+  .chat-send[data-mode="voice"]{background:var(--glass-bg-2);color:var(--text-dim);border:1px solid var(--glass-border);}
+  .chat-send[data-mode="voice"]:hover{color:var(--blue);border-color:var(--blue-line);}
+  .chat-send[data-mode="send"]{color:#fff;}
 
   .empty-hint{
     padding:18px 14px;border-radius:var(--r-card-sm);border:1px dashed var(--line);
@@ -2411,11 +2412,10 @@
 
       <div class="chat-tip" id="chatTip" data-page-node-id="pQfkq11SjvINSs4wKmy1u8"></div>
       <div class="chat-input" data-page-node-id="ao47MGXSRyjw0CcytEUILY">
-        <button type="button" class="chat-send chat-lead" onclick="sendChat()" aria-label="发送" data-page-node-id="bx5rScF4GbGMhchPHAS8ut">↑</button>
         <button type="button" class="chat-tool" aria-label="图片" onclick="featureTip(this,'图片')" data-page-node-id="fEwofQRDVKx9Xsk7PwLbzA"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="F7pSmxlK9GfcHD1E9ndjDc"><rect x="3" y="4" width="18" height="16" rx="3" data-page-node-id="WIlvcgWo8UTCJWfp8pElHt"></rect><circle cx="9" cy="9.5" r="1.5" data-page-node-id="HOKEDkOoWNuVlIwWAtrGqe"></circle><path d="M4.5 17.5l4.5-4.5 3.5 3.5 3-3 4 4" data-page-node-id="99w6r0pWEldxGpgAEtF4MR"></path></svg></button>
         <button type="button" class="chat-tool" aria-label="文件" onclick="featureTip(this,'文件')" data-page-node-id="7wnHKyNQsyqSJ40GYO99zx"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="5XzNXBJ5nQaXcbJec29OPW"><path d="M8.5 11.5l6.2-6.2a3.4 3.4 0 0 1 4.8 4.8l-7.8 7.8a5 5 0 0 1-7.1-7.1l7.5-7.5" data-page-node-id="a5DPyOjWi5LaBi8jpufxsH"></path></svg></button>
         <input id="chatText" class="chat-text" type="text" placeholder="跟内心的你说点什么…" autocomplete="off" enterkeyhint="send" onkeydown="chatKey(event)" data-page-node-id="Kauv0KfdDrHBMlmtxjtAw9">
-        <button type="button" class="chat-send chat-tail" onclick="sendChat()" aria-label="发送" data-page-node-id="aJpjOIsb5OcyuBRh8JcqEB">↑</button>
+        <button type="button" class="chat-send" id="chatAction" data-mode="voice" aria-label="语音" onclick="chatActionTap()" data-page-node-id="aJpjOIsb5OcyuBRh8JcqEB"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11.5" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"></path><path d="M12 18v3.5"></path></svg></button>
       </div>
 
     </section>
@@ -7214,6 +7214,54 @@
     if(document.readyState === 'loading'){
       document.addEventListener('DOMContentLoaded', render);
     } else { setTimeout(render, 0); }
+  })();
+
+  /* ==========================================================================
+     v99 · 输入区右侧按钮双态
+     - 输入框没有文字 → 语音键（点了提示功能待接入）
+     - 输入框有文字 → 发送键（蓝底，点了发出去）
+     手机输入法的「发送」键（enterkeyhint=send）同样能发。
+     ========================================================================== */
+  (function(){
+    var VOICE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11.5" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"></path><path d="M12 18v3.5"></path></svg>';
+    function input(){ return document.getElementById('chatText'); }
+    function btn(){ return document.getElementById('chatAction'); }
+    function sync(){
+      var i = input(), b = btn();
+      if(!i || !b) return;
+      var has = !!i.value.trim();
+      var mode = has ? 'send' : 'voice';
+      if(b.getAttribute('data-mode') === mode) return;
+      b.setAttribute('data-mode', mode);
+      b.setAttribute('aria-label', has ? '发送' : '语音');
+      b.innerHTML = has ? '↑' : VOICE;
+    }
+    var _origSend = null;
+    function wrapSend(){
+      if(_origSend || typeof window.sendChat !== 'function') return;
+      _origSend = window.sendChat;
+      window.sendChat = function(){
+        var r = _origSend.apply(this, arguments);
+        setTimeout(sync, 0);
+        return r;
+      };
+    }
+    window.chatActionTap = function(){
+      var b = btn();
+      var mode = b ? b.getAttribute('data-mode') : 'voice';
+      if(mode === 'send'){ if(typeof sendChat === 'function') sendChat(); }
+      else if(b && typeof featureTip === 'function'){ featureTip(b, '语音'); }
+    };
+    function bind(){
+      var i = input();
+      if(!i) return;
+      i.addEventListener('input', sync);
+      i.addEventListener('compositionend', sync);
+      sync();
+    }
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', function(){ wrapSend(); bind(); });
+    } else { setTimeout(function(){ wrapSend(); bind(); }, 0); }
   })();
 
 </script>
