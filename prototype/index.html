@@ -2083,6 +2083,20 @@
   }
   .annual-box textarea:focus{border-color:var(--blue-line);box-shadow:0 0 0 3px var(--blue-soft);}
   .annual-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:6px;}
+  /* v97 · 聊天空状态 + 下拉向上展开 */
+  .chat-empty{
+    margin:16px 2px;padding:20px 16px;border-radius:var(--r-card-lg);
+    border:1px dashed var(--line);text-align:center;
+    font-size:12.5px;color:var(--text-dim);line-height:1.95;
+  }
+  .chat-empty b{display:block;font-size:13.5px;color:var(--text);font-weight:600;margin-bottom:6px;}
+  .empty-hint{
+    padding:18px 14px;border-radius:var(--r-card-sm);border:1px dashed var(--line);
+    text-align:center;font-size:12px;color:var(--text-dim);line-height:1.9;
+  }
+  .empty-hint b{display:block;font-size:13px;color:var(--text);font-weight:600;margin-bottom:5px;}
+
+  .brain-menu.up{border-radius:18px;}
   .grat-last{margin-top:7px;font-size:11.5px;color:var(--text-dim);}
   .grat-last b{color:var(--sage);font-weight:600;}
   /* ==========================================================================
@@ -2388,11 +2402,6 @@
 
       <div class="chat-log" id="chatLog" data-page-node-id="byGSYn8A4vr2HoX9GQnOGp">
         <div class="chat-day" data-page-node-id="oAlZsfYVY57Z6AhwKdTFi9">今天</div>
-        <div class="msg me" data-page-node-id="0IEasKO1lgmrEKxM3uZjBK">今天过得怎么样？</div>
-        <div class="msg user" data-page-node-id="HFTWATvJl0qV5vw9bDBP8s">有点累。</div>
-        <div class="msg me" data-page-node-id="pnqVtVYFWmVshsRQl5Bhh7">累了就歇一歇。想跟我说说，是为什么累吗？</div>
-        <div class="msg user" data-page-node-id="86rKiaEGEBFGd9Hh976pFE">工作反复改方案。</div>
-        <div class="msg me" data-page-node-id="Z6cP2IXlyzTMZk5PyL3veg">你已经很努力了。要陪你理一理，还是就安静待会儿？</div>
       </div>
 
       <div class="chat-tip" id="chatTip" data-page-node-id="pQfkq11SjvINSs4wKmy1u8"></div>
@@ -2510,21 +2519,6 @@
         <div class="section-title" data-page-node-id="o2fGz08tJKEEojZquDd9wq">待办 · 时间与你</div>
         <div class="card" style="padding:14px;" data-page-node-id="gtxMCMxiDXXG0NI9luW0k7">
           <div id="todoList" data-page-node-id="H897IXZHGns8kncEj8lvjK">
-            <div class="todo" id="todo1" data-page-node-id="KpNcaJSQWC7BtfmOGdwbK0">
-              <span class="ico" data-page-node-id="WBl70NCCKlFnngLFwu4XWT">📞</span>
-              <div class="t" data-page-node-id="AJ9TH6AEUCNcivhCnffzz1"><div class="nm" data-page-node-id="ZKtkLxo9o2l01XJh0Pvyes">给妈妈打电话</div><div class="st" data-page-node-id="foqkRat5Dnj1UglEpJXWg2">挂了很久了 · 不是逾期，只是还挂在那儿</div></div>
-              <button class="put" onclick="archive(1)" data-page-node-id="OF1nAdBxCnkTjCWUf1m2GV">收起来</button>
-            </div>
-            <div class="todo" id="todo2" data-page-node-id="d4VNPGVEMFjwoTCEYcBqF6">
-              <span class="ico" data-page-node-id="iyxyNcPm3UbciFY7VwS7QG">🩺</span>
-              <div class="t" data-page-node-id="oGN1XK7Z3P7eY1VBO4HmSt"><div class="nm" data-page-node-id="4cpxXQtDu4cPP5wO9l7085">体检</div><div class="st" data-page-node-id="RlqNQ1eBmlhHRPUxEeGPlb">你上个月自己提过</div></div>
-              <button class="put" onclick="archive(2)" data-page-node-id="Pbvw0F8rDPh6GG8iGLUbJy">收起来</button>
-            </div>
-            <div class="todo" id="todo3" data-page-node-id="9ggVHxvAnIOLYafHFwtqAd">
-              <span class="ico" data-page-node-id="3FwmesjiDnlMUPdmg80W5f">🎁</span>
-              <div class="t" data-page-node-id="DfjNZ3DTzLLbr0uDtdmKIc"><div class="nm" data-page-node-id="5WwCA2zGrwFbJWcwco7rcp">老周的生日</div><div class="st" data-page-node-id="LhEWFK7ePI5JVU41vZrUfP">还有 9 天 · 来自日历</div></div>
-              <button class="put" onclick="archive(3)" data-page-node-id="GtMXN0IDDn9fvj9uzxVcGH">收起来</button>
-            </div>
           </div>
           <div class="note" style="margin-top:12px;" data-page-node-id="xRWlibEYUEwRHHMbRPsS7S">
             收起来 ≠ 删除，是放进「以后再说」。我不催你，只是替你记着。
@@ -3650,6 +3644,8 @@
   }
 
   function appendMsg(who, text){
+    var _empty = document.querySelector('.chat-log .chat-empty');
+    if(_empty){ _empty.parentNode.removeChild(_empty); }
     var m = document.createElement('div');
     m.className = 'msg ' + who;
     m.appendChild(document.createTextNode(text));
@@ -5554,7 +5550,16 @@
     function renderChat(){
       var log = document.getElementById('chatLog');
       if(!log) return;
-      if(!store.messages.length){ seedFromDom(log); return; }
+      /* v97：不再从静态 DOM 播种——没有记录就是没有记录，显示空状态 */
+      if(!store.messages.length){
+        var olds = log.querySelectorAll('.msg, .chat-day, .chat-empty');
+        for(var oi=0;oi<olds.length;oi++){ olds[oi].parentNode.removeChild(olds[oi]); }
+        var empty = document.createElement('div');
+        empty.className = 'chat-empty';
+        empty.innerHTML = '<b>这里还没有话</b>你的第一句，可以只是「今天有点累」。<br>说出口的，我都会记下来。';
+        log.appendChild(empty);
+        return;
+      }
       var old = log.querySelectorAll('.msg, .chat-day');
       for(var i=0;i<old.length;i++){ old[i].parentNode.removeChild(old[i]); }
       var last = null;
@@ -5976,10 +5981,20 @@
       var frame = document.querySelector('.frame');
       if(!frame || !btn) return;
       if(menu.parentNode !== frame){ frame.appendChild(menu); }
+      /* v97：下方放不下就向上展开（原来只向下，贴底时出屏） */
+      menu.classList.add('show');
       var br = btn.getBoundingClientRect(), fr = frame.getBoundingClientRect();
+      var mh = menu.offsetHeight || 220;
       menu.style.left = (br.left - fr.left) + 'px';
-      menu.style.top = (br.bottom - fr.top + 8) + 'px';
       menu.style.width = br.width + 'px';
+      var need = Math.max(mh, 300) + 16;
+      if(fr.bottom - br.bottom < need && br.top - fr.top > 120){
+        menu.style.top = Math.max(8, br.top - fr.top - mh - 8) + 'px';
+        menu.classList.add('up');
+      } else {
+        menu.style.top = (br.bottom - fr.top + 8) + 'px';
+        menu.classList.remove('up');
+      }
     }
     function toggleBrainMenu(kind, ev){
       if(ev && ev.stopPropagation) ev.stopPropagation();
@@ -6316,11 +6331,17 @@
     var MOOD_KEY = 'la.mood';
     var GRAT_KEY = 'la.gratitude';
 
+    /* v97：四象限对齐 RULER Mood Meter 的坐标结构（能量 × 愉悦度）
+       red  = 高能量 · 低愉悦（红）：烦躁 / 愤怒 / 被冒犯
+       amber= 高能量 · 高愉悦（黄）：开心 / 期待 / 被认可
+       blue = 低能量 · 低愉悦（蓝）：低落 / 疲惫 / 孤独
+       sage = 低能量 · 高愉悦（绿）：平静 / 踏实 / 释然
+       每象限 36 词（合计 144）；中文词为对照该结构自建，不是耶鲁官方译表 */
     var GRANULAR = {
-      red:['烦躁','憋屈','不甘','被忽视','委屈','恼火','窝火','来气','上头','怨气','被冒犯','被否定','被轻视','不公平','心里堵','气不过','火大','想发火','被误解','愤怒','憋闷','咬牙','忍无可忍','被辜负','心里不平','烦透了','抓狂','暴躁','窝火憋气','窝囊','被针对','受了委屈','想骂人','堵得慌','火气上来了','烦躁不安'],
+      red:['烦躁','憋屈','不甘','被忽视','委屈','恼火','窝火','来气','上头','怨气','被冒犯','被否定','被轻视','不公平','心里堵','气不过','火大','想发火','被误解','愤怒','憋闷','咬牙','忍无可忍','被辜负','心里不平','烦透了','抓狂','暴躁','被针对','受了委屈','想骂人','堵得慌','火气上来了','烦躁不安','被冤枉','恼羞成怒'],
       amber:['开心','兴奋','振奋','期待','得意','满足','欣慰','有盼头','心花怒放','来劲','欣喜','雀跃','鼓舞','被认可','有成就感','舒爽','痛快','畅快','兴奋不已','美滋滋','心里亮堂','开怀','跃跃欲试','被看见','备受鼓舞','兴冲冲','喜出望外','心满意足','精神一振','元气满满','被点亮','来精神','喜上眉梢','热乎','有奔头','雀跃不已'],
-      blue:['低落','疲惫','倦怠','空落','无力','委屈','迷茫','麻木','心累','丧','孤独','被冷落','自责','内疚','懊悔','失望','心酸','想哭','提不起劲','压抑','内耗','破防','脆弱','撑不住','心灰','没意义','意志消沉','身心俱疲','落寞','被抛下','丧气','颓','心凉','疲惫不堪','空落落','无力感'],
-      sage:['平静','安稳','放松','踏实','释然','舒展','坦然','心安','松弛','从容','宁静','安定','知足','被安放','舒心','平和','清凉','安宁','笃定','松快','熨帖','云淡风轻','恬静','舒坦','沉静','稳当','安心','静谧','松弛感','放心','坦然自若','平和安宁','安详','心平气和','淡然','熨帖踏实']
+      blue:['低落','疲惫','倦怠','空落','无力','迷茫','麻木','心累','丧','孤独','被冷落','自责','内疚','懊悔','失望','心酸','想哭','提不起劲','压抑','内耗','破防','脆弱','撑不住','心灰','没意义','意志消沉','身心俱疲','落寞','被抛下','丧气','颓','心凉','疲惫不堪','空落落','无力感','无望'],
+      sage:['平静','安稳','放松','踏实','释然','舒展','坦然','心安','松弛','从容','宁静','安定','知足','被安放','舒心','平和','清明','安宁','笃定','松快','熨帖','云淡风轻','恬静','舒坦','沉静','稳当','安心','静谧','松弛感','放心','坦然自若','平和安宁','安详','心平气和','淡然','悠然']
     };
 
     function readJSON(k, d){ try{ var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } }
@@ -7119,6 +7140,75 @@
     if(document.readyState === 'loading'){
       document.addEventListener('DOMContentLoaded', boot);
     } else { setTimeout(boot, 0); }
+  })();
+
+  /* ==========================================================================
+     v97 · 待办真渲染：la.todos 是唯一数据源
+     - 没有记录就没有条目，显示空状态
+     - 「收起来」从数据里移除（原先是删 DOM）
+     ========================================================================== */
+  (function(){
+    var KEY = 'la.todos';
+    function read(){ try{ return JSON.parse(localStorage.getItem(KEY) || '[]'); }catch(e){ return []; } }
+    function write(v){ try{ localStorage.setItem(KEY, JSON.stringify(v)); }catch(e){} }
+    function uid(){ return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); }
+    function el(tag, cls, txt){
+      var n = document.createElement(tag);
+      if(cls) n.className = cls;
+      if(txt != null) n.textContent = txt;
+      return n;
+    }
+    function render(){
+      var box = document.getElementById('todoList');
+      if(!box) return;
+      var list = read();
+      box.innerHTML = '';
+      if(!list.length){
+        var empty = el('div', 'empty-hint');
+        empty.innerHTML = '<b>还没有待办</b>你随口说一句「明天要开会」，我就会记下。';
+        box.appendChild(empty);
+        return;
+      }
+      list.forEach(function(t, i){
+        var item = el('div', 'todo');
+        item.setAttribute('data-id', t.id);
+        item.style.animation = 'fade .3s ease';
+        item.appendChild(el('span', 'ico', t.ico || '🗓️'));
+        var wrap = el('div', 't');
+        wrap.appendChild(el('div', 'nm', t.nm || ''));
+        wrap.appendChild(el('div', 'st', t.st || '你刚告诉我的'));
+        item.appendChild(wrap);
+        var put = el('button', 'put', '收起来');
+        put.type = 'button';
+        put.addEventListener('click', function(){ remove(t.id); });
+        item.appendChild(put);
+        box.appendChild(item);
+      });
+    }
+    function add(text, opts){
+      if(!text) return;
+      var list = read();
+      list.push({
+        id: uid(),
+        ico: (opts && opts.ico) || '🗓️',
+        nm: String(text),
+        st: (opts && opts.st) || '你刚告诉我的',
+        at: Date.now()
+      });
+      write(list);
+      render();
+    }
+    function remove(id){
+      write(read().filter(function(t){ return t.id !== id; }));
+      render();
+    }
+    window.Todos = { add: add, remove: remove, render: render, all: read };
+    /* 覆写原实现：sendChat 里调用的 addTodo 现在写入数据层 */
+    window.addTodo = function(text, opts){ add(text, opts); };
+    window.archive = function(id){ remove(id); };
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', render);
+    } else { setTimeout(render, 0); }
   })();
 
 </script>

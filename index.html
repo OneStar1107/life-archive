@@ -3,35 +3,83 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>人生档案 LifeArchive · 情绪记录全栈应用</title>
+<title>人生档案 · LifeArchive</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", sans-serif; background: linear-gradient(225deg, #050A12 0%, #0A1420 100%); color: #F2F7FC; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
-  .card { max-width: 540px; width: 100%; text-align: center; }
-  .tag { display: inline-block; font-size: 12px; color: #8FC8F8; border: 1px solid rgba(90,169,240,.35); border-radius: 999px; padding: 4px 14px; margin-bottom: 20px; }
-  h1 { font-size: 26px; font-weight: 500; letter-spacing: .5px; }
-  .sub { color: #B9C9D9; font-size: 14px; line-height: 1.9; margin: 14px 0 10px; }
-  .stack { color: #7A8CA0; font-size: 12.5px; line-height: 2.0; margin-bottom: 30px; }
-  .stack b { color: #B9C9D9; font-weight: 500; }
-  .btn { display: inline-block; background: #2A6FDB; color: #fff; text-decoration: none; font-size: 15px; padding: 13px 38px; border-radius: 999px; }
-  .btn:hover { background: #3E8FE0; }
-  .links { margin-top: 22px; font-size: 13px; }
-  .links a { color: #8FC8F8; text-decoration: none; margin: 0 10px; }
-  .foot { margin-top: 38px; color: #5C6B7A; font-size: 12px; line-height: 1.9; }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",sans-serif;
+    background:
+      radial-gradient(1100px 520px at 50% -10%, rgba(120,180,240,.22), transparent 62%),
+      radial-gradient(900px 480px at 50% 112%, rgba(110,170,235,.16), transparent 62%),
+      #EAF2FB;
+    color:#22303F;min-height:100%;
+    display:flex;align-items:center;justify-content:center;padding:40px 22px;
+  }
+  .wrap{width:100%;max-width:760px;text-align:center;}
+  .tag{
+    display:inline-block;font-size:11.5px;letter-spacing:1.5px;color:#4A6C93;
+    background:rgba(255,255,255,.6);border:1px solid rgba(90,140,200,.24);
+    border-radius:999px;padding:5px 14px;margin-bottom:20px;
+    -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+  }
+  h1{font-size:30px;font-weight:700;letter-spacing:.5px;line-height:1.35;}
+  .sub{font-size:14px;line-height:1.95;color:#4C5F75;margin:14px auto 0;max-width:520px;}
+  .shots{display:flex;gap:14px;justify-content:center;margin:30px 0 28px;flex-wrap:wrap;}
+  .shots img{
+    width:150px;border-radius:22px;
+    box-shadow:0 24px 48px -22px rgba(20,50,90,.42), 0 0 0 1px rgba(255,255,255,.7);
+    background:#fff;
+  }
+  .acts{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+  .btn{
+    display:inline-block;text-decoration:none;font-size:15px;
+    padding:13px 34px;border-radius:999px;transition:.2s;
+  }
+  .btn.primary{
+    color:#fff;background:linear-gradient(135deg,#3E8BE8,#2A6FDB);
+    box-shadow:0 14px 30px -12px rgba(42,111,219,.6);
+  }
+  .btn.primary:hover{transform:translateY(-1px);box-shadow:0 18px 34px -12px rgba(42,111,219,.7);}
+  .btn.ghost{
+    color:#3F5570;background:rgba(255,255,255,.66);
+    border:1px solid rgba(120,160,210,.34);
+  }
+  .btn.ghost:hover{background:#fff;}
+  .meta{margin-top:30px;font-size:12px;color:#7A8FA8;line-height:2;}
+  .meta a{color:#4A7BB5;text-decoration:none;}
+  .meta a:hover{text-decoration:underline;}
+  @media (max-width:560px){
+    h1{font-size:24px;}
+    .shots img{width:104px;}
+    .shots{gap:10px;}
+  }
 </style>
 </head>
 <body>
-  <div class="card">
-    <div class="tag">全栈应用 · 前端 / 后端 / 数据库</div>
+  <div class="wrap">
+    <span class="tag">情绪与记忆档案 · 单文件原型</span>
     <h1>人生档案 · LifeArchive</h1>
-    <p class="sub">记录感受、记忆与身体信号，长出一份只属于你的人生档案图谱。<br>「你有权被遗忘」——记录不是囤积，放下也是功能。</p>
-    <p class="stack"><b>uni-app x</b> 三端（iOS / Android / HarmonyOS）· <b>NestJS 10</b> + <b>PostgreSQL 16</b> + Prisma · JWT 双令牌轮换 · 本地情绪词典 · 隐私优先 onboarding</p>
-    <a class="btn" href="prototype/">进入交互原型</a>
-    <div class="links">
-      <a href="https://github.com/OneStar1107/life-archive">GitHub 仓库</a>
-      <a href="https://github.com/OneStar1107/life-archive#readme">技术文档</a>
+    <p class="sub">
+      竞品做记录，我们做档案——随时间生长、能被重新理解的东西。<br>
+      说一句「今天有点累」，它会记住；三个月后，它会问你「现在呢」。
+    </p>
+
+    <div class="shots">
+      <img src="docs/screenshots/01-home.png" alt="今天" />
+      <img src="docs/screenshots/02-chat.png" alt="说出你的情绪" />
+      <img src="docs/screenshots/04-mindmap.png" alt="记忆图谱" />
     </div>
-    <p class="foot">黄鑫浚 · 独立开发 · 2025.11 – 至今<br>原型为单文件零依赖页面，双击即开、离线可用</p>
+
+    <div class="acts">
+      <a class="btn primary" href="prototype/">进入交互原型</a>
+      <a class="btn ghost" href="https://github.com/OneStar1107/life-archive#readme">看看怎么做的</a>
+    </div>
+
+    <div class="meta">
+      零依赖 · 零网络请求 · 数据只存在你自己的浏览器里 · <a href="https://github.com/OneStar1107/life-archive">MIT</a><br>
+      工程版：uni-app x 三端 + NestJS 10 + PostgreSQL 16
+    </div>
   </div>
 </body>
 </html>
