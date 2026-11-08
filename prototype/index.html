@@ -1299,6 +1299,7 @@
   }
   /* 路途 · 输入区：悬浮玻璃胶囊条（三个功能圆钮 + 输入框 + 圆形发送钮） */
   .chat-input{
+    position:relative;
     flex-shrink:0;display:flex;align-items:center;gap:6px;
     padding:6px;border-radius:var(--r-card);
     background:var(--glass-bg);
@@ -2103,6 +2104,238 @@
   .empty-hint b{display:block;font-size:13px;color:var(--text);font-weight:600;margin-bottom:5px;}
 
   .brain-menu.up{border-radius:18px;}
+/* ══ Voice note ═══════════════════════════════════════════
+   Ported from Bencho's VoiceNote component (MIT — bencho.dev/licence).
+   The behaviour, numbers and comments are kept; the delivery is not
+   React + lucide-react, because this prototype is one HTML file with
+   no build step and no dependencies. Same idea, plain DOM, and the
+   Bencho design tokens are mapped onto this project's own tokens
+   instead of defining new globals:
+
+     --card      -> var(--glass-bg)
+     --fill-on   -> var(--text)
+     --fill-slab -> var(--glass-bg-2)
+     --font-ui   -> inherited (project body font)
+     --ink       -> var(--text)
+     --ink-3     -> var(--text-faint)
+     --pane-edge -> var(--glass-border)
+     --signal    -> var(--blue)
+
+   Nothing ending -rgb is used by this component, so no bare-number
+   triples are needed. */
+
+/* a fixed frame, so opening the pill never rescales the block */
+.vn-frame {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 8px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  z-index: 6;
+}
+.vn-frame[data-on] { pointer-events: auto; }
+
+.vn {
+  --red: #e5484d;
+  --card: var(--glass-bg);
+  --fill-on: var(--text);
+  --fill-slab: var(--glass-bg-2);
+  --ink: var(--text);
+  --ink-3: var(--text-faint);
+  --pane-edge: var(--glass-border);
+  --signal: var(--blue);
+  position: relative;
+  width: var(--w);
+  height: 46px;
+  border-radius: var(--r);
+  overflow: hidden;
+  background: var(--fill-slab, var(--card));
+  color: var(--fill-on, var(--ink));
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  border: 1px solid var(--pane-edge);
+  box-shadow: inset 0 1px 0 var(--glass-hi), 0 10px 24px -14px rgba(20,50,90,.45);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  /* y1 past 1 is the overshoot; Bounce sets it */
+  transition:
+    width 420ms cubic-bezier(0.3, var(--ov), 0.4, 1),
+    scale 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  letter-spacing: -0.01em;}
+
+.vn[data-phase="clip"] { cursor: default; }
+
+.vn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--fill-slab), 0 0 0 4px var(--signal);}
+
+.vn-in {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  animation: vn-in 240ms ease 80ms both;}
+
+.vn-idle { justify-content: center; gap: 10px; }
+
+.vn-rec { gap: 10px; padding: 0 18px; }
+
+.vn-clip { gap: 10px; padding: 0 10px 0 6px; }
+
+.vn-time {
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  font-size: 12px;
+  opacity: 0.6;}
+
+.vn-rec .vn-time { opacity: 1; }
+
+.vn-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--red);
+  animation: vn-blink 1s ease-in-out infinite;}
+
+.vn-wave {
+  flex: 1;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* the wave goes quiet as you drag toward throwing it away */
+  opacity: calc(1 - var(--pull) * 0.7);}
+
+.vn-bar {
+  width: 3px;
+  flex: none;
+  height: calc(3px + var(--l) * 24px);
+  border-radius: 2px;
+  background: currentColor;
+  transition: height 160ms linear;}
+
+/* each new sample grows in from the middle */
+.vn-rec .vn-bar { animation: vn-grow 200ms cubic-bezier(0.3, 1.5, 0.4, 1) both; }
+
+/* the playhead: a bar is lit once progress has passed it */
+.vn-scrub { cursor: ew-resize; }
+
+.vn-scrub .vn-bar {
+  transition: none;
+  opacity: clamp(0.3, calc((var(--prog) * var(--n) - var(--i)) * 99), 1);}
+
+/* thrown away: the bars fold to nothing before the pill closes */
+.vn[data-phase="cancel"] .vn-in { animation: none; }
+
+.vn[data-phase="cancel"] .vn-bar {
+  scale: 1 0;
+  opacity: 0;
+  transition: scale 220ms ease, opacity 220ms ease;}
+
+.vn[data-phase="cancel"] .vn-dot,
+.vn[data-phase="cancel"] .vn-time,
+.vn[data-phase="cancel"] button { opacity: 0; transition: opacity 160ms ease; }
+
+.vn-play, .vn-x {
+  display: grid;
+  place-items: center;
+  flex: none;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: scale 160ms cubic-bezier(0.22, 1, 0.36, 1), color 160ms ease;}
+
+.vn-play {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--inner);
+  background: linear-gradient(150deg, var(--c-glacier-light), var(--c-accent));
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(42,111,219,.32);}
+
+.vn-x {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: none;
+  color: var(--ink-3);}
+
+.vn-x:hover { color: var(--ink); }
+
+.vn-play:active, .vn-x:active { scale: 0.96; }
+
+.vn-play:focus-visible, .vn-x:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;}
+
+.vn-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(50% + 34px);
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+  letter-spacing: 0em;}
+
+.vn-hint[data-on] { opacity: calc(1 - var(--pull, 0)); }
+
+.vn-hint[data-armed] { opacity: 1; color: var(--red, #e5484d); }
+
+/* the row fades as it slides, so the cancel mark has the left
+   end of the pill to itself when it arrives */
+.vn-rec { opacity: 1; animation: none; }
+
+/* the dot and the clock are gone before the mark lands on them */
+.vn-rec .vn-dot, .vn-rec .vn-time { opacity: 1; }
+
+.vn-cancel {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 26px;
+  height: 26px;
+  margin-top: -13px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #e5484d;
+  color: #fff;
+  opacity: 0;
+  scale: 0.4;
+  pointer-events: none;
+  transition: opacity 160ms ease, scale 160ms ease;}
+
+.vn-cancel[data-on] {
+  opacity: 1;
+  scale: 1;
+  transition: opacity 160ms ease, scale 420ms cubic-bezier(0.24, 1.34, 0.38, 1);}
+
+.vn[data-phase="cancel"] .vn-cancel { opacity: 0; scale: 0.6; transition: opacity 220ms ease, scale 220ms ease; }
+
+@keyframes vn-in { from { opacity: 0; } to { opacity: 1; } }
+
+@keyframes vn-blink { 50% { opacity: 0.25; } }
+
+@keyframes vn-grow { from { scale: 1 0.2; } }
+
   .grat-last{margin-top:7px;font-size:11.5px;color:var(--text-dim);}
   .grat-last b{color:var(--sage);font-weight:600;}
   /* ==========================================================================
@@ -7229,7 +7462,7 @@
     function sync(){
       var i = input(), b = btn();
       if(!i || !b) return;
-      var has = !!i.value.trim();
+      var has = !!i.value.trim() || !!(window.VoiceNote && window.VoiceNote.hasClip());
       var mode = has ? 'send' : 'voice';
       if(b.getAttribute('data-mode') === mode) return;
       b.setAttribute('data-mode', mode);
@@ -7246,10 +7479,16 @@
         return r;
       };
     }
+    window.chatActionSync = sync;
     window.chatActionTap = function(){
       var b = btn();
       var mode = b ? b.getAttribute('data-mode') : 'voice';
-      if(mode === 'send'){ if(typeof sendChat === 'function') sendChat(); }
+      if(mode === 'send'){
+        if(window.VoiceNote && window.VoiceNote.hasClip()){ window.VoiceNote.send(); return; }
+        if(typeof sendChat === 'function') sendChat();
+        return;
+      }
+      if(window.VoiceNote){ window.VoiceNote.open(); }
       else if(b && typeof featureTip === 'function'){ featureTip(b, '语音'); }
     };
     function bind(){
@@ -7262,6 +7501,317 @@
     if(document.readyState === 'loading'){
       document.addEventListener('DOMContentLoaded', function(){ wrapSend(); bind(); });
     } else { setTimeout(function(){ wrapSend(); bind(); }, 0); }
+  })();
+
+  /* ==========================================================================
+     v100 · VoiceNote（移植自 Bencho 的 VoiceNote 组件，MIT — bencho.dev/licence）
+     原版是 React + lucide-react；这个原型没有构建、没有依赖，所以同一套
+     行为、数值与注释用原生 DOM 重写了一遍。
+
+     Hold to record. The pill opens into a bar and the level rises in it as
+     bars, newest on the right. Let go and the recording becomes a clip: press
+     play and the bars light up as the playhead passes them, drag across them
+     to scrub. Slide left while holding and it is thrown away.
+
+     A CONCEPT, NOT A RECORDER — nothing listens. The level is a stand-in
+     shaped like speech: syllables inside phrases, with pauses.
+     ========================================================================== */
+  (function(){
+    var H = 46, IDLE_W = 168, OPEN_W = 268, SAMPLE = 70, CANCEL = 90, MIN_MS = 500, MAX_MS = 30000;
+    var N = 26;
+    var clamp = function(v,a,b){ return Math.min(b, Math.max(a, v)); };
+    /* speech, roughly: syllables inside phrases, and gaps between */
+    function standIn(t){
+      var syll = Math.abs(Math.sin(t * 6.1) * Math.sin(t * 1.9 + 0.7));
+      var phrase = Math.sin(t * 0.9 + 0.4) > -0.55 ? 1 : 0.1;
+      return Math.min(1, 0.06 + syll * phrase * (0.5 + Math.random() * 0.5));
+    }
+    function resample(src, n){
+      if(!src.length) return new Array(n).fill(0);
+      var out = [];
+      for(var i=0;i<n;i++){
+        var a = Math.floor(i*src.length/n);
+        var b = Math.max(a+1, Math.floor((i+1)*src.length/n));
+        var m = 0;
+        for(var k=a;k<b&&k<src.length;k++) m = Math.max(m, src[k]);
+        out.push(m);
+      }
+      return out;
+    }
+    function fmt(ms){
+      var s = Math.floor(ms/1000);
+      return Math.floor(s/60) + ':' + String(s%60).length + '';
+    }
+    function fmt2(ms){
+      var s = Math.floor(ms/1000);
+      return Math.floor(s/60) + ':' + (s%60 < 10 ? '0' : '') + (s%60);
+    }
+    var PLAY = [[7,4,13,7.6,13,16.4,7,20],[13,7.6,19,12,19,12,13,16.4]];
+    var PAUSE = [[7,5,10.5,5,10.5,19,7,19],[13.5,5,17,5,17,19,13.5,19]];
+    function playMarkPath(t){
+      return PLAY.map(function(q,k){
+        var p = q.map(function(v,i){ return (v + (PAUSE[k][i]-v)*t).toFixed(2); });
+        return 'M'+p[0]+' '+p[1]+'L'+p[2]+' '+p[3]+'L'+p[4]+' '+p[5]+'L'+p[6]+' '+p[7]+'Z';
+      }).join('');
+    }
+    function micSvg(){
+      return '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="8.5" y="2" width="7" height="12.5" rx="3.5" fill="currentColor" stroke="none"></rect><path d="M5 11.5a7 7 0 0 0 14 0"></path><path d="M12 18.5V22"></path></svg>';
+    }
+    function xSvg(size){
+      return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>';
+    }
+
+    var phase = 'idle', levels = [], ms = 0, clip = null, playing = false, pull = 0;
+    var raw = [], t0 = 0, timer = 0, later = 0, x0 = 0, prog = 0, praf = 0, scrub = false;
+    var el = {}, progEl = {}, timeEl = {}, waveEl = {}, frame = null;
+
+    function build(){
+      if(frame) return frame;
+      frame = document.createElement('div');
+      frame.className = 'vn-frame';
+      frame.id = 'vnFrame';
+      frame.innerHTML = '<div class="vn" id="vn" data-phase="idle" role="button" tabindex="0" aria-label="Hold to record a voice note"><span class="vn-in vn-idle">'+micSvg()+'按住说话</span></div><span class="vn-hint" aria-hidden="true">‹ 左滑取消</span>';
+      var host = document.querySelector('.chat-compose') || document.querySelector('.chat-input');
+      if(host) host.appendChild(frame);
+      el = frame.querySelector('.vn');
+      return frame;
+    }
+    function go(p){ phase = p; if(el) el.setAttribute('data-phase', p); render(); }
+    function render(){
+      if(!el) return;
+      el.style.setProperty('--w', (phase === 'idle' ? IDLE_W : OPEN_W) + 'px');
+      el.style.setProperty('--r', '23px');
+      el.style.setProperty('--inner', '17px');
+      el.style.setProperty('--ov', '1.28');
+      el.style.setProperty('--pull', pull.toFixed(3));
+      var hint = frame.querySelector('.vn-hint');
+      hint.style.setProperty('--pull', pull.toFixed(3));
+      hint.toggleAttribute('data-on', phase === 'rec');
+      hint.toggleAttribute('data-armed', phase === 'rec' && pull >= 1);
+      hint.textContent = (phase === 'rec' && pull >= 1) ? '松手取消' : '‹ 左滑取消';
+      el.innerHTML = '';
+      if(phase === 'idle'){
+        var idle = document.createElement('span');
+        idle.className = 'vn-in vn-idle';
+        idle.innerHTML = micSvg() + '按住说话';
+        el.appendChild(idle);
+        return;
+      }
+      if(phase === 'rec' || (phase === 'cancel' && !clip)){
+        /* 增量更新：每 70ms 重建整条会让 vn-in 动画反复重启（80ms 延迟），
+           录音时条永远停在 opacity 0。所以只在第一次构建，之后只改数值。 */
+        var live = el.querySelector('.vn-rec');
+        if(live && phase === 'rec'){
+          var lt = live.querySelector('.vn-time');
+          if(lt) lt.textContent = fmt2(ms);
+          var lw = live.querySelector('.vn-wave');
+          if(lw){
+            var start0 = raw.length - levels.length;
+            for(var jj=0;jj<N;jj++){
+              var kk = levels.length - N + jj;
+              var bb = lw.children[jj];
+              if(bb) bb.style.setProperty('--l', clamp((kk >= 0 ? levels[kk] : 0), 0, 1).toFixed(3));
+            }
+          }
+          live.style.translate = (-pull * CANCEL * 0.5) + 'px 0';
+          live.style.opacity = (1 - pull * 0.55).toFixed(3);
+          var ldt = live.querySelectorAll('.vn-dot, .vn-time');
+          for(var li=0;li<ldt.length;li++){ ldt[li].style.opacity = Math.max(0, 1 - pull * 1.6).toFixed(3); }
+          var lc = el.querySelector('.vn-cancel');
+          if(lc){
+            if(pull >= 1) lc.setAttribute('data-on',''); else lc.removeAttribute('data-on');
+          }
+          return;
+        }
+        var rec = document.createElement('span');
+        rec.className = 'vn-in vn-rec';
+        rec.style.translate = (-pull * CANCEL * 0.5) + 'px 0';
+        var dot = document.createElement('span'); dot.className = 'vn-dot';
+        var tm = document.createElement('span'); tm.className = 'vn-time'; tm.textContent = fmt2(ms);
+        var wave = document.createElement('span'); wave.className = 'vn-wave';
+        wave.style.setProperty('--n', N);
+        rec.appendChild(dot); rec.appendChild(tm); rec.appendChild(wave);
+        el.appendChild(rec);
+        var start = raw.length - levels.length;
+        for(var j=0;j<N;j++){
+          var k = levels.length - N + j;
+          var b = document.createElement('i');
+          b.className = 'vn-bar';
+          var v = k >= 0 ? levels[k] : 0;
+          b.style.setProperty('--l', clamp(v * (0.4 + 0.6), 0, 1).toFixed(3));
+          b.style.setProperty('--i', j);
+          wave.appendChild(b);
+        }
+        rec.style.opacity = (1 - pull * 0.55).toFixed(3);
+        var dt = rec.querySelectorAll('.vn-dot, .vn-time');
+        for(var di=0;di<dt.length;di++){ dt[di].style.opacity = Math.max(0, 1 - pull * 1.6).toFixed(3); }
+        var cancel = document.createElement('span');
+        cancel.className = 'vn-cancel';
+        if(pull >= 1) cancel.setAttribute('data-on','');
+        cancel.setAttribute('aria-hidden','true');
+        cancel.innerHTML = xSvg(16);
+        el.appendChild(cancel);
+        return;
+      }
+      if(phase === 'clip' || phase === 'cancel'){
+        var row = document.createElement('span');
+        row.className = 'vn-in vn-clip';
+        var play = document.createElement('button');
+        play.type = 'button'; play.className = 'vn-play';
+        play.setAttribute('aria-label', playing ? '暂停' : '播放');
+        play.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="'+playMarkPath(playing?1:0)+'" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg>';
+        play.addEventListener('click', toggle);
+        var w2 = document.createElement('span');
+        w2.className = 'vn-wave vn-scrub';
+        w2.style.setProperty('--n', N);
+        w2.style.setProperty('--prog', prog.toFixed(4));
+        w2.addEventListener('pointerdown', function(e){
+          try{ w2.setPointerCapture(e.pointerId); }catch(err){}
+          scrub = true; seek(e.clientX, w2);
+        });
+        w2.addEventListener('pointermove', function(e){ if(scrub) seek(e.clientX, w2); });
+        w2.addEventListener('pointerup', function(){ scrub = false; });
+        w2.addEventListener('pointercancel', function(){ scrub = false; });
+        resample(clip ? clip.raw : [], N).forEach(function(v,i){
+          var b = document.createElement('i');
+          b.className = 'vn-bar';
+          b.style.setProperty('--l', clamp(v, 0, 1).toFixed(3));
+          b.style.setProperty('--i', i);
+          w2.appendChild(b);
+        });
+        var tm2 = document.createElement('span'); tm2.className = 'vn-time';
+        tm2.textContent = fmt2(clip && prog > 0 && prog < 1 ? prog * clip.ms : (clip ? clip.ms : 0));
+        var x = document.createElement('button');
+        x.type = 'button'; x.className = 'vn-x'; x.setAttribute('aria-label','丢弃');
+        x.innerHTML = xSvg(16);
+        x.addEventListener('click', discard);
+        row.appendChild(play); row.appendChild(w2); row.appendChild(tm2); row.appendChild(x);
+        el.appendChild(row);
+      }
+    }
+    function paintProg(){
+      if(!waveEl || !waveEl.style) return;
+      var w = el.querySelector('.vn-scrub');
+      if(w) w.style.setProperty('--prog', prog.toFixed(4));
+      var t = el.querySelector('.vn-time');
+      if(t && clip) t.textContent = fmt2(prog > 0 && prog < 1 ? prog * clip.ms : clip.ms);
+    }
+    function stopPlay(){ cancelAnimationFrame(praf); praf = 0; playing = false; }
+    function close(){
+      go('cancel');
+      clearTimeout(later);
+      later = setTimeout(function(){ clip = null; pull = 0; go('idle'); if(frame) frame.removeAttribute('data-on'); }, 360);
+    }
+    function end(cancelIt){
+      if(phase !== 'rec') return;
+      clearInterval(timer);
+      var took = performance.now() - t0;
+      var keep = !cancelIt && took >= MIN_MS;
+      if(!keep){ close(); return; }
+      prog = 0;
+      clip = { raw: raw.slice(), ms: took };
+      pull = 0;
+      go('clip');
+    }
+    function begin(){
+      if(phase !== 'idle') return;
+      raw = []; levels = []; ms = 0; pull = 0; t0 = performance.now();
+      go('rec');
+      clearInterval(timer);
+      timer = setInterval(function(){
+        var took = performance.now() - t0;
+        raw.push(standIn(took/1000));
+        levels = raw.slice(-64);
+        ms = took;
+        render();
+        if(took >= MAX_MS) end(false);
+      }, SAMPLE);
+    }
+    function toggle(){
+      if(!clip) return;
+      if(praf){ stopPlay(); render(); return; }
+      if(prog >= 1) prog = 0;
+      playing = true; render();
+      var prev = performance.now();
+      (function step(ts){
+        if(!scrub) prog = Math.min(1, prog + (ts - prev) / clip.ms);
+        prev = ts;
+        paintProg();
+        if(prog >= 1){ stopPlay(); render(); return; }
+        praf = requestAnimationFrame(step);
+      })(prev);
+    }
+    function seek(clientX, w){
+      if(!clip) return;
+      var b = w.getBoundingClientRect();
+      prog = clamp((clientX - b.left) / b.width, 0, 1);
+      paintProg();
+    }
+    function discard(){ stopPlay(); close(); }
+
+    function onDown(e){
+      if(phase !== 'idle') return;
+      try{ el.setPointerCapture(e.pointerId); }catch(err){}
+      x0 = e.clientX;
+      frame.setAttribute('data-on','');
+      begin();
+    }
+    function onMove(e){
+      if(phase !== 'rec') return;
+      pull = clamp((x0 - e.clientX) / CANCEL, 0, 1);
+      render();
+    }
+    function onUp(e){
+      try{ el.releasePointerCapture(e.pointerId); }catch(err){}
+      end(pull >= 1);
+    }
+    function bind(){
+      var b = build();
+      if(!b) return;
+      el.addEventListener('pointerdown', onDown);
+      el.addEventListener('pointermove', onMove);
+      el.addEventListener('pointerup', onUp);
+      el.addEventListener('pointercancel', function(){ end(false); });
+      el.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+      el.addEventListener('keydown', function(e){
+        if((e.key === ' ' || e.key === 'Enter') && !e.repeat && phase === 'idle'){
+          e.preventDefault(); frame.setAttribute('data-on',''); begin();
+        } else if(e.key === 'Escape' && phase === 'rec'){ end(true); }
+      });
+      el.addEventListener('keyup', function(e){
+        if((e.key === ' ' || e.key === 'Enter') && phase === 'rec'){ e.preventDefault(); end(false); }
+      });
+      el.addEventListener('blur', function(){ if(phase === 'rec') end(false); });
+    }
+    function notify(){
+      if(typeof window.chatActionSync === 'function') window.chatActionSync();
+    }
+    function sendToChat(){
+      if(!clip) return;
+      var text = '🎤 语音 ' + fmt2(clip.ms);
+      if(typeof window.appendMsg === 'function'){ window.appendMsg('user', text); }
+      else if(typeof appendMsg === 'function'){ appendMsg('user', text); }
+      if(typeof window.sendChat === 'function' && window.__vnOnSend){ /* 由外部决定 */ }
+      clip = null; prog = 0; stopPlay();
+      go('idle');
+      if(frame) frame.removeAttribute('data-on');
+      notify();
+    }
+    window.VoiceNote = {
+      begin: begin, end: end,
+      open: function(){ build(); frame.setAttribute('data-on',''); render(); },
+      close: close,
+      send: sendToChat,
+      hasClip: function(){ return !!clip; },
+      clipMs: function(){ return clip ? clip.ms : 0; },
+      isRecording: function(){ return phase === 'rec'; },
+      phase: function(){ return phase; }
+    };
+    /* clip 出现/消失时通知输入区按钮换态 */
+    var _go = go;
+    go = function(p){ _go(p); notify(); };
+    if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', bind); }
+    else { setTimeout(bind, 0); }
   })();
 
 </script>
