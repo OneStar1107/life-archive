@@ -2024,6 +2024,65 @@
   }
   .grat-save:hover{color:var(--sage);background:var(--sage-soft);border-color:var(--sage-line);}
   .grat-save:active{transform:scale(.96);}
+
+  /* ==========================================================================
+     v93 · 导师人格 / 周复盘信 / 信念矛盾 / 沉默记录 / 年度报告
+     ========================================================================== */
+  .persona-row{display:flex;gap:8px;margin:10px 0 8px;flex-wrap:wrap;}
+  .persona-opt{
+    flex:1 1 0;min-width:84px;font-family:inherit;font-size:12.5px;
+    padding:10px 6px;border-radius:var(--r-card-sm);cursor:pointer;
+    color:var(--text-dim);background:var(--glass-bg-2);
+    border:1px solid var(--glass-border);transition:.18s;text-align:center;
+  }
+  .persona-opt:hover{color:var(--text);border-color:var(--blue-line);}
+  .persona-opt.on{
+    color:var(--blue);background:var(--blue-soft);border-color:var(--blue-line);
+    box-shadow:0 2px 10px -4px rgba(42,111,219,.45);
+  }
+  .persona-desc{font-size:12px;color:var(--text-faint);line-height:1.7;min-height:20px;}
+  /* 周复盘信 / 年度报告 / 沉默记录：都用同一套「档案卡」外壳 */
+  .archive-card{
+    margin:8px 0 12px;padding:15px 16px;
+    border-radius:var(--r-card-lg);
+    background:var(--glass-bg);border:1px solid var(--glass-border);
+    box-shadow:inset 0 1px 0 var(--glass-hi), var(--shadow);
+    -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+    animation:fade .45s ease;
+  }
+  .archive-card .ac-head{font-size:12px;letter-spacing:.6px;color:var(--sage);font-weight:700;margin-bottom:8px;}
+  .archive-card .ac-body{font-size:13.5px;line-height:1.8;color:var(--text);}
+  .archive-card .ac-foot{margin-top:10px;padding-top:9px;border-top:1px dashed var(--sage-line);
+    font-size:11.5px;color:var(--text-faint);}
+  .archive-card.silence{background:transparent;border-style:dashed;box-shadow:none;}
+  .archive-card.silence .ac-body{color:var(--text-dim);font-size:12.5px;}
+  /* 年度报告 / 时间胶囊弹层 */
+  .annual-mask{
+    position:absolute;inset:0;z-index:80;display:none;
+    align-items:center;justify-content:center;padding:24px;
+    background:rgba(6,16,30,.42);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  }
+  .annual-mask.show{display:flex;}
+  .annual-box{
+    width:100%;max-width:360px;max-height:78%;
+    overflow-y:auto;padding:22px 20px;border-radius:var(--r-card-lg);
+    background:var(--frame-bg);border:1px solid var(--glass-border);
+    box-shadow:0 30px 70px -24px rgba(6,22,44,.6);
+  }
+  .annual-box h3{font-size:16px;margin-bottom:4px;}
+  .annual-box .ab-sub{font-size:11.5px;color:var(--text-faint);margin-bottom:14px;}
+  .annual-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px;}
+  .annual-row:last-of-type{border-bottom:none;}
+  .annual-row span{color:var(--text-dim);}
+  .annual-row b{color:var(--text);font-weight:600;}
+  .annual-box textarea{
+    width:100%;min-height:110px;margin:10px 0;padding:11px 12px;border-radius:14px;
+    font-family:inherit;font-size:13px;line-height:1.7;
+    color:var(--text);background:var(--glass-bg-2);
+    border:1px solid var(--glass-border);outline:none;resize:vertical;
+  }
+  .annual-box textarea:focus{border-color:var(--blue-line);box-shadow:0 0 0 3px var(--blue-soft);}
+  .annual-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:6px;}
   .grat-last{margin-top:7px;font-size:11.5px;color:var(--text-dim);}
   .grat-last b{color:var(--sage);font-weight:600;}
   /* ==========================================================================
@@ -2827,6 +2886,17 @@
         </div>
       </div>
 
+      <div class="section-title">导师人格</div>
+      <div class="card">
+        <div class="brain-desc">复盘信由谁来写。只影响复盘这类生成内容，对话永远走本机规则。</div>
+        <div class="persona-row">
+          <button type="button" class="persona-opt" data-p="stoic">斯多葛</button>
+          <button type="button" class="persona-opt" data-p="coach">温柔教练</button>
+          <button type="button" class="persona-opt" data-p="sharp">犀利诤友</button>
+        </div>
+        <div class="persona-desc" id="personaDesc"></div>
+      </div>
+
       <div class="section-title">AI 模型（可选）</div>
       <div class="card">
         <div class="brain-desc">填你自己模型的接口，只用来写复盘这类「生成型」内容。不填就用本地模板；对话永远走本机规则，不会传给任何模型。</div>
@@ -2847,6 +2917,15 @@
         </div>
         <div class="brain-out" id="brainOut"></div>
         <div class="note" style="margin-top:10px;">服务商靠 Key 前缀和接口地址判断（同一个 sk- 前缀多家通用，猜不准时手动选）；余额只有 DeepSeek / Moonshot 提供查询接口，其余只统计本地调用次数。</div>
+      </div>
+
+      <div class="section-title">档案</div>
+      <div class="card">
+        <div class="brain-desc">年度回顾与时间胶囊，都只存在你自己这里。</div>
+        <div class="brain-acts">
+          <button type="button" class="brain-btn" onclick="openAnnualReport()">年度报告</button>
+          <button type="button" class="brain-btn ghost" onclick="openTimeCapsule()">写给一年后的自己</button>
+        </div>
       </div>
 
       <div id="pg7" data-page-node-id="hYct5u2etnO0ZmwcxcGxyL">
@@ -5999,14 +6078,17 @@
       }
       var top = null;
       for(k in counts){ if(counts.hasOwnProperty(k) && (!top || counts[k] > counts[top])) top = k; }
-      var parts = ['这一周你跟我说了 ' + user.length + ' 句话。'];
+      var P = window.Persona ? window.Persona.get() : 'coach';
+      var OPEN = { stoic:'这一周，你已经在处理你能处理的部分了。', coach:'这一周辛苦了，先让我把你说过的话接住。', sharp:'这一周，有些话你自己心里清楚，只是没说出口。' };
+      var CLOSE = { stoic:'剩下那些不归你管的，先放下。', coach:'不用一下子变好，往前走半步就够。', sharp:'我不是来哄你的，我是站在你这边的。' };
+      var parts = [OPEN[P] || OPEN.coach, '这一周你跟我说了 ' + user.length + ' 句话。'];
       if(top) parts.push('「' + top + '」出现得最多，我记下了。');
       var emo = (typeof emotionLog !== 'undefined') ? emotionLog.slice(-7) : [];
       if(emo.length){
         var b = emo[emo.length-1].bucket;
         parts.push('情绪大多落在「' + (BUCKET_NAME[b] || b) + '」。');
       }
-      parts.push('慢慢来，我都在。');
+      parts.push(CLOSE[P] || CLOSE.coach);
       return parts.join('');
     }
     function brainGenerate(ruleFn){
@@ -6022,7 +6104,7 @@
           model: cfg.model,
           temperature: 0.6,
           messages: [
-            { role: 'system', content: '你是「人生档案」的写作者。语气克制、温暖、不说教，不列条目、不加标题。只输出 120 字以内的中文。' },
+            { role: 'system', content: '你是「人生档案」的写作者。' + (window.Persona ? window.Persona.hint() + ' ' : '') + '语气克制、温暖、不说教，不列条目、不加标题。只输出 120 字以内的中文。' },
             { role: 'user', content: brainPrompt() }
           ]
         }),
@@ -6504,6 +6586,7 @@
     };
   })();
 
+
   /* ==========================================================================
      v88 · 双时间戳 + 跨节点洞察
      - Timeline：每个图谱节点记下「第一次见到」与「最近一次」，叶子上挂时长标签，
@@ -6706,6 +6789,336 @@
     }
     /* 低频巡检：情绪记录 / 新消息之后 30s 内会重新评估（有 3 天频控兜底） */
     setInterval(crossCheck, 30000);
+  })();
+
+  /* ==========================================================================
+     v93 · 导师人格 / 周复盘信 / 信念矛盾 / 沉默记录 / 年度报告 + 时间胶囊
+     - Persona：复盘信由「斯多葛 / 温柔教练 / 犀利诤友」三选一来写（只影响复盘）
+     - Weekly：周日 20:00 后第一次打开，把本周 5~10 条记录合成一段回望
+     - Belief：从消息里抽「喜欢 / 讨厌 × 对象」，同一对象前后冲突时请你确认
+     - Silence：连续 5 天没打开，不催不推，只在档案里记一行
+     - Annual：年度报告（Wrapped 式统计）+ 写给一年后的自己（到点解锁）
+     ========================================================================== */
+  (function(){
+    var NS = 'la.';
+    var PERSONA_KEY = 'la.persona';
+    var WEEKLY_KEY = 'la.weekly';
+    var BELIEF_KEY = 'la.beliefs';
+    var SILENCE_KEY = 'la.silence';
+    var CAPSULE_KEY = 'la.capsule';
+
+    function readJSON(k, d){ try{ var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } }
+    function writeJSON(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+    function readStore(k){
+      try{
+        var o = JSON.parse(localStorage.getItem(NS + k));
+        if(!o) return null;
+        return (o && typeof o === 'object' && o.data !== undefined) ? o.data : o;
+      }catch(e){ return null; }
+    }
+    function msgs(){ return readStore('messages') || []; }
+    function emotions(){ return readStore('emotions') || []; }
+    function el(tag, cls, txt){
+      var n = document.createElement(tag);
+      if(cls) n.className = cls;
+      if(txt != null) n.textContent = txt;
+      return n;
+    }
+    function chatLog(){ return document.querySelector('.chat-log'); }
+    function dayKey(d){
+      d = d || new Date();
+      return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate();
+    }
+    function weekKey(d){
+      d = d || new Date();
+      var t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      var day = (t.getDay() + 6) % 7;
+      t.setDate(t.getDate() - day);
+      return t.getFullYear() + '-W' + (t.getMonth() + 1) + '-' + t.getDate();
+    }
+
+    /* ---------------- 7. 导师人格 ---------------- */
+    var PERSONAS = {
+      stoic: {
+        name: '斯多葛',
+        desc: '把注意力放回你能控制的部分，其余交给时间。',
+        hint: '以斯多葛哲学的口吻复盘：区分可控与不可控，克制、不煽情、不说教。',
+        open: '这一周，你已经在处理你能处理的部分了。',
+        close: '剩下那些不归你管的，先放下。'
+      },
+      coach: {
+        name: '温柔教练',
+        desc: '先接住情绪，再轻轻推你一小步。',
+        hint: '以温柔教练的口吻复盘：先共情、再给一个很小的具体建议，语气鼓励。',
+        open: '这一周辛苦了，先让我把你说过的话接住。',
+        close: '不用一下子变好，往前走半步就够。'
+      },
+      sharp: {
+        name: '犀利诤友',
+        desc: '说真话，不顺着你，但站在你这边。',
+        hint: '以犀利但善意的诤友口吻复盘：直接指出自我欺骗，不说漂亮话，结尾给一句硬话。',
+        open: '这一周，有些话你自己心里清楚，只是没说出口。',
+        close: '我不是来哄你的，我是站在你这边的。'
+      }
+    };
+    function persona(){ return readJSON(PERSONA_KEY, 'coach'); }
+    function paintPersona(){
+      var key = persona();
+      var opts = document.querySelectorAll('.persona-opt');
+      for(var i=0;i<opts.length;i++){
+        opts[i].classList.toggle('on', opts[i].getAttribute('data-p') === key);
+      }
+      var d = document.getElementById('personaDesc');
+      if(d && PERSONAS[key]) d.textContent = PERSONAS[key].desc;
+    }
+    function setPersona(key){
+      if(!PERSONAS[key]) return;
+      writeJSON(PERSONA_KEY, key);
+      paintPersona();
+      if(typeof appendMsg === 'function'){
+        appendMsg('me', '好，以后的复盘由「' + PERSONAS[key].name + '」来写。' + PERSONAS[key].desc);
+      }
+    }
+    window.Persona = {
+      get: persona,
+      set: setPersona,
+      hint: function(){ return PERSONAS[persona()].hint; }
+    };
+
+    /* ---------------- 12. 每周复盘信 ---------------- */
+    function weeklyText(){
+      var since = Date.now() - 7 * 86400000;
+      var user = msgs().filter(function(m){ return m.who === 'user' && m.text && m.at >= since; });
+      var p = PERSONAS[persona()];
+      if(user.length < 5) return null;
+      var words = {};
+      user.forEach(function(m){
+        (m.text.match(/[\u4e00-\u9fa5]{2,4}/g) || []).forEach(function(w){
+          if(/今天|我们|自己|什么|这个|那个|还是|可以|现在|觉得|时候/.test(w)) return;
+          words[w] = (words[w] || 0) + 1;
+        });
+      });
+      var top = Object.keys(words).sort(function(a, b){ return words[b] - words[a]; }).slice(0, 2);
+      var recent = user.slice(-3).map(function(m){ return m.text.replace(/\s+/g, ' ').slice(0, 18); });
+      var parts = [p.open];
+      parts.push('这一周你说了 ' + user.length + ' 句话。');
+      if(top.length) parts.push('反复出现的是「' + top.join('」「') + '」。');
+      if(recent.length) parts.push('你提到过：' + recent.join('；') + '。');
+      parts.push(p.close);
+      return parts.join('');
+    }
+    function pushArchiveCard(head, body, foot, extraClass){
+      var log = chatLog();
+      if(!log) return null;
+      var card = el('div', 'archive-card' + (extraClass ? ' ' + extraClass : ''));
+      card.appendChild(el('div', 'ac-head', head));
+      card.appendChild(el('div', 'ac-body', body));
+      if(foot) card.appendChild(el('div', 'ac-foot', foot));
+      log.appendChild(card);
+      log.scrollTop = log.scrollHeight;
+      return card;
+    }
+    function maybeWeekly(){
+      var now = new Date();
+      var isSunday = now.getDay() === 0;
+      if(!isSunday || now.getHours() < 20) return;
+      var mark = readJSON(WEEKLY_KEY, { key: '' });
+      var key = weekKey(now);
+      if(mark.key === key) return;
+      var text = weeklyText();
+      if(!text){ return; }
+      var p = PERSONAS[persona()];
+      pushArchiveCard('✉️ 这一周 · 由「' + p.name + '」写给你', text, '周日晚上，我把它留在你这里。');
+      writeJSON(WEEKLY_KEY, { key: key, at: Date.now() });
+    }
+
+    /* ---------------- 8. 信念置信度 + 矛盾检测 ---------------- */
+    var OBJECTS = ['夜跑', '跑步', '摄影', '咖啡', '手冲', '吉他', '工作', '老板', '加班', '妈妈', '家', '老周', '杭州', '成都', '大理', '出差', '健身', '读书'];
+    var LIKE = /喜欢|爱了|爱上|真香|上头|享受|离不开|沉迷|有意思|好玩/;
+    var DISLIKE = /讨厌|受不了|恶心|烦死|厌倦|不想|再也不|排斥|腻了|没意思/;
+    function extractBeliefs(){
+      var list = msgs().filter(function(m){ return m.who === 'user' && m.text; });
+      var out = [];
+      for(var i=0;i<list.length;i++){
+        var t = list[i].text;
+        var pol = LIKE.test(t) ? 1 : (DISLIKE.test(t) ? -1 : 0);
+        if(!pol) continue;
+        for(var j=0;j<OBJECTS.length;j++){
+          var o = OBJECTS[j];
+          if(t.indexOf(o) >= 0){
+            out.push({ obj: o, pol: pol, at: list[i].at || 0, text: t.slice(0, 40) });
+            break;
+          }
+        }
+      }
+      return out;
+    }
+    function conflictCheck(){
+      var beliefs = readJSON(BELIEF_KEY, null);
+      var now = Date.now();
+      if(beliefs && now - (beliefs.at || 0) < 6 * 3600000) return;
+      var list = extractBeliefs();
+      if(list.length < 2){ writeJSON(BELIEF_KEY, { at: now, items: list }); return; }
+
+      var byObj = {};
+      list.forEach(function(b){ (byObj[b.obj] = byObj[b.obj] || []).push(b); });
+
+      var found = null;
+      for(var k in byObj){
+        var arr = byObj[k].sort(function(a, b){ return a.at - b.at; });
+        var pos = arr.filter(function(x){ return x.pol > 0; });
+        var neg = arr.filter(function(x){ return x.pol < 0; });
+        if(pos.length && neg.length){
+          var first = arr[0], last = arr[arr.length - 1];
+          if(Math.abs(last.at - first.at) >= 7 * 86400000 && first.pol !== last.pol){
+            found = { obj: k, first: first, last: last, ev: arr.length };
+            break;
+          }
+        }
+      }
+      writeJSON(BELIEF_KEY, { at: now, items: list });
+      if(!found) return;
+      if(typeof buildInsight !== 'function') return;
+      var target = document.getElementById('insightList');
+      if(!target) return;
+      var pct = Math.min(95, 50 + found.ev * 8);
+      var text = '你 ' + new Date(found.first.at).getMonth() + ' 月说「' + (found.first.pol > 0 ? '喜欢' : '不喜欢') + found.obj +
+                 '」，这周又说「' + (found.last.pol > 0 ? '喜欢' : '不喜欢') + found.obj + '」。' +
+                 '我没打算替你下结论——变的是你，还是当时说的不算数？（这条判断有 ' + found.ev + ' 条记录支持，把握约 ' + pct + '%）';
+      var item = buildInsight(text, 'belief');
+      target.insertBefore(item, target.firstChild);
+    }
+
+    /* ---------------- 13. 沉默也记录 ---------------- */
+    function silenceCheck(){
+      var rec = readJSON(SILENCE_KEY, null);
+      var now = Date.now();
+      if(!rec){ writeJSON(SILENCE_KEY, { last: now, gaps: [] }); return; }
+      var gapDays = Math.floor((now - (rec.last || now)) / 86400000);
+      writeJSON(SILENCE_KEY, { last: now, gaps: (rec.gaps || []).concat(gapDays >= 5 ? [gapDays] : []) });
+      if(gapDays < 5) return;
+      var mark = readJSON('la.silenceShown', { at: 0 });
+      if(now - (mark.at || 0) < 5 * 86400000) return;
+      pushArchiveCard(
+        '🌙 缺席也记着',
+        '这 ' + gapDays + ' 天你来得少。我不问，也不催——但这段安静，我也记在档案里了。',
+        '像人，不像打卡器。',
+        'silence'
+      );
+      writeJSON('la.silenceShown', { at: now });
+    }
+
+    /* ---------------- 9. 年度报告 + 时间胶囊 ---------------- */
+    function ensureMask(){
+      var m = document.getElementById('annualMask');
+      if(m) return m;
+      m = el('div', 'annual-mask');
+      m.id = 'annualMask';
+      m.addEventListener('click', function(e){ if(e.target === m) m.classList.remove('show'); });
+      var frame = document.querySelector('.frame') || document.body;
+      frame.appendChild(m);
+      return m;
+    }
+    function openBox(html){
+      var m = ensureMask();
+      m.innerHTML = '';
+      var box = el('div', 'annual-box');
+      box.innerHTML = html;
+      m.appendChild(box);
+      m.classList.add('show');
+      return box;
+    }
+    window.closeAnnual = function(){ var m = document.getElementById('annualMask'); if(m) m.classList.remove('show'); };
+
+    function annualReport(){
+      var list = msgs();
+      var year = new Date().getFullYear();
+      var mine = list.filter(function(m){ return m.who === 'user' && m.text && new Date(m.at || 0).getFullYear() === year; });
+      var emo = emotions().filter(function(e){ return new Date(e.at || 0).getFullYear() === year; });
+      var counts = { red:0, amber:0, blue:0, sage:0 };
+      emo.forEach(function(e){ if(counts[e.bucket] != null) counts[e.bucket]++; });
+      var days = {};
+      mine.forEach(function(m){ days[dayKey(new Date(m.at || 0))] = 1; });
+      var first = list.length ? new Date(list[0].at || list[0].at === 0 ? list[0].at : Date.now()) : null;
+      var rows = [
+        ['今年说过的话', mine.length + ' 句'],
+        ['来过的天数', Object.keys(days).length + ' 天'],
+        ['落下的情绪星', emo.length + ' 颗'],
+        ['最常出现', (function(){
+          var b = Object.keys(counts).sort(function(x, y){ return counts[y] - counts[x]; })[0];
+          var nm = { red:'烦躁', amber:'亢奋', blue:'疲惫', sage:'平静' };
+          return counts[b] ? nm[b] + ' · ' + counts[b] + ' 次' : '还没有记录';
+        })()],
+        ['第一次开口', first ? (first.getMonth() + 1) + ' 月 ' + first.getDate() + ' 日' : '还没有']
+      ];
+      var html = '<h3>' + year + ' · 你的一年</h3><div class="ab-sub">不是成绩单，是你活过的痕迹。</div>';
+      rows.forEach(function(r){
+        html += '<div class="annual-row"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>';
+      });
+      html += '<div class="annual-acts"><button type="button" class="brain-btn ghost" onclick="closeAnnual()">收起来</button></div>';
+      openBox(html);
+    }
+
+    function openCapsule(){
+      var list = readJSON(CAPSULE_KEY, []);
+      var pending = list.filter(function(c){ return c.openAt > Date.now(); });
+      var due = list.filter(function(c){ return c.openAt <= Date.now() && !c.read; });
+      var html = '<h3>给一年后的自己</h3><div class="ab-sub">写下来，封存一年。到点我会提醒你拆开。</div>';
+      if(due.length){
+        html += '<div class="annual-row"><span>可以拆的信</span><b>' + due.length + ' 封</b></div>';
+        due.forEach(function(c, i){
+          html += '<div style="margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--glass-bg-2);font-size:12.5px;line-height:1.75;color:var(--text-dim);">' +
+                  c.text.replace(/</g, '&lt;') + '<div style="margin-top:6px;font-size:11px;color:var(--text-faint);">写于 ' + new Date(c.at).toLocaleDateString() + '</div></div>';
+        });
+      }
+      if(pending.length){
+        html += '<div class="annual-row" style="margin-top:8px;"><span>还在封着</span><b>' + pending.length + ' 封</b></div>';
+      }
+      html += '<textarea id="capsuleText" placeholder="一年后的我，我想告诉你……"></textarea>';
+      html += '<div class="annual-acts">' +
+              '<button type="button" class="brain-btn ghost" onclick="closeAnnual()">取消</button>' +
+              '<button type="button" class="brain-btn" onclick="window.__saveCapsule()">封存</button></div>';
+      var box = openBox(html);
+      window.__saveCapsule = function(){
+        var t = box.querySelector('#capsuleText');
+        var v = (t && t.value || '').trim();
+        if(!v) { if(t) t.focus(); return; }
+        var arr = readJSON(CAPSULE_KEY, []);
+        arr.push({ at: Date.now(), openAt: Date.now() + 365 * 86400000, text: v, read: false });
+        writeJSON(CAPSULE_KEY, arr);
+        window.closeAnnual();
+        if(typeof appendMsg === 'function'){
+          appendMsg('me', '封好了。一年后的今天，我会把它还给你。');
+        }
+      };
+      if(due.length){
+        var arr = readJSON(CAPSULE_KEY, []);
+        arr.forEach(function(c){ if(c.openAt <= Date.now()) c.read = true; });
+        writeJSON(CAPSULE_KEY, arr);
+      }
+    }
+    window.openAnnualReport = annualReport;
+    window.openTimeCapsule = openCapsule;
+
+    /* ---------------- 启动 ---------------- */
+    function boot(){
+      paintPersona();
+      var opts = document.querySelectorAll('.persona-opt');
+      for(var i=0;i<opts.length;i++){
+        (function(btn){
+          btn.addEventListener('click', function(){ setPersona(btn.getAttribute('data-p')); });
+        })(opts[i]);
+      }
+      setTimeout(function(){
+        silenceCheck();
+        maybeWeekly();
+        conflictCheck();
+      }, 1800);
+      setInterval(conflictCheck, 10 * 60 * 1000);
+    }
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', boot);
+    } else { setTimeout(boot, 0); }
   })();
 
 </script>
