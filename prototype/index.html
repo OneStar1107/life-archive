@@ -1942,6 +1942,28 @@
   }
   /* ③ 记忆图谱：浅色模式下为冰川蓝渐变卡，放射图改为白色（见文末「设计稿还原」块） */
 
+  /* ==========================================================================
+     v87 · 桌面预览壳
+     桌面浏览器（无触屏且够宽）里把应用装进手机尺寸居中显示；
+     手机 / iPad 打开时保持全宽、跟随设备尺寸。判定逻辑在同名 JS 段。
+     ========================================================================== */
+  body.desktop-shell{
+    display:flex;align-items:center;justify-content:center;
+    background:
+      radial-gradient(1100px 520px at 50% -8%, rgba(120,180,240,.16), transparent 62%),
+      radial-gradient(900px 480px at 50% 112%, rgba(110,170,235,.12), transparent 62%),
+      var(--bg);
+  }
+  body.desktop-shell .frame{
+    width:430px;max-width:430px;
+    height:calc(100dvh - 56px);
+    max-height:calc(100dvh - 56px);
+    border:1px solid var(--line);
+    border-radius:46px;
+    box-shadow:0 40px 90px -24px rgba(6,22,44,.55), 0 0 0 1px rgba(255,255,255,.05);
+    --pad-x:22px;
+  }
+
   /* v70 自适应：≥1200px 才收成 1180 居中并加左右描边；768~1199 的 iPad 全宽铺满 */
   @media (min-width:1200px){
     .frame{max-width:1180px;border-left:1px solid var(--line);border-right:1px solid var(--line);}
@@ -5197,7 +5219,9 @@
     if(!frame) return;
     var lastNavBottom = null, lastH = -1;
     function lockFrame(){
-      var h = window.innerHeight;
+      /* v87：桌面壳下上下各留 28px，避免手机框贴边 */
+      var shell = document.body.classList.contains('desktop-shell');
+      var h = window.innerHeight - (shell ? 56 : 0);
       if(h === lastH) return;
       lastH = h;
       frame.style.height = h + 'px';
@@ -6077,6 +6101,29 @@
     } else {
       setTimeout(boot, 0);
     }
+  })();
+
+  /* v87 · 桌面预览壳：桌面浏览器才套手机尺寸，触屏设备保持全宽跟随设备 */
+  (function(){
+    function isMobileDevice(){
+      var ua = navigator.userAgent || '';
+      if(/Android|iPhone|iPad|iPod|Mobile|HarmonyOS/i.test(ua)) return true;
+      /* iPadOS 13+ 默认伪装成 Macintosh 桌面 UA，靠多点触控认回来 */
+      if(/Macintosh/i.test(ua) && (navigator.maxTouchPoints || 0) > 1) return true;
+      return false;
+    }
+    function apply(){
+      /* 桌面浏览器一律套手机壳（含触屏笔记本）；手机 / iPad 全宽跟随设备；
+         窗口窄于 900 时也不套壳，避免壳比视口还宽 */
+      var desktop = !isMobileDevice() && window.innerWidth >= 900;
+      var changed = document.body.classList.contains('desktop-shell') !== desktop;
+      document.body.classList.toggle('desktop-shell', desktop);
+      /* 锁高逻辑（chromeAnchor.lockFrame）监听 resize：切壳后让它按新高度重算 */
+      if(changed){ window.dispatchEvent(new Event('resize')); }
+    }
+    apply();
+    window.addEventListener('resize', apply);
+    window.addEventListener('orientationchange', apply);
   })();
 
 </script>
