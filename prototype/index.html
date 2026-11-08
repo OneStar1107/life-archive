@@ -1178,10 +1178,11 @@
   /* 路途 · 聊天记录区 */
   /* v74：滚动限位 + 顶部渐隐——消息滑到天气卡下面时柔化淡出，不再硬切半个气泡 */
   .chat-log{
-    flex:1 1 auto;min-height:0;overflow-y:auto;padding:2px 2px 12px;
+    flex:1 1 auto;min-height:0;overflow-y:auto;padding:2px 2px 28px;
     overscroll-behavior:contain;                 /* 滚到头就停，不做橡皮筋回弹 */
-    -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 14px);
-    mask-image:linear-gradient(to bottom, transparent 0, #000 14px);
+    /* v90：上下对称的渐隐遮罩——内容滑到输入框边缘时淡出，而不是被硬切一半 */
+    -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 32px), transparent 100%);
+    mask-image:linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 32px), transparent 100%);
   }
   .chat-log::-webkit-scrollbar{width:0;}
   /* v85：列表错开入场（同一容器的兄弟依次出现，最多约 0.5s） */
@@ -2153,7 +2154,8 @@
   :root[data-theme="light"] .chat-input{
     /* v81：输入框改半透明玻璃（气泡仍实心白，保证收发可区分） */
     background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.7);
-    -webkit-backdrop-filter:blur(14px) saturate(150%);backdrop-filter:blur(14px) saturate(150%);
+    /* v90：模糊加深一点，让从下方穿过的内容彻底化开，不再和输入框抢注意力 */
+    -webkit-backdrop-filter:blur(18px) saturate(150%);backdrop-filter:blur(18px) saturate(150%);
     box-shadow:0 10px 28px -10px rgba(30,64,130,.22), inset 0 1px 0 rgba(255,255,255,.9);
   }
   .chat-tool{color:var(--text-dim);background:transparent;border:none;}
