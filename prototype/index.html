@@ -1943,6 +1943,78 @@
   /* ③ 记忆图谱：浅色模式下为冰川蓝渐变卡，放射图改为白色（见文末「设计稿还原」块） */
 
   /* ==========================================================================
+     v88 · 双时间戳（当时的我 vs 现在的我）+ 跨节点洞察
+     ========================================================================== */
+  .mm-age{
+    display:inline-block;margin-right:4px;
+    font-size:9.5px;line-height:1;letter-spacing:.2px;
+    color:var(--text-faint);vertical-align:1px;
+  }
+  .node-timeline{
+    margin-top:12px;padding:14px 15px;
+    border-radius:var(--r-card-sm);
+    animation:fade .35s ease;
+  }
+  .node-timeline .nt-head{font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:10px;}
+  .node-timeline .nt-row{display:flex;gap:8px;margin-bottom:8px;}
+  .node-timeline .nt-when{
+    flex:0 0 auto;font-size:11px;color:var(--sage);
+    background:var(--sage-soft);border:1px solid var(--sage-line);
+    border-radius:999px;padding:1px 8px;height:19px;line-height:17px;white-space:nowrap;
+  }
+  .node-timeline .nt-say{flex:1 1 auto;font-size:12.5px;color:var(--text-dim);line-height:1.65;min-width:0;}
+  .node-timeline .nt-foot{margin-top:6px;font-size:11.5px;color:var(--text-faint);}
+  /* ==========================================================================
+     v88 · 情绪粒度（Mood Meter）+ 感恩练习
+     ========================================================================== */
+  .mood-pick{
+    margin:8px 0 4px;padding:12px 13px;
+    border-radius:var(--r-card-sm);
+    background:var(--glass-bg);border:1px solid var(--glass-border);
+    box-shadow:inset 0 1px 0 var(--glass-hi);
+    animation:fade .4s ease;
+  }
+  .mood-pick .mp-q{font-size:12.5px;color:var(--text-dim);margin-bottom:9px;}
+  .mood-pick .mp-q b{color:var(--text);font-weight:600;}
+  .mood-pick .mp-words{display:flex;flex-wrap:wrap;gap:7px;}
+  .mood-pick .mp-w{
+    font-family:inherit;font-size:12.5px;line-height:1;
+    padding:8px 12px;border-radius:999px;cursor:pointer;
+    color:var(--text);background:var(--glass-bg-2);
+    border:1px solid var(--glass-border);transition:.16s;
+  }
+  .mood-pick .mp-w:hover{color:var(--blue);border-color:var(--blue-line);background:var(--blue-soft);}
+  .mood-pick .mp-w:active{transform:scale(.96);}
+  .mood-pick .mp-skip{
+    margin-top:10px;font-family:inherit;font-size:11.5px;
+    background:none;border:none;color:var(--text-faint);cursor:pointer;padding:4px 0;
+  }
+  .mood-pick .mp-skip:hover{color:var(--text-dim);}
+  .mood-pick.done{opacity:.55;}
+  .mood-vocab{
+    display:inline-flex;align-items:center;gap:5px;margin-left:8px;
+    font-size:11px;color:var(--sage);background:var(--sage-soft);
+    border:1px solid var(--sage-line);border-radius:999px;padding:2px 9px;
+    vertical-align:middle;letter-spacing:.2px;
+  }
+  .grat-row{display:flex;gap:8px;margin-top:8px;}
+  .grat-in{
+    flex:1 1 auto;min-width:0;font-family:inherit;font-size:12.5px;
+    padding:9px 12px;border-radius:var(--r-pill);
+    color:var(--text);background:var(--glass-bg-2);
+    border:1px solid var(--glass-border);outline:none;
+  }
+  .grat-in::placeholder{color:var(--text-faint);}
+  .grat-in:focus{border-color:var(--blue-line);box-shadow:0 0 0 3px var(--blue-soft);}
+  .grat-save{
+    flex:0 0 auto;font-family:inherit;font-size:12px;
+    padding:9px 15px;border-radius:var(--r-pill);cursor:pointer;
+    color:#fff;background:var(--sage);border:1px solid transparent;transition:.16s;
+  }
+  .grat-save:active{transform:scale(.96);}
+  .grat-last{margin-top:7px;font-size:11.5px;color:var(--text-dim);}
+  .grat-last b{color:var(--sage);font-weight:600;}
+  /* ==========================================================================
      v87 · 桌面预览壳
      桌面浏览器（无触屏且够宽）里把应用装进手机尺寸居中显示；
      手机 / iPad 打开时保持全宽、跟随设备尺寸。判定逻辑在同名 JS 段。
@@ -4885,6 +4957,9 @@
       html += '<div class="brief-sec"><div class="brief-sec-t">🌿 关怀</div><div class="brief-item">' + care + '</div></div>';
     }
 
+    /* v88：感恩练习——每天一件小事 */
+    html += '<div id="gratSlot"></div>';
+
     var closing = (h != null && !isNaN(h))
       ? '你常在 ' + h + ' 点左右来，我在。'
       : '你常来的时间，我都记着。我在。';
@@ -4896,6 +4971,7 @@
     el.innerHTML = html;
     chatLog.appendChild(el);
     chatLog.scrollTop = chatLog.scrollHeight;
+    if(window.Gratitude){ window.Gratitude.mount(el); }
     registerUndo(el, '一份晨间简报');
   }
 
@@ -5012,7 +5088,22 @@
       setTimeout(function(){
         addFeeling('你此刻的感觉是「' + fw.word + '」');
         addState({ icon:'✦', nm:'情绪·' + fw.word, note:'来自倾诉' }, fw.bucket);
+        /* v88：情绪粒度——再给一组更准的说法，选中即改写本次记录用词 */
+        if(window.MoodMeter){ setTimeout(function(){ window.MoodMeter.offer(fw.word, fw.bucket); }, 900); }
+        /* v88：情绪里夹带的绝对化/反刍，补一句轻提示（有频控） */
+        var cogE = window.Cognitive ? window.Cognitive.check(v) : null;
+        if(cogE){ setTimeout(function(){ appendMsg('me', cogE.note); }, 4200); }
       }, 1800);
+      return;
+    }
+
+    /* v88：自我距离化 / CBT 思维陷阱——只在兜底分支（没有命中情绪词）时主动开口 */
+    var cog = window.Cognitive ? window.Cognitive.check(v) : null;
+    if(cog){
+      stageUp();
+      setTimeout(function(){ appendMsg('me', cog.lead); }, 600);
+      setTimeout(function(){ appendMsg('me', cog.note); }, 1900);
+      if(cog.ask){ setTimeout(function(){ appendMsg('me', cog.ask); }, 3500); }
       return;
     }
 
@@ -6124,6 +6215,489 @@
     apply();
     window.addEventListener('resize', apply);
     window.addEventListener('orientationchange', apply);
+  })();
+
+  /* ==========================================================================
+     v88 · 情绪粒度（Mood Meter）+ 感恩练习
+     - MoodMeter：情绪被识别后，给一组「更准的说法」；选定后改写本次记录用词
+       词库按四象限分组（烦躁 / 亢奋 / 疲惫 / 平静），共 144 个中文情绪词，
+       参照耶鲁 RULER 的情绪粒度思路（把「难受」拆成「憋屈 / 不甘 / 被忽视」）
+     - Gratitude：晨间简报里加一条「今天让你感激的一件小事」
+     ========================================================================== */
+  (function(){
+    var MOOD_KEY = 'la.mood';
+    var GRAT_KEY = 'la.gratitude';
+
+    var GRANULAR = {
+      red:['烦躁','憋屈','不甘','被忽视','委屈','恼火','窝火','来气','上头','怨气','被冒犯','被否定','被轻视','不公平','心里堵','气不过','火大','想发火','被误解','愤怒','憋闷','咬牙','忍无可忍','被辜负','心里不平','烦透了','抓狂','暴躁','窝火憋气','窝囊','被针对','受了委屈','想骂人','堵得慌','火气上来了','烦躁不安'],
+      amber:['开心','兴奋','振奋','期待','得意','满足','欣慰','有盼头','心花怒放','来劲','欣喜','雀跃','鼓舞','被认可','有成就感','舒爽','痛快','畅快','兴奋不已','美滋滋','心里亮堂','开怀','跃跃欲试','被看见','备受鼓舞','兴冲冲','喜出望外','心满意足','精神一振','元气满满','被点亮','来精神','喜上眉梢','热乎','有奔头','雀跃不已'],
+      blue:['低落','疲惫','倦怠','空落','无力','委屈','迷茫','麻木','心累','丧','孤独','被冷落','自责','内疚','懊悔','失望','心酸','想哭','提不起劲','压抑','内耗','破防','脆弱','撑不住','心灰','没意义','意志消沉','身心俱疲','落寞','被抛下','丧气','颓','心凉','疲惫不堪','空落落','无力感'],
+      sage:['平静','安稳','放松','踏实','释然','舒展','坦然','心安','松弛','从容','宁静','安定','知足','被安放','舒心','平和','清凉','安宁','笃定','松快','熨帖','云淡风轻','恬静','舒坦','沉静','稳当','安心','静谧','松弛感','放心','坦然自若','平和安宁','安详','心平气和','淡然','熨帖踏实']
+    };
+
+    function readJSON(k, d){ try{ var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } }
+    function writeJSON(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+    function el(tag, cls, txt){
+      var n = document.createElement(tag);
+      if(cls) n.className = cls;
+      if(txt != null) n.textContent = txt;
+      return n;
+    }
+    function chatLog(){ return document.querySelector('.chat-log'); }
+
+    /* 已掌握的精确词（去重计数），存 {words:{词:次数}} */
+    function grasp(){ return readJSON(MOOD_KEY, { words:{} }); }
+    function graspCount(){ var g = grasp(); return Object.keys(g.words || {}).length; }
+
+    /* 感受页标题旁挂一个「情绪词汇 N」 */
+    function paintVocab(){
+      var pg = document.getElementById('pg1');
+      if(!pg) return;
+      var title = null;
+      var cands = pg.querySelectorAll('.section-title');
+      for(var i=0;i<cands.length;i++){
+        if(/我感受到的你/.test(cands[i].textContent)){ title = cands[i]; break; }
+      }
+      if(!title) return;
+      var n = graspCount();
+      var badge = title.querySelector('.mood-vocab');
+      if(n <= 0){ if(badge) badge.remove(); return; }
+      if(!badge){ badge = el('span', 'mood-vocab'); title.appendChild(badge); }
+      badge.textContent = '情绪词汇 ' + n;
+    }
+
+    /* 给本次情绪记录换上更准的词 */
+    function rewriteLastEmotion(word){
+      try{
+        var raw = localStorage.getItem('lp_emotion_log');
+        if(!raw) return false;
+        var arr = JSON.parse(raw);
+        if(!arr || !arr.length) return false;
+        arr[arr.length - 1].word = word;
+        localStorage.setItem('lp_emotion_log', JSON.stringify(arr));
+      }catch(e){ return false; }
+      /* 同步内存里的 emotionLog（星夜 / 历史用得到） */
+      try{
+        if(typeof emotionLog !== 'undefined' && emotionLog.length){
+          emotionLog[emotionLog.length - 1].word = word;
+        }
+      }catch(e){}
+      return true;
+    }
+
+    function offer(word, bucket){
+      var log = chatLog();
+      if(!log || !GRANULAR[bucket]) return;
+      var prev = log.querySelector('.mood-pick');
+      if(prev) prev.remove();
+
+      var pool = GRANULAR[bucket].slice();
+      /* 把用户原话里已经用到的词排前面，其余随机取够 8 个 */
+      var picked = [];
+      if(word && pool.indexOf(word) >= 0){ picked.push(word); }
+      var shuffled = pool.filter(function(w){ return picked.indexOf(w) < 0; });
+      for(var s = shuffled.length - 1; s > 0; s--){
+        var j = Math.floor(Math.random() * (s + 1));
+        var tmp = shuffled[s]; shuffled[s] = shuffled[j]; shuffled[j] = tmp;
+      }
+      while(picked.length < 8 && shuffled.length){ picked.push(shuffled.shift()); }
+
+      var card = el('div', 'mood-pick');
+      var q = el('div', 'mp-q');
+      q.appendChild(document.createTextNode('比「'));
+      var b = el('b', null, word || '这个感觉');
+      q.appendChild(b);
+      q.appendChild(document.createTextNode('」更准的说法？挑一个，我改记。'));
+      card.appendChild(q);
+
+      var wrap = el('div', 'mp-words');
+      picked.forEach(function(w){
+        var btn = el('button', 'mp-w', w);
+        btn.type = 'button';
+        btn.addEventListener('click', function(){
+          finish(card, w, bucket);
+        });
+        wrap.appendChild(btn);
+      });
+      card.appendChild(wrap);
+
+      var skip = el('button', 'mp-skip', '都不太对，就这样');
+      skip.type = 'button';
+      skip.addEventListener('click', function(){ card.remove(); });
+      card.appendChild(skip);
+
+      log.appendChild(card);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function finish(card, word, bucket){
+      card.classList.add('done');
+      var btns = card.querySelectorAll('.mp-w, .mp-skip');
+      for(var i=0;i<btns.length;i++){ btns[i].disabled = true; }
+
+      var g = grasp();
+      g.words = g.words || {};
+      g.words[word] = (g.words[word] || 0) + 1;
+      writeJSON(MOOD_KEY, g);
+
+      var rewritten = rewriteLastEmotion(word);
+      var msg = '「' + word + '」。这个词比我刚才说的准。';
+      if(rewritten){ msg += '我把这次记录改成了它。'; }
+      msg += '情绪被叫对名字的那一刻，就已经轻了一点。';
+      if(typeof appendMsg === 'function'){ appendMsg('me', msg); }
+
+      paintVocab();
+      setTimeout(function(){ card.remove(); }, 600);
+    }
+
+    window.MoodMeter = {
+      offer: offer,
+      vocab: function(){ return grasp(); },
+      repaint: paintVocab
+    };
+
+    /* ---------------- 感恩练习 ---------------- */
+    function gratList(){ return readJSON(GRAT_KEY, []); }
+    function saveGrat(text){
+      var list = gratList();
+      list.push({ at: Date.now(), text: text });
+      if(list.length > 200) list = list.slice(list.length - 200);
+      writeJSON(GRAT_KEY, list);
+      return list;
+    }
+
+    function mount(root){
+      if(!root || root.querySelector('.grat-sec')) return;
+      var slot = root.querySelector('#gratSlot');
+      var host = slot || root;
+      var sec = el('div', 'brief-sec grat-sec');
+      sec.appendChild(el('div', 'brief-sec-t', '🌱 感激'));
+      sec.appendChild(el('div', 'brief-item', '今天有什么小事，值得你道一声谢？'));
+
+      var row = el('div', 'grat-row');
+      var input = el('input', 'grat-in');
+      input.type = 'text';
+      input.maxLength = 60;
+      input.placeholder = '哪怕是一杯热水…';
+      var btn = el('button', 'grat-save', '记下');
+      btn.type = 'button';
+      row.appendChild(input);
+      row.appendChild(btn);
+      sec.appendChild(row);
+
+      var last = el('div', 'grat-last');
+      function renderLast(){
+        var list = gratList();
+        if(!list.length){ last.textContent = ''; return; }
+        var t = list[list.length - 1].text;
+        last.innerHTML = '';
+        last.appendChild(document.createTextNode('上次记下：'));
+        last.appendChild(el('b', null, t));
+      }
+      renderLast();
+      sec.appendChild(last);
+
+      function submit(){
+        var v = input.value.trim();
+        if(!v){ input.focus(); return; }
+        saveGrat(v);
+        input.value = '';
+        renderLast();
+        if(typeof appendMsg === 'function'){
+          appendMsg('me', '记下了：' + v + '。能看见小事的这一天，通常不会太差。');
+        }
+      }
+      btn.addEventListener('click', submit);
+      input.addEventListener('keydown', function(e){
+        if(e.key === 'Enter'){ e.preventDefault(); submit(); }
+      });
+
+      if(slot){ host.parentNode.replaceChild(sec, slot); }
+      else { host.appendChild(sec); }
+    }
+
+    window.Gratitude = { mount: mount, list: gratList };
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', paintVocab);
+    } else { setTimeout(paintVocab, 0); }
+  })();
+
+  /* ==========================================================================
+     v88 · 自我距离化 + CBT 思维陷阱识别
+     - 反刍信号（翻来覆去 / 停不下来）→ 用「如果是你朋友」把自己拉远一步
+       （Ethan Kross 的自我距离化，实证支持最强的一类干预）
+     - 绝对化措辞（总是 / 完了 / 肯定）→ 温和点出「以偏概全 / 灾难化」，
+       给一个更平衡的说法，而不是说教
+     - 频控：同一会话最多触发 2 次，避免变成「你又在纠正我」
+     ========================================================================== */
+  (function(){
+    var used = 0;
+    var MAX = 2;
+
+    var RUMINATION = /反复|翻来覆去|一直想|停不下来|回放|越想越|脑子里一直|挥之不去|总是想|控制不住地想/;
+
+    var TRAPS = [
+      {
+        re:/完了|全完了|彻底|没救了|毁了一切|无可挽回|糟糕透顶|最坏的/,
+        name:'灾难化',
+        note:'你刚才那句里，有个「完了 / 彻底」——心理学里叫「灾难化」：把最坏的可能，当成了最可能的结果。',
+        ask:'如果换成「这件事现在很难，但还没到无法收拾」，读起来会不会松一点？'
+      },
+      {
+        re:/总是|每次都|从来都|永远都|一直这样|无一例外|所有事都/,
+        name:'以偏概全',
+        note:'「总是 / 每次都」——这是「以偏概全」：一次没做好，被放大成了每一次。',
+        ask:'最近一次「没有那样」的时候，是什么样子的？'
+      },
+      {
+        re:/肯定不行|一定失败|必然|百分百|他们一定|没人会喜欢|大家都讨厌/,
+        name:'读心 / 预言',
+        note:'「肯定 / 一定」——这是「读心」和「预言」：我们其实没法确定别人心里怎么想。',
+        ask:'有没有可能，对方只是没顾上，而不是针对你？'
+      }
+    ];
+
+    var SELF_DIST = {
+      lead:'这句话我听见了。翻来覆去地想，常常比那件事本身更磨人。',
+      note:'试着换一个位置看：如果今天是一个朋友，坐在你对面，讲了和你一模一样的事——你会怎么跟他说？',
+      ask:'你会怪他「想太多」吗？还是会先让他把话说完？'
+    };
+
+    function check(v){
+      if(!v) return null;
+      if(used >= MAX) return null;
+
+      if(RUMINATION.test(v)){
+        used++;
+        return {
+          kind:'self-distance',
+          lead: SELF_DIST.lead,
+          note: SELF_DIST.note,
+          ask: SELF_DIST.ask
+        };
+      }
+
+      for(var i=0;i<TRAPS.length;i++){
+        if(TRAPS[i].re.test(v)){
+          used++;
+          return {
+            kind:'cbt-' + TRAPS[i].name,
+            lead:'我想轻轻指一个地方，不是要纠正你。',
+            note: TRAPS[i].note,
+            ask: TRAPS[i].ask
+          };
+        }
+      }
+      return null;
+    }
+
+    window.Cognitive = {
+      check: check,
+      reset: function(){ used = 0; },
+      remaining: function(){ return MAX - used; }
+    };
+  })();
+
+  /* ==========================================================================
+     v88 · 双时间戳 + 跨节点洞察
+     - Timeline：每个图谱节点记下「第一次见到」与「最近一次」，叶子上挂时长标签，
+       点击叶子展开「当时的我 vs 现在的我」（首条消息 / 最近一条消息 / 中间提到几次）
+     - CrossInsight：把情绪桶与反复出现的话题交叉，长出一条「你可能没意识到」
+       （3 天频控，避免天天念同一句）
+     ========================================================================== */
+  (function(){
+    var META_KEY = 'la.nodemeta';
+    var CROSS_KEY = 'la.crossmark';
+    var NS = 'la.';
+
+    function readJSON(k, d){ try{ var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } }
+    function writeJSON(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+    function readStore(k){
+      try{
+        var o = JSON.parse(localStorage.getItem(NS + k));
+        if(!o) return null;
+        return (o && typeof o === 'object' && o.data !== undefined) ? o.data : o;
+      }catch(e){ return null; }
+    }
+    function msgs(){ return readStore('messages') || []; }
+    function emotions(){ return readStore('emotions') || []; }
+    function el(tag, cls, txt){
+      var n = document.createElement(tag);
+      if(cls) n.className = cls;
+      if(txt != null) n.textContent = txt;
+      return n;
+    }
+    function dayStr(ts){
+      var d = new Date(ts);
+      return (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日';
+    }
+    function monthsBetween(a, b){ return Math.floor((b - a) / (30 * 86400000)); }
+
+    /* ---------------- 双时间戳 ---------------- */
+    function ensureHost(){
+      var host = document.getElementById('nodeTimeline');
+      if(host) return host;
+      var map = document.querySelector('.mind-map');
+      if(!map) return null;
+      host = document.createElement('div');
+      host.className = 'card node-timeline';
+      host.id = 'nodeTimeline';
+      host.hidden = true;
+      map.parentNode.insertBefore(host, map.nextSibling);
+      return host;
+    }
+
+    function paintAge(leaf, first){
+      var badge = leaf.querySelector('.mm-age');
+      if(!badge){
+        badge = el('span', 'mm-age');
+        leaf.insertBefore(badge, leaf.firstChild);
+      }
+      var m = monthsBetween(first, Date.now());
+      badge.textContent = m >= 1 ? (m + ' 个月') : '新';
+    }
+
+    function showTimeline(leafText, rec){
+      var host = ensureHost();
+      if(!host) return;
+      /* v88：只算你自己说过的话，别把回访提问也算成一次提起 */
+      var list = msgs().filter(function(m){
+        return m.who === 'user' && m.text && leafText && m.text.indexOf(leafText) >= 0;
+      }).sort(function(a, b){ return (a.at || 0) - (b.at || 0); });
+
+      host.innerHTML = '';
+      var head = el('div', 'nt-head', '🕰️ 「' + leafText + '」：当时的我 vs 现在的我');
+      host.appendChild(head);
+
+      if(!list.length){
+        host.appendChild(el('div', 'nt-foot', '还没有在对话里提起过它。以后你说到，我会记下来。'));
+      } else {
+        var first = list[0], last = list[list.length - 1];
+        function row(when, text){
+          var r = el('div', 'nt-row');
+          r.appendChild(el('span', 'nt-when', when));
+          r.appendChild(el('div', 'nt-say', text));
+          return r;
+        }
+        host.appendChild(row(dayStr(first.at), first.text));
+        if(list.length > 1){ host.appendChild(row(dayStr(last.at), last.text)); }
+        var foot = '这中间你提到它 ' + list.length + ' 次，第一次是 ' + monthsBetween(first.at, Date.now()) + ' 个月前。';
+        if(list.length > 1 && first.text !== last.text){
+          foot += '说法变了——那时候的你和现在的你，可能已经不一样了。';
+        }
+        host.appendChild(el('div', 'nt-foot', foot));
+      }
+      host.hidden = false;
+      host.scrollIntoView({ block: 'nearest' });
+    }
+
+    function bootTimeline(){
+      var leaves = document.querySelectorAll('.mm-leaf[data-key]');
+      if(!leaves.length) return;
+      var meta = readJSON(META_KEY, {});
+      var list = msgs();
+      for(var i=0;i<leaves.length;i++){
+        (function(leaf){
+          var key = leaf.getAttribute('data-key');
+          var txtEl = leaf.querySelector('.mm-leaf-txt');
+          var text = (txtEl ? txtEl.textContent : leaf.textContent).replace('×', '').trim();
+          if(!key || !text) return;
+          var rec = meta[key];
+          if(!rec){
+            var firstAt = 0;
+            for(var j=0;j<list.length;j++){
+              if(list[j].who === 'user' && list[j].text && list[j].text.indexOf(text) >= 0){ firstAt = list[j].at || 0; break; }
+            }
+            /* 找不到历史就先按现在算，但要复核一次（首屏可能还没把消息读回来） */
+            rec = { first: firstAt || Date.now(), last: Date.now(), n: 1, pending: !firstAt };
+            meta[key] = rec;
+            writeJSON(META_KEY, meta);
+          } else {
+            rec.last = Date.now();
+            /* 上一轮没找到历史：这一轮消息已经读回来了，就把真实的第一次补上 */
+            if(rec.pending){
+              var f2 = 0;
+              for(var k=0;k<list.length;k++){
+                if(list[k].who === 'user' && list[k].text && list[k].text.indexOf(text) >= 0){ f2 = list[k].at || 0; break; }
+              }
+              if(f2){ rec.first = f2; rec.pending = false; meta[key] = rec; writeJSON(META_KEY, meta); }
+            }
+          }
+          paintAge(leaf, rec.first);
+          leaf.addEventListener('click', function(e){
+            if(e.target && e.target.classList && e.target.classList.contains('mm-x')) return;
+            showTimeline(text, rec);
+          });
+        })(leaves[i]);
+      }
+    }
+
+    /* ---------------- 跨节点洞察 ---------------- */
+    function pushInsight(text, kind){
+      var list = document.getElementById('insightList');
+      if(!list || typeof buildInsight !== 'function') return false;
+      var item = buildInsight(text, kind || 'cross');
+      list.insertBefore(item, list.firstChild);
+      return true;
+    }
+
+    function crossCheck(){
+      var mark = readJSON(CROSS_KEY, { at: 0 });
+      if(Date.now() - (mark.at || 0) < 3 * 86400000) return;
+
+      var list = msgs();
+      if(!list.length) return;
+      var since = Date.now() - 30 * 86400000;
+      var recent = list.filter(function(m){ return (m.at || 0) >= since; });
+      if(!recent.length) return;
+      var text = recent.map(function(m){ return m.text || ''; }).join(' ');
+
+      var counts = { red:0, amber:0, blue:0, sage:0 };
+      emotions().forEach(function(e){
+        if(e && counts[e.bucket] != null) counts[e.bucket]++;
+      });
+
+      var workHits = (text.match(/老板|工作|加班|方案|汇报|项目/g) || []).length;
+      var sleepHits = (text.match(/睡不好|熬夜|失眠|凌晨|没睡/g) || []).length;
+      var famHits = (text.match(/妈妈|爸爸|家里|回家/g) || []).length;
+
+      var rules = [
+        {
+          id:'work',
+          ok: function(){ return (counts.blue + counts.red) >= 3 && workHits >= 2; },
+          text: '你反复提到的那些工作上的事，和你最近的情绪起伏，可能不是两件不相干的事。'
+        },
+        {
+          id:'sleep',
+          ok: function(){ return sleepHits >= 2 && counts.red >= 2; },
+          text: '你的烦躁，常常出现在没睡好的日子里。要不要先照顾一下那个困着的你？'
+        },
+        {
+          id:'family',
+          ok: function(){ return famHits >= 2 && counts.blue >= 2; },
+          text: '提到家里的时候，你的话会变得更沉一点——这条联系，是我从你的说法里看出来的。'
+        }
+      ];
+
+      for(var i=0;i<rules.length;i++){
+        if(rules[i].ok()){
+          if(pushInsight(rules[i].text, 'cross')){
+            writeJSON(CROSS_KEY, { at: Date.now(), kind: rules[i].id });
+          }
+          return;
+        }
+      }
+    }
+
+    window.NodeTimeline = { boot: bootTimeline, check: crossCheck };
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', function(){ setTimeout(bootTimeline, 1600); setTimeout(crossCheck, 2500); });
+    } else {
+      setTimeout(bootTimeline, 1600);
+      setTimeout(crossCheck, 2500);
+    }
+    /* 低频巡检：情绪记录 / 新消息之后 30s 内会重新评估（有 3 天频控兜底） */
+    setInterval(crossCheck, 30000);
   })();
 
 </script>
