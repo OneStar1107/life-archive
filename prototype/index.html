@@ -2124,20 +2124,24 @@
    Nothing ending -rgb is used by this component, so no bare-number
    triples are needed. */
 
-/* a fixed frame, so opening the pill never rescales the block */
+/* v101：语音模式直接长在输入框里——不再是一个浮在输入框上方的独立胶囊。
+   Bencho 的 .vn-frame 是固定尺寸的舞台，这里改成 flex 子项，宽度交给输入框。 */
 .vn-frame {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100%;
-  margin-bottom: 8px;
-  height: 96px;
-  display: grid;
-  place-items: center;
-  pointer-events: none;
-  z-index: 6;
+  display: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 38px;
+  margin: 0;
 }
-.vn-frame[data-on] { pointer-events: auto; }
+.chat-input.voice-mode .vn-frame { display: flex; }
+.chat-input.voice-mode .chat-tool,
+.chat-input.voice-mode .chat-text { display: none; }
+.chat-input.voice-mode .vn {
+  width: 100% !important;
+  height: 38px;
+  --r: 19px !important;
+  --inner: 15px !important;
+}
 
 .vn {
   --red: #e5484d;
@@ -2187,7 +2191,7 @@
   white-space: nowrap;
   animation: vn-in 240ms ease 80ms both;}
 
-.vn-idle { justify-content: center; gap: 10px; }
+.vn-idle { justify-content: center; gap: 8px; font-size: 14px; }
 
 .vn-rec { gap: 10px; padding: 0 18px; }
 
@@ -7457,17 +7461,20 @@
      ========================================================================== */
   (function(){
     var VOICE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="11.5" rx="3"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0"></path><path d="M12 18v3.5"></path></svg>';
+    var KEYBOARD = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.5"></rect><path d="M6 10h.01M9.5 10h.01M13 10h.01M16.5 10h.01M6 13.5h.01M9.5 13.5h.01M13 13.5h.01M16.5 13.5h.01M8 16.5h8"></path></svg>';
     function input(){ return document.getElementById('chatText'); }
     function btn(){ return document.getElementById('chatAction'); }
     function sync(){
       var i = input(), b = btn();
       if(!i || !b) return;
-      var has = !!i.value.trim() || !!(window.VoiceNote && window.VoiceNote.hasClip());
-      var mode = has ? 'send' : 'voice';
+      var hasClip = !!(window.VoiceNote && window.VoiceNote.hasClip());
+      var has = !!i.value.trim() || hasClip;
+      var inVoice = document.querySelector('.chat-input').classList.contains('voice-mode');
+      var mode = has ? 'send' : (inVoice ? 'keyboard' : 'voice');
       if(b.getAttribute('data-mode') === mode) return;
       b.setAttribute('data-mode', mode);
-      b.setAttribute('aria-label', has ? '发送' : '语音');
-      b.innerHTML = has ? '↑' : VOICE;
+      b.setAttribute('aria-label', has ? '发送' : (mode === 'keyboard' ? '键盘' : '语音'));
+      b.innerHTML = has ? '↑' : (mode === 'keyboard' ? KEYBOARD : VOICE);
     }
     var _origSend = null;
     function wrapSend(){
@@ -7479,7 +7486,16 @@
         return r;
       };
     }
+    function setVoiceMode(on){
+      var box = document.querySelector('.chat-input');
+      if(!box) return;
+      box.classList.toggle('voice-mode', !!on);
+      if(window.VoiceNote){ on ? window.VoiceNote.open() : window.VoiceNote.close(); }
+      sync();
+      if(!on){ var t = input(); if(t) t.focus(); }
+    }
     window.chatActionSync = sync;
+    window.setVoiceMode = setVoiceMode;
     window.chatActionTap = function(){
       var b = btn();
       var mode = b ? b.getAttribute('data-mode') : 'voice';
@@ -7488,7 +7504,8 @@
         if(typeof sendChat === 'function') sendChat();
         return;
       }
-      if(window.VoiceNote){ window.VoiceNote.open(); }
+      if(mode === 'keyboard'){ setVoiceMode(false); return; }
+      if(window.VoiceNote){ setVoiceMode(true); }
       else if(b && typeof featureTip === 'function'){ featureTip(b, '语音'); }
     };
     function bind(){
@@ -7572,7 +7589,8 @@
       frame.id = 'vnFrame';
       frame.innerHTML = '<div class="vn" id="vn" data-phase="idle" role="button" tabindex="0" aria-label="Hold to record a voice note"><span class="vn-in vn-idle">'+micSvg()+'按住说话</span></div><span class="vn-hint" aria-hidden="true">‹ 左滑取消</span>';
       var host = document.querySelector('.chat-compose') || document.querySelector('.chat-input');
-      if(host) host.appendChild(frame);
+      var sendBtn = host ? host.querySelector('.chat-send') : null;
+      if(host){ if(sendBtn) host.insertBefore(frame, sendBtn); else host.appendChild(frame); }
       el = frame.querySelector('.vn');
       return frame;
     }
