@@ -5,13 +5,14 @@
 > 一个 AI 陪伴式个人档案：每天跟它说说话，它把你的情绪、事件、关系沉淀成一份只属于你的档案。
 
 <p align="center">
-  <img src="docs/screenshots/01-home.png" width="300" alt="今日问候" />
-  <img src="docs/screenshots/04-mindmap.png" width="300" alt="记忆图谱" />
-  <img src="docs/screenshots/05-sky.png" width="300" alt="情绪星夜" />
+  <img src="docs/screenshots/01-home.png" width="250" alt="今日问候" />
+  <img src="docs/screenshots/02-chat.png" width="250" alt="说出你的情绪" />
+  <img src="docs/screenshots/04-mindmap.png" width="250" alt="记忆图谱" />
 </p>
 
 <p align="center">
   <a href="https://onestar1107.github.io/life-archive/"><b>▶ 在线打开</b></a> ·
+  <a href="https://onestar1107.github.io/life-archive/prototype/"><b>直接进原型</b></a> ·
   <a href="docs/screenshots/">全部截图</a> ·
   <a href="ui-refs/">设计稿</a> ·
   <a href="灵感tips.txt">产品方向库</a>
@@ -26,7 +27,7 @@
 
 ## 三十秒看懂
 
-- **它是什么**：一个情绪与记忆档案。打开就是一句"今天过得怎么样？"——低压力地让你开口，而不是扔一张空白表单。
+- **它是什么**：一个情绪与记忆档案。打开就是一句「今天过得怎么样？」——低压力地让你开口，而不是扔一张空白表单。
 - **它特别在哪**：不追打卡、不做绩效。它记得你说过的事，也记得**三个月前的你和现在的你不一样**。
 - **它怎么跑**：一个 HTML 文件，双击就开，零依赖、零网络请求，数据只存在你自己的浏览器里。
 
@@ -34,66 +35,80 @@
 
 <table>
   <tr>
-    <td align="center"><img src="docs/screenshots/01-home.png" width="190" /><br /><sub><b>今日问候</b><br />天气 + 今日简报</sub></td>
-    <td align="center"><img src="docs/screenshots/02-chat.png" width="190" /><br /><sub><b>说出你的情绪</b><br />说完就记下</sub></td>
-    <td align="center"><img src="docs/screenshots/03-feel.png" width="190" /><br /><sub><b>感受</b><br />从记录里长出规律</sub></td>
+    <td align="center"><img src="docs/screenshots/01-home.png" width="180" /><br /><sub><b>今天</b><br />天气 · 今日简报 · 感恩</sub></td>
+    <td align="center"><img src="docs/screenshots/02-chat.png" width="180" /><br /><sub><b>说出你的情绪</b><br />说完还会追问「更准的说法」</sub></td>
+    <td align="center"><img src="docs/screenshots/03-feel.png" width="180" /><br /><sub><b>感受</b><br />从记录里长出规律</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/screenshots/04-mindmap.png" width="190" /><br /><sub><b>记忆图谱</b><br />你告诉我一件事，就长出一个节点</sub></td>
-    <td align="center"><img src="docs/screenshots/05-sky.png" width="190" /><br /><sub><b>情绪星夜</b><br />说出口的感觉点亮一颗星</sub></td>
-    <td align="center"><img src="docs/screenshots/06-settings.png" width="190" /><br /><sub><b>设置</b><br />主题 / 自带模型</sub></td>
+    <td align="center"><img src="docs/screenshots/04-mindmap.png" width="180" /><br /><sub><b>记忆图谱</b><br />你告诉我一件事，就长出一个节点</sub></td>
+    <td align="center"><img src="docs/screenshots/05-sky.png" width="180" /><br /><sub><b>情绪星夜</b><br />说出口的感觉点亮一颗星</sub></td>
+    <td align="center"><img src="docs/screenshots/06-settings.png" width="180" /><br /><sub><b>设置</b><br />导师人格 · 自带模型 · 档案</sub></td>
   </tr>
 </table>
 
 <p align="center">
-  <img src="docs/screenshots/07-dark.png" width="300" alt="深色模式" /><br />
-  <sub>深色模式：完整设计令牌驱动，不是反色</sub>
+  <img src="docs/screenshots/08-weekly.png" width="250" alt="周复盘信" />
+  <img src="docs/screenshots/09-annual.png" width="250" alt="年度报告" />
+  <img src="docs/screenshots/07-dark.png" width="250" alt="深色模式" />
 </p>
+<p align="center"><sub>周复盘信（周日晚上自动出现） · 年度报告（Wrapped 式） · 深色模式</sub></p>
 
 ## 原型里已有什么
+
+**记录与回访**
 
 | | |
 |---|---|
 | **今日简报** | 每天第一次打开，不等你点，直接把简报推进聊天框（同一天不重复） |
 | **记录会留下** | 聊天 / 情绪 / 洞察写进浏览器本地（`la.messages / la.emotions / la.insights / la.profile`，带 schemaVersion 与迁移），刷新不丢；写不进去会明说「这次记录没存上」 |
 | **时间回访** | 7 天 / 30 天后自动回问一句「三周前你说……现在呢？」 |
-| **触发式洞察** | 连续 3 天同一情绪桶 + 反复出现的同一个关键词，才长出「你可能没意识到」——不是写死的卡片 |
-| **记忆图谱** | 点节点上的 × 可以删掉我记错的；记错了就该能被拿走 |
-| **情绪星夜** | 四类情绪（烦躁 / 亢奋 / 疲惫 / 平静）在夜空里连成星座 |
-| **自带模型（可选）** | Key 前缀认厂商、模型自动带出、真实余额与调用统计；只用于复盘这类生成型内容，**对话永远走本机规则** |
-| **危机保护** | 检测到自伤 / 危机表达时，给求助热线，不装心理咨询师 |
-| **情绪粒度** | 说「憋屈」时再追问一句「更准的说法」——憋屈 / 不甘 / 被忽视 / 心里堵…，共 144 词；选中即改写这次记录，并累积「情绪词汇 N」 |
+| **沉默也记录** | 连续 5 天没打开，不催不推，只在档案里写一行「这周你来得少，我不问，但记着」 |
+
+**理解与洞察**
+
+| | |
+|---|---|
+| **情绪粒度** | 说「憋屈」时再追问一句「更准的说法」——憋屈 / 不甘 / 被忽视 / 心里堵…共 144 词，选中即改写这次记录 |
 | **双时间戳** | 图谱节点挂着「3 个月」：点开看「当时的我 vs 现在的我」，首条与最近一条说法并排 |
 | **跨节点洞察** | 情绪桶 × 反复出现的话题交叉——「你反复提的工作，和你最近的低落，可能不是两件事」 |
+| **信念矛盾** | 发现「上个月说喜欢 X、这周说讨厌 X」，把变化摆出来请你确认，并标注证据条数与把握度 |
 | **自我距离化** | 反刍时引导「如果是你朋友坐在对面，你会怎么跟他说」 |
 | **CBT 思维陷阱** | 温和点出「灾难化 / 以偏概全 / 读心」，给一个更平衡的说法（同会话最多 2 次，不说教） |
-| **感恩练习** | 今日简报里一条「今天让你感激的一件小事」，写下来就存进档案 |
+
+**回望与仪式**
+
+| | |
+|---|---|
 | **导师人格** | 复盘信可选斯多葛 / 温柔教练 / 犀利诤友，同一周记录三种语气（Mindsera 做法） |
-| **信念矛盾** | 发现「上个月说喜欢 X、这周说讨厌 X」，把变化摆出来请你确认，并标注证据条数与把握度 |
 | **周复盘信** | 周日 20:00 后第一次打开，把本周 5~10 条记录合成一段回望，不用模型 |
-| **沉默也记录** | 连续 5 天没打开，不催不推，只在档案里写一行「这周你来得少，我不问，但记着」 |
 | **年度报告** | Spotify Wrapped 式的一年：说过多少句、来过多少天、落下几颗星、第一次开口是哪天 |
 | **时间胶囊** | 写给一年后的自己，封存 365 天，到点解锁 |
+| **感恩练习** | 今日简报里一条「今天让你感激的一件小事」，写下来就存进档案 |
+| **危机保护** | 检测到自伤 / 危机表达时，给求助热线，不装心理咨询师 |
 
-> **低配 / 排查画面闪烁**：地址后加 `?lite=1` 会关掉毛玻璃与动效，用来判断是不是玻璃层导致的重绘闪烁。
+**自带模型（可选）**
+
+选服务商 → Key 前缀认厂商 → 接口地址与模型自动带出 → 「测试连接」可验证；下方有「余额 + 调用次数」。只用于复盘这类生成型内容，**对话永远走本机规则**；无配置 / 401 / 跨域 / 超时都会回落本地模板。
+
+> **低配 / 排查画面闪烁**：地址后加 `?lite=1` 会关掉毛玻璃与动效。
 
 ## 设计思路（这个项目的真正主角）
 
 原型阶段的代码只是载体，想法才是资产。
 
-**核心洞察**：产品叫"档案"，时间就是灵魂。竞品做的是"记录"——流水账，记完就沉底；我们想做的是"档案"——随时间生长、能被重新理解的东西。
+**核心洞察**：产品叫「档案」，时间就是灵魂。竞品做的是「记录」——流水账，记完就沉底；我们想做的是「档案」——随时间生长、能被重新理解的东西。
 
 **三个差异化方向**（完整清单见 [灵感tips.txt](灵感tips.txt)）：
 
-1. **情绪粒度训练（Mood Meter）**——把"难受"精确到"憋屈 / 不甘 / 被忽视"（耶鲁 RULER 框架 144 词）。情绪命名越准，档案越懂你
-2. **双时间戳**——能看见"三个月前我为 X 焦虑、现在已释然"，竞品都没有
-3. **"你可能没意识到"**——跨节点推理，把"记忆"升级为"洞察"
+1. **情绪粒度训练（Mood Meter）**——把「难受」精确到「憋屈 / 不甘 / 被忽视」（耶鲁 RULER 框架 144 词）。情绪命名越准，档案越懂你
+2. **双时间戳**——能看见「三个月前我为 X 焦虑、现在已释然」，竞品都没有
+3. **「你可能没意识到」**——跨节点推理，把「记忆」升级为「洞察」
 
-**设计系统**：冰川记忆——冰川蓝品牌色 + 四色情绪星，令牌来自设计稿（见 `ui-refs/`）。
+**设计系统**：冰川记忆——冰川蓝品牌色 + 四色情绪星（烦躁红 / 微暖琥珀 / 青绿 / 冰川蓝），令牌来自设计稿（见 `ui-refs/`）。界面只保留左上角胶囊作为页面名，大标题与解释性副标题一律删掉——内容自己说话。
 
-**参考与致敬**：How We Feel（Mood Meter）、Zep Graphiti（双时间戳）、Woebot（CBT 温和提示）、Ethan Kross（自我距离化）。
+**参考与致敬**：How We Feel（Mood Meter）、Zep Graphiti（双时间戳）、Mindsera（导师人格）、Woebot（CBT 温和提示）、Ethan Kross（自我距离化）。
 
-## 工程版（Flutter 级别之外的三端同源）
+## 工程版
 
 同一份设计的正式工程在 `frontend/`（uni-app x，uts 编译到 Kotlin / Swift / ArkTS）与 `backend/`（NestJS 10 + Prisma + PostgreSQL 16）：
 
@@ -106,21 +121,14 @@
 
 三条由门禁强制执行的硬规则：业务源码不进仓库根、业务代码零 `#ifdef`（平台差异集中在 `frontend/core/platform/`）、仓库内零真实密钥（`scripts/check-secrets.mjs` 泄漏即失败）。
 
-```bash
-# 后端
-cd backend && cp .env.example .env && docker compose up -d
-pnpm install && pnpm prisma migrate deploy && pnpm seed && pnpm start:dev
-# 前端：用 HBuilderX 4.61+ 打开 frontend/，跑模拟器
-```
-
 ## 项目结构
 
 ```text
 .
 ├── index.html                        # 在线落地页（GitHub Pages 入口）
-├── prototype/index.html              # 原型本体（单文件，零依赖，Pages 可直接打开）
+├── prototype/index.html              # 原型本体（单文件，零依赖，双击即跑）
 ├── docs/
-│   ├── screenshots/                  # README 截图
+│   ├── screenshots/                  # 本页所有截图（9 张）
 │   ├── prd.md / todo.md / status.md  # 人 + AI 协作文档体系
 │   └── project/                      # 工程约定
 ├── frontend/                         # uni-app x 三端工程
@@ -131,16 +139,17 @@ pnpm install && pnpm prisma migrate deploy && pnpm seed && pnpm start:dev
 
 ## 路线图
 
-- [x] 概念原型：每日一问 / 说出你的情绪 / 情绪星夜 / 记忆图谱 / 身体信号 / 自带模型（历经 80+ 版迭代）
+- [x] 概念原型：每日一问 / 说出你的情绪 / 情绪星夜 / 记忆图谱 / 身体信号 / 自带模型（历经 90+ 版迭代）
 - [x] 三端工程骨架：uni-app x + NestJS
-- [x] 情绪粒度训练：Mood Meter 144 词（四象限 144 个中文情绪词）
+- [x] 情绪粒度训练：Mood Meter 144 词（四象限中文词表）
 - [x] 记忆时间轴：双时间戳（当时的我 vs 现在的我）
 - [x] 跨节点洞察：情绪桶 × 话题交叉（你可能没意识到）
 - [x] 自我距离化 + CBT 思维陷阱识别
 - [x] 感恩练习（晨间简报）
 - [x] 导师人格 / 信念矛盾 / 周复盘信 / 沉默也记录
-- [x] 年度报告 + 时间胶囊（给一年后的自己写信，365 天解锁）
-- [ ] 遗忘仪式：把过期烦恼"送走"
+- [x] 年度报告 + 时间胶囊（365 天解锁）
+- [ ] 遗忘仪式：把过期烦恼「送走」
+- [ ] 情绪粒度词表与耶鲁 RULER 原表逐条对齐
 
 ## License
 
