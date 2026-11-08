@@ -2090,6 +2090,11 @@
     font-size:12.5px;color:var(--text-dim);line-height:1.95;
   }
   .chat-empty b{display:block;font-size:13.5px;color:var(--text);font-weight:600;margin-bottom:6px;}
+  /* v98：语音位换成发送键（保留蓝底）；右侧那个收起来，避免两个发送键并存
+     聚焦时页面发送键仍在，手机输入法的「发送」键（enterkeyhint=send）也能直接发 */
+  .chat-send.chat-lead{flex-shrink:0;}
+  .chat-send.chat-tail{display:none;}
+
   .empty-hint{
     padding:18px 14px;border-radius:var(--r-card-sm);border:1px dashed var(--line);
     text-align:center;font-size:12px;color:var(--text-dim);line-height:1.9;
@@ -2406,11 +2411,11 @@
 
       <div class="chat-tip" id="chatTip" data-page-node-id="pQfkq11SjvINSs4wKmy1u8"></div>
       <div class="chat-input" data-page-node-id="ao47MGXSRyjw0CcytEUILY">
-        <button type="button" class="chat-tool" aria-label="语音" onclick="featureTip(this,'语音')" data-page-node-id="bx5rScF4GbGMhchPHAS8ut"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="PZkcgGKYUNO5yxS3kpLos4"><rect x="9" y="2.5" width="6" height="11.5" rx="3" data-page-node-id="rFFGE0kUlyp6785SKi3EMA"></rect><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0" data-page-node-id="aIGiblFtFveipqbe3juI5s"></path><path d="M12 18v3.5" data-page-node-id="azYP9RFdTiYYVuNPOGaihj"></path></svg></button>
+        <button type="button" class="chat-send chat-lead" onclick="sendChat()" aria-label="发送" data-page-node-id="bx5rScF4GbGMhchPHAS8ut">↑</button>
         <button type="button" class="chat-tool" aria-label="图片" onclick="featureTip(this,'图片')" data-page-node-id="fEwofQRDVKx9Xsk7PwLbzA"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="F7pSmxlK9GfcHD1E9ndjDc"><rect x="3" y="4" width="18" height="16" rx="3" data-page-node-id="WIlvcgWo8UTCJWfp8pElHt"></rect><circle cx="9" cy="9.5" r="1.5" data-page-node-id="HOKEDkOoWNuVlIwWAtrGqe"></circle><path d="M4.5 17.5l4.5-4.5 3.5 3.5 3-3 4 4" data-page-node-id="99w6r0pWEldxGpgAEtF4MR"></path></svg></button>
         <button type="button" class="chat-tool" aria-label="文件" onclick="featureTip(this,'文件')" data-page-node-id="7wnHKyNQsyqSJ40GYO99zx"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" data-page-node-id="5XzNXBJ5nQaXcbJec29OPW"><path d="M8.5 11.5l6.2-6.2a3.4 3.4 0 0 1 4.8 4.8l-7.8 7.8a5 5 0 0 1-7.1-7.1l7.5-7.5" data-page-node-id="a5DPyOjWi5LaBi8jpufxsH"></path></svg></button>
-        <input id="chatText" class="chat-text" type="text" placeholder="跟内心的你说点什么…" autocomplete="off" onkeydown="chatKey(event)" data-page-node-id="Kauv0KfdDrHBMlmtxjtAw9">
-        <button type="button" class="chat-send" onclick="sendChat()" aria-label="发送" data-page-node-id="aJpjOIsb5OcyuBRh8JcqEB">↑</button>
+        <input id="chatText" class="chat-text" type="text" placeholder="跟内心的你说点什么…" autocomplete="off" enterkeyhint="send" onkeydown="chatKey(event)" data-page-node-id="Kauv0KfdDrHBMlmtxjtAw9">
+        <button type="button" class="chat-send chat-tail" onclick="sendChat()" aria-label="发送" data-page-node-id="aJpjOIsb5OcyuBRh8JcqEB">↑</button>
       </div>
 
     </section>
