@@ -379,7 +379,8 @@
     box-shadow:inset 0 1px 0 var(--glass-hi);
   }
   .screen-meta{font-size:11px;color:var(--text-faint);letter-spacing:1px;}
-  .screen-title{font-size:24px;font-weight:700;letter-spacing:.5px;line-height:1.3;margin:0 2px 6px;}
+  /* v91：副标题去掉后，标题自己承担与下方内容的间距 */
+  .screen-title{font-size:24px;font-weight:700;letter-spacing:.5px;line-height:1.3;margin:0 2px 14px;}
   .screen-sub{font-size:12.5px;color:var(--text-dim);line-height:1.7;margin:0 2px 14px;}
   /* 屏幕副标题（状态照给你看一类的引言） */
   .page-sub{font-size:12.5px;color:var(--text-dim);line-height:1.7;margin:0 2px 14px;}
@@ -2349,11 +2350,10 @@
     <!-- 2 我记得（我感受到的你 + 我记得的事 + 你去过的地方，三合一） -->
     <section class="page" id="pg1" data-page-node-id="sD8TLz7Ew6fOpJyp7udrCo">
       <div class="screen-head" data-page-node-id="LZ5AdCgH1QtHedHpaWBlry">
-        <span class="screen-pill" data-page-node-id="ErUi5px2OylAIopbxaTy5l">我眼中的你</span>
+        <span class="screen-pill" data-page-node-id="ErUi5px2OylAIopbxaTy5l">感受</span>
         <button type="button" class="icon-btn gear-btn" onclick="switchTo(5)" aria-label="设置" title="设置">⚙️</button>
       </div>
       <div class="screen-title" data-page-node-id="Tdkbqtrc87B5XDTv2Nsxvh">感受</div>
-      <div class="screen-sub" data-page-node-id="PbaIgFgmIbCZXukJloJvRf">我感受到的 · 你记得的 · 你走过的。</div>
 
         <div class="today-ask" data-page-node-id="1aJFom9QJqXXHL5JQAAL0g">
           <div class="q" data-page-node-id="t45ZwXhwka5AC5JlrselzN"><span class="who" data-page-node-id="cGlgqE4DGOzlZtTobms0IH">今天，我想问你一句：</span><br data-page-node-id="kAU1fH4ApgIQEddYlYScIQ">最近夜跑少了。是忙，还是换了别的节奏？</div>
@@ -2480,11 +2480,10 @@
     <!-- 3 图谱（原「我眼中的你」页的记忆图谱 + 潜在联系） -->
     <section class="page" id="pg1g" data-page-node-id="yn0Rl4H7OYqdUQY7lhuoa5">
       <div class="screen-head" data-page-node-id="rYsqW7Jf89WEYHI9FCThhk">
-        <span class="screen-pill" data-page-node-id="OYkNiUAvhSPEw0vBdHb8Rh">记忆图谱</span>
+        <span class="screen-pill" data-page-node-id="OYkNiUAvhSPEw0vBdHb8Rh">我懂你多少</span>
         <button type="button" class="icon-btn gear-btn" onclick="switchTo(5)" aria-label="设置" title="设置">⚙️</button>
       </div>
       <div class="screen-title" data-page-node-id="jeFXlXdqjTGe5iyannfz63">我懂你多少</div>
-      <div class="screen-sub" data-page-node-id="8pWZ0VMFtlwmDUdRq4wZtm">你每真心告诉我一件事，这里就长出一个节点。点节点上的 × 可以删掉我记错的。</div>
       <div class="mind-map" id="mindMap" data-page-node-id="VIhKucR6DLkVogCmbZbzBs">
         <button type="button" class="mm-reset" id="mmReset" aria-label="重置视角" data-page-node-id="bVxTvotcPcV7PXBF18xkbq">⌖ 重置</button>
         <div class="mm-pan" id="mmPan" data-page-node-id="oKmsgeSORZf5VcqgPYbGcB" style="transform: translate(0px, 0px) scale(1);">
@@ -2654,7 +2653,6 @@
         <button type="button" class="icon-btn gear-btn" onclick="switchTo(5)" aria-label="设置" title="设置">⚙️</button>
       </div>
       <div class="screen-title" data-page-node-id="iokn9HHHxC3XDkVtI8Jyvh">身体的信号</div>
-      <div class="screen-sub" data-page-node-id="r9WI58G69E29pV286XVAvg">身体的信号不是绩效表。我不催你早睡、不逼你达标，只是把状态照给你看。</div>
 
       <div class="card metric-card sleep-hero" data-page-node-id="r6v1ahe2zf6uEVRWa7DnnI">
         <div class="metric-nm" data-page-node-id="QH9LYJDd6PGM0RKjmBgBQx">睡眠</div>
@@ -6565,7 +6563,9 @@
         leaf.insertBefore(badge, leaf.firstChild);
       }
       var m = monthsBetween(first, Date.now());
-      badge.textContent = m >= 1 ? (m + ' 个月') : '新';
+      /* 只有满一个月才显示时长；新节点不挂标签，避免满屏「新」 */
+      if(m >= 1){ badge.textContent = m + ' 个月'; badge.style.display = ''; }
+      else { badge.textContent = ''; badge.style.display = 'none'; }
     }
 
     function showTimeline(leafText, rec){
