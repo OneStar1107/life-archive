@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-page-node-id="BKJzOMh0VyaDOB9gDwdTlB" data-theme="dark" data-dm-ref="1"><head data-page-node-id="Ofs0Jo1cQSRpn9PxRTWYdL">
+<html lang="zh-CN" data-page-node-id="BKJzOMh0VyaDOB9gDwdTlB" data-theme="light" data-theme-mode="light" data-dm-ref="1"><head data-page-node-id="Ofs0Jo1cQSRpn9PxRTWYdL">
 <meta charset="UTF-8" data-page-node-id="pqV1wCMSFbUKPnjfoRRBZE">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" data-page-node-id="gcHg6zlUnENoVdKmUjmlnN">
 <title>人生档案 · 越来越懂你的那个人</title>
+<link rel="icon" href="data:,">
 <style>
   /* ==========================================================================
      冰川记忆 · 设计令牌（严格取自 Ardot 设计稿 tokens.css）
@@ -35,8 +36,10 @@
     --card-2:rgba(255,255,255,.04);
     --line:rgba(255,255,255,.1);
     --text:#F2F7FC;
-    --text-dim:#B9C9D9;
-    --text-faint:#7A8CA0;
+    --text-dim:#C7D5E3;
+    /* 文字层级（v82）：L1 --text 主信息 / L2 --text-dim 说明 / L3 --text-faint 辅助，
+       任何低于 L3 的透明度都不允许；L3 最小 11px */
+    --text-faint:#A3B5C9;
 
     /* ---- 四种情绪星色（保留色相，冰川蓝系） ---- */
     --red:#e0685f;                     /* 烦躁红（珊瑚红） */
@@ -78,6 +81,9 @@
     --glass-border:rgba(255,255,255,.1);
     --glass-blur:blur(14px) saturate(150%);
     --tt-bg:rgba(10,20,32,.82);
+    /* ---- 弹层菜单统一材质：一处改，全站菜单跟着变 ---- */
+    --menu-bg:rgba(10,20,32,.45);
+    --menu-blur:blur(24px) saturate(170%);
     --mm-cat-drag:rgba(255,255,255,.14);  /* 图谱拖拽期分类胶囊 fallback：摘除毛玻璃时保持可读性 */
     --wx-panel:linear-gradient(160deg,rgba(90,169,240,.92) 0%,rgba(42,111,219,.88) 100%);
 
@@ -156,8 +162,8 @@
     --card-2:rgba(255,255,255,.5);
     --line:rgba(51,65,85,.09);
     --text:#334155;
-    --text-dim:#5B6B7F;
-    --text-faint:#7C8CA3;
+    --text-dim:#47576B;
+    --text-faint:#5A6C82;   /* 浅色底上 11px 小字需 ≥4.5:1 */
 
     /* ---- 四种情绪星色（浅色白底：加深保证文字可读） ---- */
     --red:#C2534B;
@@ -186,6 +192,7 @@
     --glass-border:rgba(255,255,255,.5);
     --glass-blur:blur(14px) saturate(150%);
     --tt-bg:rgba(255,255,255,.85);
+    --menu-bg:rgba(255,255,255,.45);
     --mm-cat-drag:#fff;  /* 同上（浅色）：与静态胶囊一致，拖拽期零跳变 */
     --wx-panel:linear-gradient(160deg,#5AA9F0 0%,#2A6FDB 100%);
 
@@ -253,7 +260,11 @@
   /* 顶层框架：屏幕底 + 四向冰川蓝对冲渐变 */
   .frame{
     position:relative;
-    max-width:520px;
+    width:100%;
+    max-width:100%;
+    /* v70 自适应：手机 / iPad 全宽铺满；≥1200px 宽屏才收成 1180 居中（见文末 @media） */
+    /* 刘海屏横屏时给左右安全区留位（竖屏/无刘海设备 env=0，等价于原值） */
+    --pad-x:max(clamp(20px,4vw,44px),env(safe-area-inset-left),env(safe-area-inset-right));
     margin:0 auto;
     /* v56 锁高三重兜底：预览宿主若不支持/异常解析 dvh，外框会被内容撑高，
        导致滚动发生在宿主层面（整页滚）而非 .content 内滚 —— 齿轮/dock 便会一起滚走 */
@@ -283,11 +294,34 @@
   }
   .icon-btn:hover{color:var(--blue);border-color:var(--blue-line);background:var(--blue-soft);}
 
+  /* ==========================================================================
+     v83 · iOS 规范自查（不改视觉，只补行为）
+     1) 可点元素最小命中区 44×44：用透明伪元素撑开，图标尺寸与布局不动
+     2) 防止 iOS 横屏自动放大字号
+     3) 数字用等宽，跳变时不抖
+     4) 标题平衡换行
+     ========================================================================== */
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+  .icon-btn,.demo-quake,.chat-tool,.chat-send,.mm-reset,.ph-back,.seg-opt,.brain-btn,.ask-opt{position:relative;}
+  .icon-btn::after,.demo-quake::after,.chat-tool::after,.chat-send::after,
+  .mm-reset::after,.ph-back::after,.seg-opt::after,.brain-btn::after,.ask-opt::after{
+    content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:max(100%,44px);height:max(100%,44px);
+  }
+  /* 图谱节点上的 × 密度太高，扩到 28px 已到上限（再大就互相压住） */
+  .mm-x{position:relative;}
+  .mm-x::after{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:max(100%,28px);height:max(100%,28px);}
+
+  /* 动态数字等宽，避免 26°→9° 时整行抖动 */
+  .weather-temp,.day-pill,.wx-card .wx-temp,.qp-meta,.brain-usage{font-variant-numeric:tabular-nums;}
+  /* 标题平衡换行（短标题无变化，长标题不会孤字） */
+  .screen-title{text-wrap:balance;}
+
   /* 内容区（顶栏已移除：齿轮悬浮右上，内容留出顶部呼吸空间） */
   .content{
     flex:1 1 auto;min-height:0;      /* min-height:0 —— flex 子项不写会被内容撑破外框 */
     overflow-y:auto;overflow-x:hidden;
-    padding:14px 20px 118px;
+    padding:14px var(--pad-x) 118px;
     scroll-behavior:smooth;
   }
   .content::-webkit-scrollbar{width:0;}
@@ -421,7 +455,7 @@
     -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
     box-shadow:inset 0 1px 0 var(--glass-hi);
   }
-  .grid .cell .k{font-size:10.5px;color:var(--text-faint);}
+  .grid .cell .k{font-size:11px;color:var(--text-faint);}
   .grid .cell .v{font-size:13.5px;margin-top:2px;}
 
   /* MBTI */
@@ -616,9 +650,12 @@
   .loop .arrow{color:var(--blue);font-size:16px;}
 
   /* 路途 · 聊天页布局（底部「时间与你」区块可随页面滚动） */
-  .chat-page.active{display:flex;flex-direction:column;min-height:100%;}
+  /* v71：由 min-height 改 height —— 聊天页不再被内容撑高，输入框钉在页底、
+     只有 chat-log 内滚（此前 min-height 会让整页超出可视区，输入框掉到 dock 后面） */
+  .chat-page.active{display:flex;flex-direction:column;height:100%;min-height:0;}
 
   .demo-row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:0 0 12px;flex-shrink:0;}
+  /* v72：演示按钮常显（可反复重看简报 / 触发地震预警） */
   .demo-quake{
     display:inline-block;font-size:10px;color:var(--al-orange);letter-spacing:.5px;
     background:var(--al-orange-bg);border:1px solid var(--al-orange-line);
@@ -654,7 +691,7 @@
   }
   .quake-push .qp-head{display:flex;align-items:center;gap:7px;font-weight:700;font-size:13px;color:var(--al-orange);}
   .quake-push .qp-body{font-size:12px;color:var(--text);margin-top:6px;line-height:1.6;}
-  .quake-push .qp-meta{font-size:10.5px;color:var(--text-faint);margin-top:7px;}
+  .quake-push .qp-meta{font-size:11.5px;color:var(--text-dim);margin-top:7px;}
   @keyframes quakeIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:none;}}
 
   /* 危机确认弹窗（号码不主动展示，防滥用） */
@@ -703,7 +740,7 @@
   .briefing .brief-sec-t{font-size:11px;color:var(--sage);font-weight:700;letter-spacing:.5px;margin-bottom:5px;}
   .briefing .brief-item{font-size:12.5px;color:var(--text-dim);line-height:1.7;}
   .briefing .brief-closing{margin-top:10px;padding-top:10px;border-top:1px dashed var(--sage-line);font-size:12.5px;color:var(--sage);font-weight:600;}
-  .briefing .brief-meta{margin-top:8px;font-size:10.5px;color:var(--text-faint);}
+  .briefing .brief-meta{margin-top:8px;font-size:11.5px;color:var(--text-dim);}
 
 
 
@@ -790,6 +827,11 @@
 
   /* 地震状态（紧凑版，融入天气卡右侧大图标下方） */
   .weather-quake{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;}
+  /* v85：地震预警并入天气状态行，右端与左边「天气 · 湿度 · 风」基线对齐 */
+  .weather-cond{display:flex;align-items:baseline;gap:0;}
+  .weather-cond .weather-quake{margin-left:auto;flex-direction:row;align-items:center;gap:4px;text-align:right;}
+  .weather-cond .weather-quake .wq-main{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:rgba(255,255,255,.9);white-space:nowrap;}
+  .weather-cond .weather-quake .wq-ico{font-size:11px;}
   .weather-quake .wq-main{
     display:inline-flex;align-items:center;gap:5px;
     font-size:10.5px;font-weight:600;color:rgba(255,255,255,.85);white-space:nowrap;
@@ -1134,8 +1176,96 @@
   }
 
   /* 路途 · 聊天记录区 */
-  .chat-log{flex:1 1 auto;min-height:220px;overflow-y:auto;padding:2px 2px 10px;}
+  /* v74：滚动限位 + 顶部渐隐——消息滑到天气卡下面时柔化淡出，不再硬切半个气泡 */
+  .chat-log{
+    flex:1 1 auto;min-height:0;overflow-y:auto;padding:2px 2px 10px;
+    overscroll-behavior:contain;                 /* 滚到头就停，不做橡皮筋回弹 */
+    -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 14px);
+    mask-image:linear-gradient(to bottom, transparent 0, #000 14px);
+  }
   .chat-log::-webkit-scrollbar{width:0;}
+  /* v85：列表错开入场（同一容器的兄弟依次出现，最多约 0.5s） */
+  .obs,.signal,.todo,.insight,.perm{animation-delay:calc(var(--i,0) * 45ms);}
+
+  /* v85 · 同心圆角：内层卡片的圆角 = 外层圆角 − 内边距，转角才是平行的 */
+  .card .sc-tile{border-radius:calc(var(--r-card) - 16px);}
+  .card .todo{border-radius:calc(var(--r-card) - 14px);}
+
+  /* v74：滚动时的重绘闪烁缓解——玻璃层提升为独立合成层，天气卡做 paint 隔离 */
+  .msg,.chat-input,.proactive,.quake-push,.weather{
+    -webkit-backface-visibility:hidden;backface-visibility:hidden;
+    transform:translateZ(0);
+  }
+  .weather{contain:paint;}
+
+  /* v74：?lite=1 关闭毛玻璃与粒子，排查闪烁 / 低端机保底 */
+  html[data-lite] .msg,html[data-lite] .weather,html[data-lite] .nav,html[data-lite] .chat-input,
+  html[data-lite] .proactive,html[data-lite] .quake-push,html[data-lite] .card{
+    -webkit-backdrop-filter:none !important;backdrop-filter:none !important;
+    transform:none !important;
+  }
+  html[data-lite] .weather-fx{display:none !important;}
+  html[data-lite] *{animation-duration:.001ms !important;transition-duration:.001ms !important;}
+
+  /* 尊重系统「减少动态效果」：关节动画与淡入全部停掉 */
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important;}
+    .chat-log{scroll-behavior:auto;}
+  }
+  /* v75：BYOK 设置卡片 */
+  .brain-desc{font-size:12.5px;line-height:1.7;color:var(--text-dim);margin:2px 0 12px;}
+  .brain-row{display:flex;align-items:center;gap:10px;margin:8px 0;}
+  .brain-row span{width:62px;flex-shrink:0;font-size:12px;color:var(--text-dim);}
+  .brain-row input{flex:1;min-width:0;height:34px;border-radius:10px;padding:0 10px;font-size:13px;font-family:inherit;
+    -webkit-appearance:none;appearance:none;
+    color:var(--text);background:var(--glass-bg-2);border:1px solid var(--glass-border);outline:none;}
+  .brain-select{position:relative;flex:1;min-width:0;}
+  .brain-sel-btn{width:100%;height:34px;border-radius:10px;padding:0 10px;font-size:13px;font-family:inherit;text-align:left;
+    color:var(--text);background:var(--glass-bg-2);border:1px solid var(--glass-border);cursor:pointer;
+    display:flex;align-items:center;justify-content:space-between;gap:8px;}
+  .brain-sel-btn::after{content:'▾';font-size:11px;color:var(--text-dim);flex-shrink:0;}
+  .brain-sel-btn:focus-visible{outline:2px solid var(--blue-line);outline-offset:2px;}
+  /* 浅色下白玻璃贴白底会看不见边界：加深描边与投影 */
+  :root[data-theme="light"] .brain-menu,
+  :root[data-theme="light"] .sky-tt,
+  :root[data-theme="light"] .undo-bar{
+    border-color:rgba(30,64,130,.18);
+    box-shadow:0 18px 40px -14px rgba(30,64,130,.26), inset 0 1px 0 rgba(255,255,255,.9);
+  }
+
+  .brain-menu{position:absolute;z-index:600;display:none;padding:6px;
+    max-height:min(240px, 46vh);overflow-y:auto;border-radius:var(--r-card-sm);
+    /* 与「时间旅行」面板同款：半透明底 + 24px 毛玻璃 */
+    background:var(--menu-bg);border:1px solid var(--glass-border);
+    -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(34px) saturate(170%);
+    box-shadow:var(--shadow), inset 0 1px 0 var(--glass-hi);
+    scrollbar-width:none;}
+  .brain-menu::-webkit-scrollbar{width:0;height:0;}
+  .brain-menu.show{display:block;}
+  .brain-menu .opt{display:block;width:100%;text-align:left;padding:8px 10px;border:none;border-radius:8px;
+    background:transparent;color:var(--text-dim);font-size:13px;font-family:inherit;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .brain-menu .opt:hover{background:var(--blue-soft);color:var(--text);}
+  .brain-menu .opt.on{background:var(--blue-soft);color:var(--text);font-weight:600;}
+  .brain-usage{font-size:11.5px;color:var(--text-dim);margin:4px 0 2px;}
+  .brain-row input:focus{border-color:var(--blue-line);}
+  .brain-acts{display:flex;gap:8px;margin:10px 0 4px;}
+  .brain-btn{font-family:inherit;font-size:12px;padding:6px 14px;border-radius:999px;cursor:pointer;
+    color:var(--blue);background:var(--blue-soft);border:1px solid var(--blue-line);}
+  .brain-btn:active{transform:scale(.97);}
+  .brain-btn.ghost{color:var(--text-dim);background:transparent;border-color:var(--glass-border);}
+  .brain-status{font-size:11px;color:var(--text-faint);margin:6px 0 2px;}
+  .brain-status.ok{color:#2f9e6b;}
+  .brain-status.err{color:#d2554e;}
+
+  .brain-out{white-space:pre-wrap;font-size:13px;line-height:1.8;color:var(--text);margin-top:10px;}
+
+  /* v74：洞察空状态里的「看一条示例洞察」 */
+  .insight-demo{
+    display:inline-block;margin-top:10px;padding:6px 14px;border-radius:999px;cursor:pointer;
+    font-size:12px;font-family:inherit;color:var(--blue);
+    background:var(--blue-soft);border:1px solid var(--blue-line);
+  }
+  .insight-demo:active{transform:scale(.97);}
   .chat-day{
     display:flex;align-items:center;justify-content:center;gap:9px;
     font-size:11px;color:var(--text-faint);margin:4px 0 14px;white-space:nowrap;
@@ -1213,7 +1343,7 @@
   .nav{
     position:absolute;left:50%;bottom:calc(12px + env(safe-area-inset-bottom));
     transform:translateX(-50%);
-    width:calc(100% - 36px);max-width:484px;
+    width:calc(100% - 2 * var(--pad-x));
     z-index:30;
     border:1px solid var(--glass-border);
     border-radius:var(--r-capsule);
@@ -1268,9 +1398,9 @@
     padding:9px 9px 9px 16px;
     border-radius:999px;
     border:1px solid var(--blue-line);
-    background:linear-gradient(150deg,var(--glass-bg-2),var(--glass-bg));
-    -webkit-backdrop-filter:var(--glass-blur);
-    backdrop-filter:var(--glass-blur);
+    background:var(--menu-bg);
+    -webkit-backdrop-filter:var(--menu-blur);
+    backdrop-filter:var(--menu-blur);
     box-shadow:inset 0 1px 0 var(--glass-hi), inset 0 -1px 0 var(--glass-lo), var(--shadow), 0 10px 34px rgba(42,111,219,.2);
     color:var(--text);
     font-size:13px;line-height:1.5;
@@ -1467,8 +1597,8 @@
     position:absolute;z-index:600;display:none;
     width:280px;max-width:min(280px, calc(100% - 24px));
     padding:14px;border-radius:var(--r-card-md);
-    background:var(--tt-bg);border:1px solid var(--glass-border);
-    -webkit-backdrop-filter:blur(24px) saturate(160%);backdrop-filter:blur(24px) saturate(160%);
+    background:var(--menu-bg);border:1px solid var(--glass-border);
+    -webkit-backdrop-filter:var(--menu-blur);backdrop-filter:var(--menu-blur);
     box-shadow:var(--shadow);
     animation:fade .28s ease;
   }
@@ -1484,7 +1614,7 @@
   .sky-tt .tt-close:hover{color:var(--red);border-color:var(--red-deep);}
   .sky-tt .tt-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 10px;flex:1 1 auto;min-height:0;}
   .sky-tt .tt-col{min-width:0;display:flex;flex-direction:column;min-height:0;}
-  .sky-tt .tt-col-l{font-size:10.5px;color:var(--text-faint);letter-spacing:1px;margin-bottom:8px;flex:none;}
+  .sky-tt .tt-col-l{font-size:11px;color:var(--text-faint);letter-spacing:1px;margin-bottom:8px;flex:none;}
   .sky-tt .tt-opts{display:flex;flex-direction:column;gap:4px;flex:1 1 auto;min-height:0;max-height:170px;overflow-y:auto;scroll-behavior:smooth;}
   .sky-tt .tt-opts::-webkit-scrollbar{width:0;}
   .sky-tt .tt-opt{
@@ -1674,7 +1804,7 @@
   .ap-sub{font-size:11.5px;color:var(--text-faint);margin-top:3px;line-height:1.5;}
   .seg{
     position:relative;display:flex;flex-shrink:0;
-    width:128px;padding:3px;
+    width:186px;padding:3px;
     background:var(--glass-bg-2);border:1px solid var(--glass-border);
     border-radius:var(--r-pill);
     box-shadow:inset 0 1px 0 var(--glass-hi);
@@ -1682,7 +1812,7 @@
   .seg-opt{
     flex:1;display:flex;align-items:center;justify-content:center;
     font-size:12px;color:var(--text-faint);border-radius:var(--r-pill);
-    position:relative;z-index:1;pointer-events:none;
+    position:relative;z-index:1;cursor:pointer;font-size:11px;
     transition:color .25s ease;padding:7px 0;
   }
   :root[data-theme="light"] .seg-opt[data-seg="light"]{color:var(--c-accent);font-weight:600;}
@@ -1690,7 +1820,7 @@
   :root:not([data-theme]) .seg-opt[data-seg="dark"]{color:var(--c-glacier-light);font-weight:600;}
   /* #themeBtn：滑块按钮本体，setTheme 切换其图标；CSS 依 data-theme 平滑滑动 */
   .seg-thumb{
-    position:absolute;top:3px;bottom:3px;left:3px;width:calc(50% - 3px);
+    position:absolute;top:3px;bottom:3px;left:3px;width:calc(33.333% - 2px);pointer-events:none;
     border:none;border-radius:var(--r-pill);cursor:pointer;
     background:linear-gradient(150deg,var(--c-glacier-light),var(--c-glacier-tab));
     box-shadow:0 4px 12px -2px rgba(42,111,219,.45), inset 0 1px 0 rgba(255,255,255,.35);
@@ -1698,8 +1828,13 @@
     font-size:13px;line-height:1;color:#fff;font-family:inherit;
     transition:left .25s cubic-bezier(.4,0,.2,1);
   }
-  :root[data-theme="dark"] .seg-thumb,
-  :root:not([data-theme]) .seg-thumb{left:50%;}
+  /* 三档：浅色 / 深色 / 跟随系统 */
+  :root[data-theme-mode="light"] .seg-thumb{left:3px;}
+  :root[data-theme-mode="dark"] .seg-thumb{left:calc(33.333% + 1px);}
+  :root[data-theme-mode="auto"] .seg-thumb{left:calc(66.666% + 1px);}
+  :root[data-theme-mode="light"] .seg-opt[data-seg="light"],
+  :root[data-theme-mode="dark"] .seg-opt[data-seg="dark"],
+  :root[data-theme-mode="auto"] .seg-opt[data-seg="auto"]{color:var(--text);font-weight:600;}
 
   /* ==========================================================================
      设计稿还原 · 新增组件（care 卡 / 聊天快捷动作 / 观察卡列表 / 自评对照 / 睡眠主卡 / 星夜标题 / 边界卡）
@@ -1807,9 +1942,11 @@
   }
   /* ③ 记忆图谱：浅色模式下为冰川蓝渐变卡，放射图改为白色（见文末「设计稿还原」块） */
 
-  @media (min-width:520px){
-    .frame{border-left:1px solid var(--line);border-right:1px solid var(--line);}
+  /* v70 自适应：≥1200px 才收成 1180 居中并加左右描边；768~1199 的 iPad 全宽铺满 */
+  @media (min-width:1200px){
+    .frame{max-width:1180px;border-left:1px solid var(--line);border-right:1px solid var(--line);}
   }
+  /* v71：内容列不再设 900 上限，≥768 也吃满整宽 */
   @media (max-width:470px){
     .mind-map{min-height:520px;padding:8px;}
     /* 小屏防重叠：压缩分支间距与叶子尺寸，避免 375px 宽下左右分支叶子重叠/裁切 */
@@ -1849,13 +1986,13 @@
   .wx-strip .weather-quake{flex-direction:row;align-items:center;gap:7px;text-align:left;}
   .wx-strip .weather-quake .wq-main{font-size:11.5px;font-weight:600;color:var(--text);}
   .wx-strip .weather-quake .wq-main .dot{background:var(--sage);box-shadow:0 0 0 3px var(--sage-soft);}
-  .wx-strip .weather-quake .wq-src{font-size:10px;color:var(--text-faint);margin-left:2px;}
+  .wx-strip .weather-quake .wq-src{font-size:11px;color:var(--text-faint);margin-left:2px;}
   .wx-strip .weather-alert{margin-left:auto;}
   .wx-strip .fest-row{display:flex;align-items:center;gap:7px;font-size:11.5px;padding:6px 0;}
   .wx-strip .fest-row .dot{width:5px;height:5px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 3px rgba(232,185,106,.18);flex-shrink:0;}
-  .wx-strip .fest-row .when{color:var(--text-faint);font-size:10.5px;}
+  .wx-strip .fest-row .when{color:var(--text-faint);font-size:11px;}
   .wx-strip .fest-row .name{font-weight:600;color:var(--text);}
-  .wx-strip .fest-row .date{color:var(--text-faint);font-size:10.5px;margin-left:auto;}
+  .wx-strip .fest-row .date{color:var(--text-faint);font-size:11px;margin-left:auto;}
 
   /* ---- 天气卡内 · 我主动想起（关怀内容融入蓝卡）+ 图标隐藏 ---- */
   .weather-icon{display:none;}
@@ -1876,7 +2013,7 @@
 
   /* ---- 聊天 UI · 设计规范覆盖（深色玻璃气泡 / 浅色白气泡 / 渐变气泡 / 白胶囊快捷钮 / 输入栏） ---- */
   .msg{
-    max-width:86%;border-radius:18px;
+    max-width:min(86%,560px);border-radius:18px;
     padding:13px 16px;margin-bottom:14px;
     font-size:14px;font-weight:400;line-height:1.9;
     word-break:break-word;position:relative;
@@ -1911,9 +2048,10 @@
     box-shadow:inset 0 1px 0 var(--glass-hi), inset 0 -1px 0 var(--glass-lo), var(--shadow);
   }
   :root[data-theme="light"] .chat-input{
-    background:#fff;border:1px solid rgba(255,255,255,.8);
-    -webkit-backdrop-filter:none;backdrop-filter:none;
-    box-shadow:0 10px 28px -10px rgba(30,64,130,.2), inset 0 1px 0 rgba(255,255,255,.9);
+    /* v81：输入框改半透明玻璃（气泡仍实心白，保证收发可区分） */
+    background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.7);
+    -webkit-backdrop-filter:blur(14px) saturate(150%);backdrop-filter:blur(14px) saturate(150%);
+    box-shadow:0 10px 28px -10px rgba(30,64,130,.22), inset 0 1px 0 rgba(255,255,255,.9);
   }
   .chat-tool{color:var(--text-dim);background:transparent;border:none;}
   .chat-tool:hover{color:var(--blue);background:var(--blue-soft);border:none;}
@@ -2027,6 +2165,17 @@
   /* ---- 设置 · 外观分段控件：左右半区分别可点（点浅色=浅色 / 点深色=深色） ---- */
   .seg-opt{pointer-events:auto;cursor:pointer;}
   .seg-thumb{pointer-events:none;}
+  /* v71 兜底：矮屏（手机横屏等）空间不足以放下天气卡+输入框，回退为整页可滚，
+     否则输入框会被挤出可视区压在 dock 下 */
+  @media (max-height:560px){
+    .chat-page.active{height:auto;min-height:100%;}
+    .chat-log{min-height:120px;}
+  }
+  /* v71：≥768px 消息与标题字号上浮（用户要求 +1~2px） */
+  @media (min-width:768px){
+    .msg{font-size:16px;line-height:1.85;}
+    .screen-title{font-size:26px;}
+  }
 </style>
 <style id="__dm_no_drag_style__">* { -webkit-user-drag: none !important; }</style><style id="__dm_bindable_badge_style__">[data-sp-bindable="database"]{outline:1px dashed #0088ff;outline-offset:2px;border-radius:4px;}[data-sp-bindable="database"] *{pointer-events:none !important;transition:none !important;animation:none !important;}[data-sp-bindable="database"]{transition:none !important;animation:none !important;}</style></head>
 <body data-page-node-id="yEcqbVz7nhrnC27653vAaI" style="">
@@ -2053,6 +2202,7 @@
             <div class="weather-cond" data-page-node-id="MUoBfShLlG3f6A4oMfkdRr">
               <span class="weather-desc" id="weatherDesc" data-page-node-id="vLTkEKiWK8CevnKUfiBJFx">多云</span>
               <span class="weather-hum" id="weatherHum" data-page-node-id="KPU1TONCa9qYyI5xai9bHY">湿度 55% · 东北风 2 级</span>
+              <div class="weather-quake" id="weatherQuake"><span class="wq-main"><span class="wq-ico">🛡️</span><span class="wq-txt">地震 无预警</span></span></div>
             </div>
           </div>
           
@@ -2060,14 +2210,14 @@
         
       <div class="weather-care" data-page-node-id="iGb3pO3JQCWUJBzuZueKU8">
         
-        <div class="weather-quake" data-page-node-id="L5SyX7iFFySoYcuVScH9Vo"><span class="wq-main" data-page-node-id="45YXtvPoeX4Dr7U54cfFN5"><span class="wq-ico" data-page-node-id="qjiWzPH2GcULca4NTzengT">🛡️</span><span class="wq-txt" data-page-node-id="yY1eWasUtwjwG1XGFCgHZN">地震 无预警</span></span></div><div class="care-txt" data-page-node-id="wiO2isTTGoFQrtXzju8p9i">白露转凉了，你提过周末想去爬山——记得带件外套。</div>
+        <div class="care-txt" data-page-node-id="wiO2isTTGoFQrtXzju8p9i">白露转凉了，你提过周末想去爬山——记得带件外套。</div>
       </div>
       </div>
       
 
 
       <div class="demo-row" data-page-node-id="LQcwQyt3rwFp5x0qEIdFd4">
-        <button type="button" class="demo-quake" onclick="proactiveCare()" data-page-node-id="zExi2FC6QWyjCUshgwfeV7">🌅 今早的简报</button>
+        <button type="button" class="demo-quake" onclick="proactiveCare()" data-page-node-id="zExi2FC6QWyjCUshgwfeV7">🌅 今日简报</button>
         <button type="button" class="demo-quake" onclick="demoQuake()" data-page-node-id="WsgGvSq7pXZ1e52MYFPn3C">⚠️ 模拟地震预警推送</button>
       </div>
 
@@ -2558,7 +2708,7 @@
     <section class="page" id="pg1s" data-page-node-id="tUr4hZTMEDHBFW0x6BBjbe">
       <div class="page-head" data-page-node-id="Qra5P438m1U31Fr43ED2iG">
         <span class="ph-title" data-page-node-id="JfoELT8YptaMc8IHVe4HhA">设置</span>
-        <button type="button" class="ph-back" onclick="switchTo(4)" data-page-node-id="2Muz59mkRrG9JzTllfxDqr">‹ 返回「你」</button>
+        <button type="button" class="ph-back" onclick="backFromSettings()" data-page-node-id="2Muz59mkRrG9JzTllfxDqr">‹ 返回</button>
       </div>
 
       <div class="section-title" data-page-node-id="hMVJF8MvgcFtL6DAlXCJDP">外观</div>
@@ -2568,12 +2718,35 @@
             <div class="ap-title" data-page-node-id="CE6oGkirMA62kX1b37jkIq">主题</div>
             <div class="ap-sub" data-page-node-id="Y6RfTIO8cVaFHmMUTiIAig">冰川记忆会跟随系统明暗，也可以在这里手动定下来。</div>
           </div>
-          <div class="seg" data-page-node-id="XveVpmifirRX46ufJbKNZC">
-            <span class="seg-opt" data-seg="light" onclick="setTheme('light', true)" data-page-node-id="EQgKzSewQF2Uzkui7sBQ21">浅色</span>
-            <span class="seg-opt" data-seg="dark" onclick="setTheme('dark', true)" data-page-node-id="d8NVopCmzhAF7L4fewgFph">深色</span>
-            <button type="button" class="seg-thumb" id="themeBtn" aria-label="切换深浅主题" data-page-node-id="NGeZKlVL12jVZrKGD2ERa0">☀️</button>
+          <div class="seg">
+            <span class="seg-opt" data-seg="light" onclick="setTheme('light', true)">浅色</span>
+            <span class="seg-opt" data-seg="dark" onclick="setTheme('dark', true)">深色</span>
+            <span class="seg-opt" data-seg="auto" onclick="setTheme('auto', true)">跟随系统</span>
+            <button type="button" class="seg-thumb" id="themeBtn" aria-label="当前主题" tabindex="-1">☀️</button>
           </div>
         </div>
+      </div>
+
+      <div class="section-title">AI 模型（可选）</div>
+      <div class="card">
+        <div class="brain-desc">填你自己模型的接口，只用来写复盘这类「生成型」内容。不填就用本地模板；对话永远走本机规则，不会传给任何模型。</div>
+        <label class="brain-row"><span>服务商</span><div class="brain-select"><button type="button" class="brain-sel-btn" id="brainProviderBtn" onclick="toggleBrainMenu('provider', event)">DeepSeek</button><div class="brain-menu" id="brainProviderMenu"></div></div></label>
+        <label class="brain-row"><span>API Key</span><input id="brainKey" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false" oninput="onBrainKey()"></label>
+        <label class="brain-row"><span>接口地址</span><input id="brainBase" type="url" placeholder="https://api.deepseek.com/v1" autocomplete="off" spellcheck="false"></label>
+        <label class="brain-row"><span>模型</span><div class="brain-select"><button type="button" class="brain-sel-btn" id="brainModelBtn" onclick="toggleBrainMenu('model', event)">deepseek-chat</button><div class="brain-menu" id="brainModelMenu"></div></div></label>
+        <div class="brain-acts">
+          <button type="button" class="brain-btn" onclick="saveBrain()">保存</button>
+          <button type="button" class="brain-btn ghost" onclick="clearBrain()">清除</button>
+          <button type="button" class="brain-btn ghost" onclick="testBrainConnection()">测试连接</button>
+        </div>
+        <div class="brain-status" id="brainStatus">未配置 · 使用本地模板</div>
+        <div class="brain-usage" id="brainUsage">余额：—　调用：0 次</div>
+        <div class="brain-acts">
+          <button type="button" class="brain-btn" onclick="generateReview()">生成本周复盘</button>
+          <button type="button" class="brain-btn ghost" onclick="refreshBalance()">刷新余额</button>
+        </div>
+        <div class="brain-out" id="brainOut"></div>
+        <div class="note" style="margin-top:10px;">服务商靠 Key 前缀和接口地址判断（同一个 sk- 前缀多家通用，猜不准时手动选）；余额只有 DeepSeek / Moonshot 提供查询接口，其余只统计本地调用次数。</div>
       </div>
 
       <div id="pg7" data-page-node-id="hYct5u2etnO0ZmwcxcGxyL">
@@ -2766,30 +2939,48 @@
 </div>
 
 <script>
+  /* v74：?lite=1 —— 关掉毛玻璃与动效，给低端机 / 疑似图层闪烁时的对照组 */
+  if(/(?:\?|&)lite=1(?:&|$)/.test(location.search)){ document.documentElement.setAttribute('data-lite','1'); }
+  /* v72：演示痕迹已还原常显，不再用 ?demo=1 开关 */
   /* ---- 主题：浅色 / 深色（跟随系统 + 手动切换） ---- */
   var themeBtn = document.getElementById('themeBtn');
-  function setTheme(t, save){
-    document.documentElement.setAttribute('data-theme', t);
-    if(themeBtn){ themeBtn.textContent = (t === 'light') ? '🌙' : '☀️'; }
-    randomizeFrameBg(t);
+  /* v79：三档主题——light / dark / auto（跟随系统） */
+  function resolveTheme(mode){
+    if(mode === 'auto'){
+      return (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    }
+    return (mode === 'light') ? 'light' : 'dark';
+  }
+  function setTheme(mode, save){
+    var eff = resolveTheme(mode);
+    document.documentElement.setAttribute('data-theme', eff);
+    document.documentElement.setAttribute('data-theme-mode', mode);
+    if(themeBtn){ themeBtn.textContent = (eff === 'light') ? '🌙' : '☀️'; }
+    randomizeFrameBg(eff);
     if(save){
-      try{ localStorage.setItem('theme', t); }catch(e){}
+      try{ localStorage.setItem('theme', mode); }catch(e){}
     }
   }
   (function initTheme(){
     var saved = null;
     try{ saved = localStorage.getItem('theme'); }catch(e){}
-    if(saved === 'light' || saved === 'dark'){
-      setTheme(saved, false);
-    } else {
-      var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
-      setTheme(prefersLight ? 'light' : 'dark', false);
+    /* 默认浅色；用户选过 light / dark / auto 才沿用 */
+    if(saved !== 'light' && saved !== 'dark' && saved !== 'auto'){ saved = 'light'; }
+    setTheme(saved, false);
+    if(window.matchMedia){
+      var mq = window.matchMedia('(prefers-color-scheme: dark)');
+      var onChange = function(){
+        if(document.documentElement.getAttribute('data-theme-mode') === 'auto'){ setTheme('auto', false); }
+      };
+      if(mq.addEventListener){ mq.addEventListener('change', onChange); }
+      else if(mq.addListener){ mq.addListener(onChange); }
     }
   })();
   if(themeBtn){
     themeBtn.addEventListener('click', function(){
-      var cur = document.documentElement.getAttribute('data-theme');
-      setTheme(cur === 'light' ? 'dark' : 'light', true);
+      var cur = document.documentElement.getAttribute('data-theme-mode') || 'light';
+      var next = cur === 'light' ? 'dark' : (cur === 'dark' ? 'auto' : 'light');
+      setTheme(next, true);
     });
   }
 
@@ -2805,7 +2996,14 @@
     switchTo(i);
   });
 
+  /* v85：记住「进设置之前在哪一页」，返回时回到那里，而不是固定回「你」 */
+  var settingsReturnPage = 4;
+  var PAGE_NAMES = ['旅途','感受','记忆','健康','你','设置'];
+  function backFromSettings(){ switchTo(settingsReturnPage); }
   function switchTo(i){
+    var curIdx = -1;
+    pages.forEach(function(p, idx){ if(p.classList.contains('active')){ curIdx = idx; } });
+    if(i === 5 && curIdx >= 0 && curIdx !== 5){ settingsReturnPage = curIdx; }
     pages.forEach(function(p, idx){ p.classList.toggle('active', idx===i); });
     nav.querySelectorAll('.nav-item').forEach(function(b){
       var j = parseInt(b.getAttribute('data-i'), 10);
@@ -2826,6 +3024,17 @@
     /* v67：撤销条让位——切页末尾按新页重算抬升量（旅途页锚定输入框顶边） */
     syncUndoBarOffset();
     if(window.CapsuleGuard){ CapsuleGuard.ping(); }
+    if(i === 5){
+      var pb = document.querySelector('.ph-back');
+      if(pb){ pb.textContent = '‹ 返回「' + (PAGE_NAMES[settingsReturnPage] || '你') + '」'; }
+    }
+    setTimeout(function(){
+      ['feelingList','stateList','todoList','insightList'].forEach(function(id){
+        var box = document.getElementById(id);
+        if(!box) return;
+        for(var k=0;k<box.children.length;k++){ box.children[k].style.setProperty('--i', k); }
+      });
+    }, 0);
   }
 
   /* v67：按当前页底部的「让位元素」重算撤销条位置 --undo-lift
@@ -4161,8 +4370,15 @@
       '<div class="qp-head"><span>⚠️</span><span>地震预警（模拟推送）</span></div>' +
       '<div class="qp-body">四川理县附近发生 M4.2 级地震，距你约 120 km，预计 25 秒后有轻微震感。请就近避险，远离高处悬挂物。</div>' +
       '<div class="qp-meta">来源：中国地震台网中心 CENC · 刚刚</div>';
-    chatLog.insertBefore(el, chatLog.firstChild);
-    chatLog.scrollTop = 0;
+    /* v75：预警落在消息流最新位置（聊天框底部），并去重——同一次预警不堆叠 */
+    var host = document.getElementById('chatLog');
+    if(host){
+      var olds = host.querySelectorAll('.quake-push');
+      for(var i=0;i<olds.length;i++){ olds[i].parentNode.removeChild(olds[i]); }
+      host.appendChild(el);
+      host.scrollTop = host.scrollHeight;
+    }
+    if(window.LA && typeof window.LA.pushAlert === 'function'){ window.LA.pushAlert(el.innerHTML); }
   }
 
   /* ---- 危机确认弹窗 ---- */
@@ -4610,16 +4826,19 @@
       if(last != null && last !== ''){ h = parseInt(last, 10); }
     }catch(e){}
 
+    /* 简报现在可能是当天第一次打开的任意时刻，问候按时间走，不再一律「早上好」 */
+    var _hr = new Date().getHours();
+    var hello = _hr < 5 ? '夜深了。' : (_hr < 11 ? '早上好。' : (_hr < 14 ? '中午好。' : (_hr < 18 ? '下午好。' : '晚上好。')));
     var greeting;
     if(todos.length > 0){
-      greeting = '早上好。今天有 ' + todos.length + ' 件事等着你，我都在。';
+      greeting = hello + '今天有 ' + todos.length + ' 件事等着你，我都在。';
     } else if(signals.length > 0){
-      greeting = '早上好。今天没有特别要办的事，但你的状态，我替你记着。';
+      greeting = hello + '今天没有特别要办的事，但你的状态，我替你记着。';
     } else {
-      greeting = '早上好。今天看起来是安静的一天，我都在。';
+      greeting = hello + '今天看起来是安静的一天，我都在。';
     }
 
-    var html = '<div class="pro-head">🌅 今早的简报</div><div class="pro-body">' + greeting + '</div>';
+    var html = '<div class="pro-head">🌅 今日简报</div><div class="pro-body">' + greeting + '</div>';
 
     if(todos.length > 0){
       var show = todos.slice(0, 5);
@@ -5008,6 +5227,858 @@
   /* v67/v68：启动胶囊定位检测器（后台静默；切页/弹条/尺寸变化自动复检，
      违规只在控制台报警。徽章默认隐藏，?guard=1 或 CapsuleGuard.toggleBadge(true) 可唤出） */
   CapsuleGuard.start();
+  /* ============================================================
+     v72 · 数据层 + 记忆闭环（不改动现有布局，只接管读写与几处主动行为）
+     ─ 四个键：la.messages / la.emotions / la.insights / la.profile
+     ─ 每条记录 { v:<schemaVersion>, data }，带 v0→v1 迁移
+     ─ 写入失败 → 顶部提示「这次记录没存上」
+     ─ 首次进入把样板对话记为 23 天前，让「回访」有内容可回顾
+     ============================================================ */
+  (function(){
+    'use strict';
+    var NS = 'la.';
+    var VER = { messages:1, emotions:1, insights:1, profile:1 };
+    var DAY = 86400000;
+    var failAt = 0;
+    var BUCKET_NAME = { red:'烦躁', amber:'亢奋', sage:'平静', blue:'疲惫' };
+    var KEYWORDS = ['老板','加班','方案','失眠','睡不好','妈妈','爸爸','相亲','朋友','累','焦虑','爬山','出差','分手','升职','考试','房租','搬家','体检'];
+
+    var store = { messages:[], emotions:[], insights:[], profile:null };
+    var justPushedBrief = false;   /* 刚推过晨间简报的这次打开，不再回访，避免两段主动消息打架 */
+
+    function tip(msg){
+      var t = document.getElementById('chatTip');
+      if(!t) return;
+      var now = Date.now();
+      if(now - failAt < 5000) return;
+      failAt = now;
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(function(){ t.classList.remove('show'); }, 2800);
+    }
+
+    /* v0（无版本号裸数据）→ v1 */
+    function migrate(key, obj){
+      if(obj && typeof obj === 'object' && !('v' in obj)){
+        return { v:1, data: (obj.data !== undefined) ? obj.data : obj };
+      }
+      return obj;
+    }
+
+    function read(key){
+      try{
+        var raw = localStorage.getItem(NS + key);
+        if(!raw) return null;
+        var obj = JSON.parse(raw);
+        var guard = 0;
+        while(obj && typeof obj === 'object' && obj.v !== VER[key] && guard++ < 8){
+          if(obj.v > VER[key]) return obj.data;      /* 更高版本：只读兼容，绝不降级覆盖 */
+          obj = migrate(key, obj);
+        }
+        if(!obj || typeof obj !== 'object' || obj.data === undefined) return null;
+        return obj.data;
+      }catch(e){ return null; }
+    }
+
+    function write(key, data){
+      try{
+        localStorage.setItem(NS + key, JSON.stringify({ v:VER[key], data:data }));
+        return true;
+      }catch(e){
+        tip('这次记录没存上（浏览器存储不可用或已满）');
+        return false;
+      }
+    }
+
+    function uid(){ return 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+    function load(){
+      store.messages = read('messages') || [];
+      store.emotions = read('emotions') || [];
+      store.insights = read('insights') || [];
+      store.profile  = read('profile') || null;
+      if(!store.profile){
+        store.profile = { firstSeen:Date.now(), lastVisitAt:0, stage:0, topics:{}, replays:{}, lastTemplate:-1, lastCtx:'' };
+      }
+      store.profile.topics  = store.profile.topics  || {};
+      store.profile.replays = store.profile.replays || {};
+      if(store.profile.lastTemplate == null) store.profile.lastTemplate = -1;
+      store.profile.lastVisitAt = Date.now();
+      write('profile', store.profile);
+    }
+
+    /* ---------- 聊天记录 ---------- */
+    function dayKey(ts){
+      var d = new Date(ts);
+      return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+    }
+    function dayLabel(ts){
+      var t = Date.now();
+      if(dayKey(ts) === dayKey(t)) return '今天';
+      if(dayKey(ts) === dayKey(t - DAY)) return '昨天';
+      var d = new Date(ts);
+      return (d.getMonth()+1) + '月' + d.getDate() + '日';
+    }
+    function msgNode(m){
+      var el = document.createElement('div');
+      el.className = 'msg ' + (m.who === 'user' ? 'user' : 'me');
+      el.textContent = m.text;
+      return el;
+    }
+    function alertNode(m){
+      var el = document.createElement('div');
+      el.className = 'quake-push';
+      el.innerHTML = m.html || '';
+      return el;
+    }
+    function briefNode(m){
+      var el = document.createElement('div');
+      el.className = 'proactive briefing';
+      /* 历史落盘的简报里标题是旧文案，渲染时统一成「今日简报」 */
+      el.innerHTML = (m.html || '').replace(/今早的简报/g, '今日简报');
+      return el;
+    }
+    function divider(label){
+      var el = document.createElement('div');
+      el.className = 'chat-day';
+      el.textContent = label;
+      return el;
+    }
+    function addMessage(who, text){
+      var m = { id:uid(), who:(who === 'user' ? 'user' : 'me'), text:String(text), at:Date.now() };
+      store.messages.push(m);
+      if(store.messages.length > 500) store.messages = store.messages.slice(-500);
+      write('messages', store.messages);
+      return m;
+    }
+    function renderChat(){
+      var log = document.getElementById('chatLog');
+      if(!log) return;
+      if(!store.messages.length){ seedFromDom(log); return; }
+      var old = log.querySelectorAll('.msg, .chat-day');
+      for(var i=0;i<old.length;i++){ old[i].parentNode.removeChild(old[i]); }
+      var last = null;
+      for(var j=0;j<store.messages.length;j++){
+        var mm = store.messages[j];
+        if(mm.kind === 'alert'){
+          log.appendChild(alertNode(mm));      /* 预警是置顶横幅，不参与日期分组 */
+          continue;
+        }
+        var lb = dayLabel(mm.at);
+        if(lb !== last){ log.appendChild(divider(lb)); last = lb; }
+        log.appendChild(mm.kind === 'brief' ? briefNode(mm) : msgNode(mm));
+      }
+
+      log.scrollTop = log.scrollHeight;
+    }
+    function seedFromDom(log){
+      var nodes = log.querySelectorAll('.msg');
+      var base = Date.now() - 23 * DAY;
+      for(var i=0;i<nodes.length;i++){
+        store.messages.push({
+          id: uid(),
+          who: nodes[i].classList.contains('user') ? 'user' : 'me',
+          text: nodes[i].textContent,
+          at: base + i * 60000
+        });
+      }
+      if(store.messages.length){ write('messages', store.messages); renderChat(); }
+    }
+
+    /* ---------- 情绪日志镜像（不改变既有 lp_emotion_log 逻辑） ---------- */
+    function hookEmotionMirror(){
+      if(typeof persistEmotionLog !== 'function') return;
+      var orig = persistEmotionLog;
+      window.persistEmotionLog = function(){
+        orig();
+        try{
+          var arr = [];
+          for(var i=0;i<emotionLog.length;i++){
+            var e = emotionLog[i];
+            arr.push({ ts:e.ts, day:e.day, bucket:e.bucket, word:e.word });
+          }
+          store.emotions = arr;
+          write('emotions', arr);
+        }catch(err){}
+      };
+    }
+    function restoreEmotionLog(){
+      try{
+        if(localStorage.getItem('lp_emotion_log')) return;
+        if(!store.emotions || !store.emotions.length) return;
+        localStorage.setItem('lp_emotion_log', JSON.stringify(store.emotions));
+        if(typeof loadEmotionLog === 'function') loadEmotionLog();
+        if(typeof renderSky === 'function' && typeof skyYear !== 'undefined' && skyYear != null){
+          renderSky(skyYear, skyMonth);
+        }
+      }catch(e){}
+    }
+
+    /* ---------- 话题记忆 + 模板回话 ---------- */
+    var TEMPLATES = [
+      function(k,n,d){ return '「' + k + '」这个词，你跟我说过 ' + n + ' 次了。它是不是比你以为的更重？'; },
+      function(k,n,d){ return '你又提到' + k + '了。上次是 ' + d + ' 天前，我没忘。'; },
+      function(k,n,d){ return '我记着' + k + '。今天这句，和上次那句，像是一件事。'; },
+      function(k,n,d){ return '第 ' + n + ' 次听你说' + k + '了。要不要这次多说一点？'; }
+    ];
+    function topicsIn(text){
+      var hits = [];
+      for(var i=0;i<KEYWORDS.length;i++){
+        if(text.indexOf(KEYWORDS[i]) >= 0) hits.push(KEYWORDS[i]);
+      }
+      return hits;
+    }
+    function bumpTopics(text){
+      var hits = topicsIn(text);
+      for(var i=0;i<hits.length;i++){
+        var k = hits[i];
+        var t = store.profile.topics[k] || { count:0, lastAt:0 };
+        t.count += 1;
+        t.lastAt = Date.now();
+        store.profile.topics[k] = t;
+      }
+      if(hits.length) write('profile', store.profile);
+      return hits;
+    }
+    function contextReply(text){
+      var topics = store.profile.topics, hits = [], k;
+      for(k in topics){
+        if(topics.hasOwnProperty(k) && text.indexOf(k) >= 0 && topics[k].count >= 2) hits.push(k);
+      }
+      if(!hits.length) return;
+      k = hits[0];
+      if(store.profile.lastCtx === k) return;          /* 同一话题一次会话只补一句 */
+      store.profile.lastCtx = k;
+      var t = topics[k];
+      var days = Math.max(1, Math.round((Date.now() - t.lastAt) / DAY));
+      var idx = (store.profile.lastTemplate + 1) % TEMPLATES.length;   /* 同一句不连续出现 */
+      store.profile.lastTemplate = idx;
+      write('profile', store.profile);
+      setTimeout(function(){ appendMsg('me', TEMPLATES[idx](k, t.count, days)); }, 2400);
+    }
+
+    /* ---------- 双时间戳回访：7 天 / 30 天 ---------- */
+    function checkReplay(){
+      if(justPushedBrief) return;
+      var now = Date.now();
+      /* 同一台设备 20 小时内只回访一条：避免连续刷新被连珠炮式的「你还记得吗」轰炸 */
+      if(now - (store.profile.lastReplayAt || 0) < 20 * 3600 * 1000) return;
+      for(var i=store.messages.length-1;i>=0;i--){
+        var m = store.messages[i];
+        if(!m || m.who !== 'user') continue;
+        var age = (now - m.at) / DAY;
+        var mark = age >= 30 ? 'd30' : (age >= 7 ? 'd7' : null);
+        if(!mark) continue;
+        var key = m.id + ':' + mark;
+        if(store.profile.replays[key]) continue;
+        var label = age >= 30 ? '一个月前' : (age >= 21 ? '三周前' : (age >= 14 ? '两周前' : '一周前'));
+        var txt = label + '你说「' + m.text + '」，现在呢？还一样吗？';
+        /* 先发再落标记：中途关闭页面时宁可不发，也不能「标记了却没发」导致回访永久丢失 */
+        setTimeout(function(){
+          appendMsg('me', txt);
+          store.profile.replays[key] = Date.now();
+          store.profile.lastReplayAt = Date.now();
+          write('profile', store.profile);
+        }, 1200);
+        return;
+      }
+    }
+
+    /* ---------- 触发式洞察：连续 3 天同情绪桶 + 反复出现的关键词 ---------- */
+    function consecutiveBuckets(){
+      var src = (typeof emotionLog !== 'undefined' && emotionLog.length) ? emotionLog : (store.emotions || []);
+      var byDay = {}, i, k;
+      for(i=0;i<src.length;i++){
+        var e = src[i];
+        if(!e || !e.ts || !e.day || !e.bucket) continue;
+        var d = ('0' + e.day).slice(-2);
+        byDay[e.ts + '-' + d] = e.bucket;
+      }
+      var keys = Object.keys(byDay).sort();
+      var run = 1;
+      for(i=1;i<keys.length;i++){
+        if(byDay[keys[i]] === byDay[keys[i-1]]){
+          run++;
+          if(run >= 3) return { bucket: byDay[keys[i]], run: run };
+        } else { run = 1; }
+      }
+      return null;
+    }
+    function computeInsight(){
+      var conf = consecutiveBuckets();
+      if(!conf) return null;
+      var topics = store.profile.topics, best = null, k;
+      for(k in topics){
+        if(topics.hasOwnProperty(k) && topics[k].count >= 2){
+          if(!best || topics[k].count > best.count) best = { k:k, count:topics[k].count };
+        }
+      }
+      if(!best) return null;
+      var key = 'auto:' + conf.bucket + ':' + best.k;
+      for(var i=0;i<store.insights.length;i++){ if(store.insights[i].key === key) return null; }
+      var name = BUCKET_NAME[conf.bucket] || conf.bucket;
+      var text = '这几天的情绪都落在「' + name + '」，而「' + best.k + '」你也提了 ' + best.count + ' 次。这两件事，可能是同一件。';
+      var ins = { id:uid(), key:key, text:text, at:Date.now(), status:'new' };
+      store.insights.push(ins);
+      write('insights', store.insights);
+      return ins;
+    }
+    function paintInsight(list, ins, isNew){
+      if(!list || !ins || typeof buildInsight !== 'function') return;
+      if(list.querySelector('[data-insight-id="' + ins.id + '"]')) return;
+      var item = buildInsight(ins.text, 'triggered');
+      item.setAttribute('data-insight-id', ins.id);
+      var ok = item.querySelector('.act.ok');
+      var no = item.querySelector('.act.no');
+      if(ok){ ok.addEventListener('click', function(){ ins.status = 'confirmed'; write('insights', store.insights); }); }
+      if(no){ no.addEventListener('click', function(){ ins.status = 'dismissed'; write('insights', store.insights); }); }
+      list.appendChild(item);
+      /* 撤销走洞察卡自带的「不是这样」——dismissInsight 会把操作压进同一个撤销栈，
+         这里不再额外 registerUndo，否则每次加载都弹一条莫名的「已记下」。 */
+    }
+    function streakHint(){
+      var src = (typeof emotionLog !== 'undefined' && emotionLog.length) ? emotionLog : (store.emotions || []);
+      var byDay = {}, keys, i;
+      for(i=0;i<src.length;i++){
+        var e = src[i];
+        if(!e || !e.ts || !e.day || !e.bucket) continue;
+        byDay[e.ts + '-' + ('0' + e.day).slice(-2)] = e.bucket;
+      }
+      keys = Object.keys(byDay).sort();
+      if(!keys.length) return '';
+      var run = 1, bk = byDay[keys[0]];
+      for(i=1;i<keys.length;i++){
+        if(byDay[keys[i]] === byDay[keys[i-1]]) run++; else { run = 1; bk = byDay[keys[i]]; }
+      }
+      if(run >= 2){
+        return '这几天你的情绪都落在「' + (BUCKET_NAME[bk] || bk) + '」，再攒 ' + (3 - run) + ' 天，我就能跟你说第一句。';
+      }
+      return '';
+    }
+    function renderInsights(){
+      var list = document.getElementById('insightList');
+      if(!list) return;
+      var fresh = computeInsight();
+      for(var i=0;i<store.insights.length;i++){
+        if(store.insights[i].status !== 'dismissed') paintInsight(list, store.insights[i], !!(fresh && fresh.id === store.insights[i].id));
+      }
+      var live = list.querySelectorAll('.insight');
+      var empty = list.querySelector('.insight-empty');
+      if(!live.length){
+        if(!empty){
+          empty = document.createElement('div');
+          empty.className = 'list-caption insight-empty';
+          empty.textContent = streakHint() || '我还在看。等攒够几天的记录，再来跟你说。';
+          var demoBtn = document.createElement('button');
+          demoBtn.type = 'button';
+          demoBtn.className = 'insight-demo';
+          demoBtn.textContent = '看一条示例洞察';
+          demoBtn.addEventListener('click', function(){
+            if(typeof buildInsight !== 'function') return;
+            var sample = buildInsight('你上周三次在深夜打开，又三次说起「睡不着」。这两件事，可能是同一件。', 'demo');
+            var host = document.getElementById('insightList');
+            if(host){ host.appendChild(sample); if(demoBtn.parentNode){ demoBtn.style.display = 'none'; } }
+          });
+          empty.appendChild(demoBtn);
+          list.appendChild(empty);
+        }
+      } else if(empty){
+        empty.parentNode.removeChild(empty);
+      }
+    }
+    function hidePresetInsights(){
+      var presets = document.querySelectorAll('#insightList .insight[data-kind="preset"]');
+      for(var i=0;i<presets.length;i++){ presets[i].parentNode.removeChild(presets[i]); }
+    }
+
+    /* ---------- 挂钩既有函数（保持原逻辑，只在旁边补一层） ---------- */
+    function hookAppend(){
+      if(typeof appendMsg !== 'function') return;
+      var orig = appendMsg;
+      window.appendMsg = function(who, text){
+        orig(who, text);
+        addMessage(who, text);
+
+      };
+    }
+    function hookSend(){
+      if(typeof sendChat !== 'function') return;
+      var orig = sendChat;
+      window.sendChat = function(){
+        var el = document.getElementById('chatText');
+        var v = el ? el.value.trim() : '';
+        orig();
+        if(!v) return;
+        try{
+          if(typeof CRISIS !== 'undefined' && CRISIS.re && CRISIS.re.test(v)) return;
+          if(typeof RISK !== 'undefined' && RISK.re && RISK.re.test(v)) return;
+        }catch(e){}
+        bumpTopics(v);
+        contextReply(v);
+        renderInsights();
+      };
+    }
+
+    function todayStr(){
+      var d = new Date();
+      return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+    }
+    /* 每天第一次打开：不等用户点，直接把「今早的简报」推进聊天框（同一天只推一次） */
+    function maybeDailyBrief(){
+      if(typeof proactiveCare !== 'function') return;
+      var today = todayStr();
+      if(store.profile.lastBriefDate === today) return;
+      setTimeout(function(){
+        proactiveCare();
+        /* 简报也要留在聊天里：刷新后从 store 重建，而不是消失 */
+        var cards = document.querySelectorAll('#chatLog .proactive.briefing');
+        var card = cards.length ? cards[cards.length - 1] : null;
+        /* v74：不用底部留白，改成把卡片顶边滚到可视区顶部；卡片比可视区高时底部自然溢出 */
+        if(card){
+          var lb = document.getElementById('chatLog');
+          if(lb){
+            var lr2 = lb.getBoundingClientRect(), cr2 = card.getBoundingClientRect();
+            lb.scrollTop = Math.max(0, Math.min(lb.scrollHeight - lb.clientHeight, lb.scrollTop + (cr2.top - lr2.top)));
+          }
+        }
+        if(card && card.innerHTML){
+          store.messages.push({ id:uid(), who:'me', kind:'brief', html:card.innerHTML, text:'🌅 今日简报', at:Date.now() });
+          write('messages', store.messages);
+        }
+        justPushedBrief = true;
+        store.profile.lastBriefDate = today;   /* 先推成功再落标记：中途关掉页面，下次打开还会补上 */
+        write('profile', store.profile);
+        setTimeout(function(){ if(typeof hideUndoBar === 'function') hideUndoBar(); }, 80);
+      }, 700);
+    }
+    function boot(){
+      load();
+      renderChat();
+      restoreEmotionLog();
+      hookAppend();
+      hookSend();
+      hookEmotionMirror();
+      hidePresetInsights();
+      brainFillForm();
+      setTimeout(renderInsights, 800);
+      setTimeout(checkReplay, 1200);
+      maybeDailyBrief();
+    }
+
+    /* ---------- v76：BYOK 生成型骨架（厂商识别 / 模型下拉 / 用量与余额） ----------
+       只接生成型任务；对话永远走本机规则。
+       无配置 → 本地模板；有配置 → 8 秒超时调 OpenAI 兼容接口；失败一律回落。 */
+    var BRAIN_KEY = 'la.brain';
+    var STATS_KEY = 'la.brainStats';
+    var lastBalance = '—';
+    var PROVIDERS = {
+      deepseek:  { name:'DeepSeek',        base:'https://api.deepseek.com/v1',                        models:['deepseek-chat','deepseek-reasoner'], balance:'https://api.deepseek.com/user/balance' },
+      moonshot:  { name:'Moonshot Kimi',   base:'https://api.moonshot.cn/v1',                         models:['moonshot-v1-8k','moonshot-v1-32k','kimi-k2-0905-preview'], balance:'https://api.moonshot.cn/v1/users/me/balance' },
+      openrouter:{ name:'OpenRouter',      base:'https://openrouter.ai/api/v1',                       models:['deepseek/deepseek-chat','openai/gpt-4o-mini','anthropic/claude-3.5-sonnet'], balance:null },
+      openai:    { name:'OpenAI',          base:'https://api.openai.com/v1',                          models:['gpt-4o-mini','gpt-4o'], balance:null },
+      zhipu:     { name:'智谱 GLM',        base:'https://open.bigmodel.cn/api/paas/v4',               models:['glm-4-flash','glm-4-plus'], balance:null },
+      dashscope: { name:'通义千问',         base:'https://dashscope.aliyuncs.com/compatible-mode/v1',  models:['qwen-plus','qwen-turbo','qwen-max'], balance:null },
+      custom:    { name:'自定义（OpenAI 兼容）', base:'', models:[], balance:null }
+    };
+
+    function brainCfg(){
+      try{
+        var raw = localStorage.getItem(BRAIN_KEY);
+        if(!raw) return null;
+        var o = JSON.parse(raw);
+        if(!o || !o.baseUrl || !o.key || !o.model) return null;
+        if(!o.provider) o.provider = 'custom';
+        return o;
+      }catch(e){ return null; }
+    }
+    function brainSaveCfg(cfg){
+      try{ localStorage.setItem(BRAIN_KEY, JSON.stringify(cfg)); return true; }
+      catch(e){ tip('这次记录没存上（浏览器存储不可用或已满）'); return false; }
+    }
+    function statsGet(){
+      try{
+        var o = JSON.parse(localStorage.getItem(STATS_KEY) || '{}');
+        return { calls:o.calls||0, ok:o.ok||0, fail:o.fail||0, tokens:o.tokens||0, lastMs:o.lastMs||0 };
+      }catch(e){ return { calls:0, ok:0, fail:0, tokens:0, lastMs:0 }; }
+    }
+    function statsSet(o){
+      try{ localStorage.setItem(STATS_KEY, JSON.stringify(o)); }catch(e){}
+    }
+    function usageText(){
+      var s = statsGet();
+      return '调用：' + s.calls + ' 次（成功 ' + s.ok + ' / 回落 ' + s.fail + '）' + (s.lastMs ? '　上次 ' + s.lastMs + 'ms' : '');
+    }
+    function setUsage(){
+      var el = document.getElementById('brainUsage');
+      if(!el) return;
+      el.textContent = '余额：' + lastBalance + '　' + usageText();
+    }
+
+    /* Key 只能靠前缀猜：同一个 sk- 前缀多家通用，所以猜不中要用户手动选 */
+    function guessProvider(key){
+      if(!key) return null;
+      if(key.indexOf('sk-ant-') === 0) return 'anthropic';
+      if(key.indexOf('sk-or-v1-') === 0) return 'openrouter';
+      if(key.indexOf('sk-proj-') === 0 || key.indexOf('sk-svcacct-') === 0) return 'openai';
+      if(/^[0-9a-f]{32}\./.test(key)) return 'zhipu';
+      return null;
+    }
+
+    var brainState = { provider:'deepseek', model:'deepseek-chat', models:[] };
+    function providerName(k){ return PROVIDERS[k] ? PROVIDERS[k].name : k; }
+    function renderProviderBtn(){
+      var b = document.getElementById('brainProviderBtn');
+      if(b) b.textContent = providerName(brainState.provider);
+    }
+    function renderModelBtn(){
+      var b = document.getElementById('brainModelBtn');
+      if(b) b.textContent = brainState.model || '选择模型';
+    }
+    function closeBrainMenus(){
+      var a = document.getElementById('brainProviderMenu'), b = document.getElementById('brainModelMenu');
+      if(a) a.classList.remove('show');
+      if(b) b.classList.remove('show');
+    }
+    function buildProviderMenu(){
+      var m = document.getElementById('brainProviderMenu');
+      if(!m) return;
+      m.innerHTML = '';
+      for(var k in PROVIDERS){
+        if(!PROVIDERS.hasOwnProperty(k)) continue;
+        (function(key){
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'opt' + (brainState.provider === key ? ' on' : '');
+          b.textContent = PROVIDERS[key].name;
+          b.addEventListener('click', function(){ closeBrainMenus(); setProvider(key, true); });
+          m.appendChild(b);
+        })(k);
+      }
+    }
+    function buildModelMenu(){
+      var m = document.getElementById('brainModelMenu');
+      if(!m) return;
+      m.innerHTML = '';
+      var list = (brainState.models && brainState.models.length) ? brainState.models : [brainState.model || 'deepseek-chat'];
+      for(var i=0;i<list.length;i++){
+        (function(v){
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'opt' + (brainState.model === v ? ' on' : '');
+          b.textContent = v;
+          b.title = v;
+          b.addEventListener('click', function(){ closeBrainMenus(); setModel(v); });
+          m.appendChild(b);
+        })(list[i]);
+      }
+    }
+    function positionBrainMenu(menu, btn){
+      var frame = document.querySelector('.frame');
+      if(!frame || !btn) return;
+      if(menu.parentNode !== frame){ frame.appendChild(menu); }
+      var br = btn.getBoundingClientRect(), fr = frame.getBoundingClientRect();
+      menu.style.left = (br.left - fr.left) + 'px';
+      menu.style.top = (br.bottom - fr.top + 8) + 'px';
+      menu.style.width = br.width + 'px';
+    }
+    function toggleBrainMenu(kind, ev){
+      if(ev && ev.stopPropagation) ev.stopPropagation();
+      var menu = document.getElementById(kind === 'provider' ? 'brainProviderMenu' : 'brainModelMenu');
+      var btn = document.getElementById(kind === 'provider' ? 'brainProviderBtn' : 'brainModelBtn');
+      if(!menu) return;
+      var open = menu.classList.contains('show');
+      closeBrainMenus();
+      if(open) return;
+      if(kind === 'provider'){ buildProviderMenu(); } else { buildModelMenu(); }
+      positionBrainMenu(menu, btn);
+      menu.classList.add('show');
+    }
+    function setProvider(k, fire){
+      brainState.provider = k;
+      renderProviderBtn();
+      if(fire){ onBrainProvider(); }
+    }
+    function setModel(v){
+      brainState.model = v;
+      renderModelBtn();
+      buildModelMenu();
+    }
+    function fillModelMenu(models, current){
+      brainState.models = (models && models.length) ? models.slice() : ['deepseek-chat'];
+      if(current && brainState.models.indexOf(current) < 0) brainState.models.push(current);
+      brainState.model = current || brainState.models[0];
+      renderModelBtn();
+      buildModelMenu();
+    }
+    function onBrainProvider(){
+      var p = PROVIDERS[brainState.provider] || PROVIDERS.custom;
+      var base = document.getElementById('brainBase');
+      if(base){ base.value = p.base; }
+      fillModelMenu(p.models, null);
+    }
+    function onBrainKey(){
+      var keyEl = document.getElementById('brainKey');
+      if(!keyEl) return;
+      var g = guessProvider(keyEl.value.trim());
+      if(g === 'anthropic'){
+        var st = document.getElementById('brainStatus');
+        if(st) st.textContent = 'Anthropic 原生接口不兼容，暂不支持';
+        return;
+      }
+      if(g && PROVIDERS[g] && brainState.provider !== g){ setProvider(g, true); }
+    }
+    function brainFillForm(){
+      var cfg = brainCfg();
+      var provider = (cfg && cfg.provider) || 'deepseek';
+      brainState.provider = provider;
+      renderProviderBtn();
+      var base = document.getElementById('brainBase');
+      var keyEl = document.getElementById('brainKey');
+      var p = PROVIDERS[provider] || PROVIDERS.deepseek;
+      if(base){ base.value = cfg ? cfg.baseUrl : (p.base || ''); }
+      if(keyEl){ keyEl.value = (cfg && cfg.key) ? '••••••••' : ''; }
+      fillModelMenu(p.models, cfg ? cfg.model : null);
+      var st = document.getElementById('brainStatus');
+      if(st){ st.className = 'brain-status'; st.textContent = cfg ? ('已配置 · ' + providerName(provider) + ' / ' + cfg.model) : '未配置 · 使用本地模板'; }
+      lastBalance = '—';
+      setUsage();
+    }
+    document.addEventListener('click', function(){ closeBrainMenus(); });
+    (function(){
+      var sc = document.querySelector('.content');
+      if(sc){ sc.addEventListener('scroll', closeBrainMenus, { passive:true }); }
+      window.addEventListener('resize', closeBrainMenus);
+    })();
+
+    /* ---------- 生成 ---------- */
+    function brainPrompt(){
+      var since = Date.now() - 7 * DAY, lines = [], i;
+      var msgs = store.messages.filter(function(m){ return m.at >= since && !m.kind && m.text; }).slice(-30);
+      for(i=0;i<msgs.length;i++){ lines.push((msgs[i].who === 'user' ? '我：' : '她：') + msgs[i].text); }
+      var tops = [], k;
+      for(k in store.profile.topics){
+        if(store.profile.topics.hasOwnProperty(k) && store.profile.topics[k].count >= 2) tops.push(k);
+      }
+      var emo = [];
+      if(typeof emotionLog !== 'undefined'){
+        for(i=Math.max(0, emotionLog.length-10); i<emotionLog.length; i++){
+          emo.push(BUCKET_NAME[emotionLog[i].bucket] || emotionLog[i].bucket);
+        }
+      }
+      return ['本周对话：', lines.join(String.fromCharCode(10)) || '（很少）', '反复出现的词：' + (tops.join('、') || '无'), '情绪：' + (emo.join('、') || '无记录')].join(String.fromCharCode(10));
+    }
+    function ruleReview(){
+      var since = Date.now() - 7 * DAY, i, j, k;
+      var user = store.messages.filter(function(m){ return m.at >= since && m.who === 'user' && m.text && !m.kind; });
+      if(!user.length) return '这一周你来得少。我不催，只是把位置留着。';
+      var counts = {};
+      for(i=0;i<user.length;i++){
+        var hits = topicsIn(user[i].text);
+        for(j=0;j<hits.length;j++){ counts[hits[j]] = (counts[hits[j]] || 0) + 1; }
+      }
+      var top = null;
+      for(k in counts){ if(counts.hasOwnProperty(k) && (!top || counts[k] > counts[top])) top = k; }
+      var parts = ['这一周你跟我说了 ' + user.length + ' 句话。'];
+      if(top) parts.push('「' + top + '」出现得最多，我记下了。');
+      var emo = (typeof emotionLog !== 'undefined') ? emotionLog.slice(-7) : [];
+      if(emo.length){
+        var b = emo[emo.length-1].bucket;
+        parts.push('情绪大多落在「' + (BUCKET_NAME[b] || b) + '」。');
+      }
+      parts.push('慢慢来，我都在。');
+      return parts.join('');
+    }
+    function brainGenerate(ruleFn){
+      var cfg = brainCfg();
+      if(!cfg) return Promise.resolve({ text: ruleFn(), source: 'rule' });
+      var ctrl = null, timer = null, t0 = Date.now();
+      try{ ctrl = new AbortController(); }catch(e){ ctrl = null; }
+      timer = setTimeout(function(){ if(ctrl) ctrl.abort(); }, 8000);
+      return fetch(cfg.baseUrl.replace(/\/+$/, '') + '/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.key },
+        body: JSON.stringify({
+          model: cfg.model,
+          temperature: 0.6,
+          messages: [
+            { role: 'system', content: '你是「人生档案」的写作者。语气克制、温暖、不说教，不列条目、不加标题。只输出 120 字以内的中文。' },
+            { role: 'user', content: brainPrompt() }
+          ]
+        }),
+        signal: ctrl ? ctrl.signal : undefined
+      }).then(function(res){
+        if(!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      }).then(function(data){
+        var t = data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+        if(!t) throw new Error('empty');
+        return { text: String(t).trim(), source: 'model' };
+      }).catch(function(err){
+        return { text: ruleFn(), source: 'rule-fallback', error: String(err && err.message || err) };
+      }).then(function(r){
+        clearTimeout(timer);
+        var st = statsGet();
+        st.calls += 1;
+        if(r.source === 'model'){ st.ok += 1; st.tokens += Math.round((brainPrompt().length + r.text.length) / 3); }
+        else { st.fail += 1; }
+        st.lastMs = Date.now() - t0;
+        statsSet(st);
+        setUsage();
+        return r;
+      });
+    }
+
+    /* ---------- 余额 ---------- */
+    function parseBalance(provider, d){
+      try{
+        if(provider === 'deepseek'){
+          var infos = (d && d.balance_infos) || [];
+          if(!infos.length) return null;
+          var it = infos[0];
+          return (it.currency === 'CNY' ? '¥' : '$') + it.total_balance;
+        }
+        if(provider === 'moonshot'){
+          var bal = d && d.data && d.data.available_balance;
+          if(bal == null) return null;
+          return '¥' + bal;
+        }
+      }catch(e){}
+      return null;
+    }
+    function refreshBalance(){
+      var cfg = brainCfg();
+      if(!cfg){ lastBalance = '—'; setUsage(); return; }
+      var p = PROVIDERS[cfg.provider] || PROVIDERS.custom;
+      if(!p.balance){ lastBalance = '该服务商未提供查询接口'; setUsage(); return; }
+      var ctrl = null;
+      try{ ctrl = new AbortController(); }catch(e){ ctrl = null; }
+      var timer = setTimeout(function(){ if(ctrl) ctrl.abort(); }, 6000);
+      fetch(p.balance, { headers: { 'Authorization': 'Bearer ' + cfg.key }, signal: ctrl ? ctrl.signal : undefined })
+        .then(function(r){ if(!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function(d){
+          clearTimeout(timer);
+          var v = parseBalance(cfg.provider, d);
+          lastBalance = v || '接口未返回余额'; setUsage();
+        })
+        .catch(function(err){
+          clearTimeout(timer);
+          lastBalance = '查询失败（' + String(err && err.message || err) + '）'; setUsage();
+        });
+    }
+
+    /* ---------- 连接测试（成功/失败 + 顺带刷新模型列表） ---------- */
+    function testBrainConnection(){
+      var cfg = brainCfg();
+      var base = document.getElementById('brainBase');
+      var keyEl = document.getElementById('brainKey');
+      var url = ((base && base.value.trim()) || (cfg && cfg.baseUrl) || '').replace(/\/+$/, '');
+      var key = (keyEl && keyEl.value.trim());
+      if(!key || key === '••••••••'){ key = cfg ? cfg.key : ''; }
+      var st = document.getElementById('brainStatus');
+      function say(cls, txt){
+        if(!st) return;
+        st.className = 'brain-status' + (cls ? ' ' + cls : '');
+        st.textContent = txt;
+      }
+      if(!url || !key){ say('err', '先填接口地址和 API Key'); return; }
+      say('', '正在测试连接…');
+      var ctrl = null;
+      try{ ctrl = new AbortController(); }catch(err){}
+      var timer = setTimeout(function(){ if(ctrl) ctrl.abort(); }, 8000);
+      fetch(url + '/models', { headers: { 'Authorization': 'Bearer ' + key }, signal: ctrl ? ctrl.signal : undefined })
+        .then(function(r){
+          if(!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function(d){
+          clearTimeout(timer);
+          var list = [], arr = (d && (d.data || d.models)) || [], i;
+          for(i=0;i<arr.length;i++){
+            var id = arr[i] && (arr[i].id || arr[i].name);
+            if(id) list.push(id);
+          }
+          if(list.length){ list.sort(); fillModelMenu(list.slice(0, 60), brainState.model); }
+          say('ok', '连接成功' + (list.length ? (' · 可用模型 ' + list.length + ' 个') : ' · 接口可用'));
+        })
+        .catch(function(err){
+          clearTimeout(timer);
+          var msg = String(err && err.message || err);
+          if(/abort/i.test(msg)){ msg = '超时（8 秒）'; }
+          if(msg === 'Failed to fetch'){ msg = '网络错误或被跨域拦截'; }
+          say('err', '连接失败 · ' + msg);
+        });
+    }
+
+    window.onBrainProvider = onBrainProvider;
+    window.onBrainKey = onBrainKey;
+    window.saveBrain = function(){
+      var keyEl = document.getElementById('brainKey');
+      var base = document.getElementById('brainBase');
+      var provider = brainState.provider || 'custom';
+      var baseUrl = base ? base.value.trim() : '';
+      var key = keyEl ? keyEl.value.trim() : '';
+      var model = brainState.model || '';
+      if(key === '••••••••' || key === ''){
+        var old = brainCfg();
+        if(old && old.key) key = old.key;
+      }
+      if(provider !== 'custom' && !baseUrl){ baseUrl = (PROVIDERS[provider] || {}).base || ''; }
+      if(!baseUrl || !key || !model){
+        var st = document.getElementById('brainStatus');
+        if(st){ st.className = 'brain-status err'; st.textContent = '服务商 / Key / 模型都要有才能启用'; }
+        return;
+      }
+      brainSaveCfg({ provider: provider, baseUrl: baseUrl, key: key, model: model });
+      brainFillForm();
+    };
+    window.clearBrain = function(){
+      try{ localStorage.removeItem(BRAIN_KEY); }catch(e){}
+      var k = document.getElementById('brainKey');
+      var o = document.getElementById('brainOut');
+      if(k) k.value = '';
+      if(o) o.textContent = '';
+      brainFillForm();
+    };
+    window.toggleBrainMenu = toggleBrainMenu;
+    window.testBrainConnection = testBrainConnection;
+    window.pullBrainModels = testBrainConnection;
+    window.refreshBalance = refreshBalance;
+    window.generateReview = function(){
+      var out = document.getElementById('brainOut'), st = document.getElementById('brainStatus');
+      if(out){ out.textContent = '正在写…'; }
+      brainGenerate(ruleReview).then(function(r){
+        if(out){ out.textContent = r.text; }
+        if(st){
+          st.textContent = r.source === 'model' ? '这条由你的模型生成' :
+            (r.source === 'rule-fallback' ? '模型没接通（' + r.error + '），已回落到本地模板' : '本地模板生成');
+        }
+      });
+    };
+
+    window.LA = {
+      version: VER,
+      /* 预警卡置顶落库：插到消息最前面，刷新后仍在最前 */
+      pushAlert: function(html){
+        store.messages = store.messages.filter(function(m){ return m.kind !== 'alert'; });
+        store.messages.push({ id:uid(), who:'me', kind:'alert', html:html, text:'⚠️ 地震预警', at:Date.now() });
+        write('messages', store.messages);
+      },
+      dump: function(){ return { messages:store.messages, emotions:store.emotions, insights:store.insights, profile:store.profile }; },
+      reset: function(){
+        ['messages','emotions','insights','profile'].forEach(function(k){
+          try{ localStorage.removeItem(NS + k); }catch(e){}
+        });
+        try{ localStorage.removeItem('lp_emotion_log'); }catch(e){}
+      }
+    };
+
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', boot);
+    } else {
+      setTimeout(boot, 0);
+    }
+  })();
+
 </script>
 
 
