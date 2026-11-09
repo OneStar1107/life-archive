@@ -1179,12 +1179,15 @@
 
   /* 路途 · 聊天记录区 */
   /* v74：滚动限位 + 顶部渐隐——消息滑到天气卡下面时柔化淡出，不再硬切半个气泡 */
+  .day-status{position:relative;z-index:4;}
   .chat-log{
     flex:1 1 auto;min-height:0;overflow-y:auto;padding:2px 2px 28px;
+    /* v111：上边界提到天气卡下方，只留 10px 做顶部渐隐 */
+    margin-top:-26px;
     overscroll-behavior:contain;                 /* 滚到头就停，不做橡皮筋回弹 */
     /* v90：上下对称的渐隐遮罩——内容滑到输入框边缘时淡出，而不是被硬切一半 */
-    -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 32px), transparent 100%);
-    mask-image:linear-gradient(to bottom, transparent 0, #000 16px, #000 calc(100% - 32px), transparent 100%);
+    -webkit-mask-image:linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 32px), transparent 100%);
+    mask-image:linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 32px), transparent 100%);
   }
   .chat-log::-webkit-scrollbar{width:0;}
   /* v85：列表错开入场（同一容器的兄弟依次出现，最多约 0.5s） */
@@ -2695,8 +2698,6 @@
 
 
       <div class="demo-row" data-page-node-id="LQcwQyt3rwFp5x0qEIdFd4">
-        <button type="button" class="demo-quake" onclick="proactiveCare()" data-page-node-id="zExi2FC6QWyjCUshgwfeV7"><svg class="ic-ico c-blue" viewBox="0 0 256 256" aria-hidden="true"><path d="M184,128a56,56,0,1,1-56-56A56,56,0,0,1,184,128Z" opacity="0.2"/><path d="M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm72,88a64,64,0,1,1-64-64A64.07,64.07,0,0,1,192,128Zm-16,0a48,48,0,1,0-48,48A48.05,48.05,0,0,0,176,128ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z"/></svg> 今日简报</button>
-        <button type="button" class="demo-quake" onclick="demoQuake()" data-page-node-id="WsgGvSq7pXZ1e52MYFPn3C"><svg class="ic-ico c-amber" viewBox="0 0 256 256" aria-hidden="true"><path d="M215.46,216H40.54C27.92,216,20,202.79,26.13,192.09L113.59,40.22c6.3-11,22.52-11,28.82,0l87.46,151.87C236,202.79,228.08,216,215.46,216Z" opacity="0.2"/><path d="M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM222.93,203.8a8.5,8.5,0,0,1-7.48,4.2H40.55a8.5,8.5,0,0,1-7.48-4.2,7.59,7.59,0,0,1,0-7.72L120.52,44.21a8.75,8.75,0,0,1,15,0l87.45,151.87A7.59,7.59,0,0,1,222.93,203.8ZM120,144V104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm20,36a12,12,0,1,1-12-12A12,12,0,0,1,140,180Z"/></svg> 模拟地震预警推送</button>
       </div>
 
       <div class="chat-log" id="chatLog" data-page-node-id="byGSYn8A4vr2HoX9GQnOGp">
@@ -8130,6 +8131,81 @@
       return '<svg class="ic-ico ' + (cls || 'c-blue') + '" viewBox="' + it.vb + '" aria-hidden="true" style="' + (size ? 'width:' + size + 'px;height:' + size + 'px;' : '') + '">' + it.body + '</svg>';
     }
     window.Icons = { svg: svg, has: function(k){ return !!RAW[k]; } };
+  })();
+
+  /* ==========================================================================
+     v111 · QuakeWatch：真实地震数据 + 系统通知
+     数据源：USGS 实时目录（覆盖中国区域 bbox）。CENC 官网为 React SPA，
+     没有可直接跨域调用的公开接口，浏览器直连会被拦；要接 CENC 必须由
+     服务端代理转发（工程版做这一层，原型里先接 USGS 保证是真实数据）。
+     命中后：① 聊天里推一张卡片 ② 已授权时弹系统通知（锁屏/通知中心/横幅
+     取决于系统；页面没打开时收不到，那需要 PWA + 推送服务器）。
+     ========================================================================== */
+  (function(){
+    var LAST = 'la.quakeLast';
+    var ON = 'la.quakeWatch';
+    var BBOX = { minlatitude: 18, maxlatitude: 54, minlongitude: 73, maxlongitude: 135 };
+    function enabled(){ try{ return localStorage.getItem(ON) !== '0'; }catch(e){ return true; } }
+    function lastId(){ try{ return localStorage.getItem(LAST) || ''; }catch(e){ return ''; } }
+    function setLast(id){ try{ localStorage.setItem(LAST, id); }catch(e){} }
+
+    function askNotify(){
+      if(!('Notification' in window)) return;
+      if(Notification.permission === 'default'){
+        try{ Notification.requestPermission(); }catch(e){}
+      }
+    }
+    function notify(q){
+      if(!('Notification' in window) || Notification.permission !== 'granted') return;
+      try{
+        new Notification('地震预警 · M' + q.mag, {
+          body: q.place + ' · ' + Math.round(q.depth) + 'km 深',
+          tag: 'quake-' + q.id,
+          requireInteraction: true
+        });
+      }catch(e){}
+    }
+
+    function pushToChat(q){
+      if(typeof appendMsg !== 'function') return;
+      var d = new Date(q.time);
+      var hh = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+      appendMsg('me', '【地震】' + hh + ' ' + q.place + '，M' + q.mag + '，深 ' + Math.round(q.depth) + ' 公里。' +
+        (q.dist != null ? '离你约 ' + Math.round(q.dist) + ' 公里。' : '') + '如果感到晃动，先护住头颈，别急着下楼。');
+    }
+
+    function fetchQuakes(){
+      if(!enabled()) return;
+      var since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      var url = 'https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson' +
+        '&starttime=' + since + '&minmagnitude=4.0&limit=20' +
+        '&minlatitude=' + BBOX.minlatitude + '&maxlatitude=' + BBOX.maxlatitude +
+        '&minlongitude=' + BBOX.minlongitude + '&maxlongitude=' + BBOX.maxlongitude;
+      fetch(url, { cache: 'no-store' }).then(function(r){ return r.json(); }).then(function(j){
+        var list = (j.features || []).map(function(f){
+          var p = f.properties, c = f.geometry.coordinates;
+          return { id: f.id, mag: p.mag, place: p.place, time: p.time, lon: c[0], lat: c[1], depth: c[2] };
+        }).sort(function(a, b){ return b.time - a.time; });
+        if(!list.length) return;
+        var seen = lastId();
+        var fresh = list.filter(function(q){ return q.id !== seen; });
+        if(!fresh.length) return;
+        /* 只对最近 2 小时内、且是这次新出现的推 */
+        var newest = fresh.filter(function(q){ return Date.now() - q.time < 2 * 3600 * 1000; });
+        if(seen){ newest.forEach(function(q){ pushToChat(q); notify(q); }); }
+        setLast(list[0].id);
+      }).catch(function(){ /* 断网静默 */ });
+    }
+
+    window.QuakeWatch = {
+      start: function(){ askNotify(); fetchQuakes(); setInterval(fetchQuakes, 5 * 60 * 1000); },
+      setEnabled: function(on){ try{ localStorage.setItem(ON, on ? '1' : '0'); }catch(e){} if(on) fetchQuakes(); },
+      enabled: enabled
+    };
+    /* 首屏后 3 秒开始轮询，不抢首屏 */
+    if(document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ window.QuakeWatch.start(); }, 3000); });
+    } else { setTimeout(function(){ window.QuakeWatch.start(); }, 3000); }
   })();
 
 </script>
