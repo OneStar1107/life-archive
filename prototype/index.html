@@ -5072,8 +5072,50 @@
     applyPanTransform();
   }
   /* 重置视角：平移归零、缩放归 1，可选平滑过渡 */
+  /* ==========================================================================
+     v108 · 思维导图自适应居中
+     原来 6 个分支用百分比硬定位（top:2% / bottom:2%），内容一多就贴边、被裁。
+     现在：测量所有节点 → 算整体包围盒 → scale 缩到容器里 → 平移让内容中心
+     对齐容器中心。拖拽 / 重置 / 连线都走同一套 mmTX/mmTY/mmScale。
+     ========================================================================== */
+  function fitMindMap(){
+    var map = document.getElementById('mindMap');
+    var pan = document.getElementById('mmPan');
+    if(!map || !pan || !mindMapEl) return;
+    if(!map.offsetWidth || !map.offsetHeight) return;
+    pan.style.transition = 'none';
+    pan.style.transform = 'translate(0px,0px) scale(1)';
+    var mr = map.getBoundingClientRect();
+    var pad = 22;
+    var L = 1e9, T = 1e9, R = -1e9, B = -1e9;
+    var items = map.querySelectorAll('.mm-branch, .mm-root, .mm-cat, .mm-leaf');
+    for(var i=0;i<items.length;i++){
+      var r = items[i].getBoundingClientRect();
+      if(!r.width && !r.height) continue;
+      var x1 = r.left - mr.left, y1 = r.top - mr.top;
+      var x2 = r.right - mr.left, y2 = r.bottom - mr.top;
+      if(x1 < L) L = x1; if(y1 < T) T = y1;
+      if(x2 > R) R = x2; if(y2 > B) B = y2;
+    }
+    if(R <= L || B <= T) return;
+    var cw = R - L, ch = B - T;
+    var s = Math.min((mr.width - pad*2) / cw, (mr.height - pad*2) / ch, 1.12);
+    if(!isFinite(s) || s <= 0) s = 1;
+    var cx = L + cw/2, cy = T + ch/2;
+    mmScale = s;
+    mmTX = mr.width/2 - cx * s;
+    mmTY = mr.height/2 - cy * s;
+    pan.style.transform = 'translate(' + mmTX.toFixed(2) + 'px,' + mmTY.toFixed(2) + 'px) scale(' + s.toFixed(4) + ')';
+    setTimeout(function(){ pan.style.transition = ''; }, 30);
+    scheduleDrawMindLinks();
+  }
+  window.fitMindMap = fitMindMap;
   function resetMindView(smooth){
-    mmTX = 0; mmTY = 0; mmScale = 1;
+    /* v108：重置回到「自适应居中」的结果，而不是 1:1 原点 */
+    if(smooth && mindPan){ mindPan.style.transition = 'transform .2s ease'; }
+    if(typeof fitMindMap === 'function'){ fitMindMap(); }
+    if(mindMapEl){ mindMapEl.classList.remove('dragging'); }
+    applyPanTransform();
     if(mindMapEl){ mindMapEl.classList.remove('dragging'); }
     if(smooth && mindPan){ mindPan.style.transition = 'transform .2s ease'; }
     applyPanTransform();
@@ -8006,6 +8048,29 @@
     }
     if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', init); }
     else { setTimeout(init, 0); }
+  })();
+
+  /* v108：图谱页可见后自适应居中（等布局稳定） */
+  (function(){
+    function run(){
+      if(typeof fitMindMap !== 'function') return;
+      var pg = document.getElementById('pg1g');
+      if(!pg) return;
+      if(pg.classList.contains('active')){
+        requestAnimationFrame(function(){ requestAnimationFrame(fitMindMap); });
+      }
+    }
+    var orig = window.switchTo;
+    if(typeof orig === 'function'){
+      window.switchTo = function(){
+        var r = orig.apply(this, arguments);
+        setTimeout(run, 60);
+        return r;
+      };
+    }
+    window.addEventListener('resize', function(){ setTimeout(run, 80); });
+    if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', function(){ setTimeout(run, 200); }); }
+    else { setTimeout(run, 200); }
   })();
 
 </script>
