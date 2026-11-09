@@ -1180,6 +1180,7 @@
   .day-status{position:relative;z-index:4;}
   /* v116：撤销条出现时聊天区自动让位，避免盖住最后一条消息 */
   .chat-log.undo-on{padding-bottom:58px;}
+  .chat-log{transition:padding-bottom .22s ease;}
   /* v115：一条消息里可以有换行（多段合并用） */
   .msg{white-space:pre-line;}
   .chat-log{
@@ -3976,6 +3977,8 @@
     m.appendChild(document.createTextNode(text));
     chatLog.appendChild(m);
     chatLog.scrollTop = chatLog.scrollHeight;
+    /* v117：动画会让 scrollHeight 晚一帧更新，再补一次确保真的到底 */
+    requestAnimationFrame(function(){ chatLog.scrollTop = chatLog.scrollHeight; });
   }
 
   /* 消化中枢：把「开会/会议」相关的话追加为一条待办 */
@@ -7611,9 +7614,11 @@
         return r;
       };
     }
-    function setVoiceMode(on){
+    function setVoiceMode(on, source){
       var box = document.querySelector('.chat-input');
       if(!box) return;
+      /* v117：记住是从哪进来的——点按钮进来要留在语音模式，长按进来发完就回键盘 */
+      if(on){ window.__voiceByLongPress = (source === 'longpress'); }
       box.classList.toggle('voice-mode', !!on);
       if(window.VoiceNote){ on ? window.VoiceNote.open() : window.VoiceNote.close(); }
       sync();
@@ -7841,6 +7846,11 @@
     }
     function stopPlay(){ cancelAnimationFrame(praf); praf = 0; playing = false; }
     function close(){
+      /* v117：取消/丢弃后，长按进来的回键盘 */
+      if(window.__voiceByLongPress && typeof window.setVoiceMode === 'function'){
+        window.__voiceByLongPress = false;
+        window.setVoiceMode(false);
+      }
       go('cancel');
       clearTimeout(later);
       later = setTimeout(function(){ clip = null; pull = 0; go('idle'); if(frame) frame.removeAttribute('data-on'); }, 360);
@@ -7938,6 +7948,11 @@
       clip = null; prog = 0; stopPlay();
       go('idle');
       if(frame) frame.removeAttribute('data-on');
+      /* v117：长按进来的，发完自动回键盘；点按钮进来的留在语音模式 */
+      if(window.__voiceByLongPress && typeof window.setVoiceMode === 'function'){
+        window.__voiceByLongPress = false;
+        window.setVoiceMode(false);
+      }
       notify();
     }
     window.VoiceNote = {
@@ -8054,7 +8069,7 @@
         timer = setTimeout(function(){
           fired = true;
           try{ t.blur(); }catch(err){}
-          if(window.setVoiceMode) window.setVoiceMode(true);
+          if(window.setVoiceMode) window.setVoiceMode(true, 'longpress');
           if(window.VoiceNote) window.VoiceNote.begin();
         }, 320);
       });
