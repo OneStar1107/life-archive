@@ -1178,6 +1178,8 @@
   /* 路途 · 聊天记录区 */
   /* v74：滚动限位 + 顶部渐隐——消息滑到天气卡下面时柔化淡出，不再硬切半个气泡 */
   .day-status{position:relative;z-index:4;}
+  /* v116：撤销条出现时聊天区自动让位，避免盖住最后一条消息 */
+  .chat-log.undo-on{padding-bottom:58px;}
   /* v115：一条消息里可以有换行（多段合并用） */
   .msg{white-space:pre-line;}
   .chat-log{
@@ -3683,6 +3685,8 @@
   }
 
   function showUndoBar(text){
+    var _log = document.querySelector('.chat-log');
+    if(_log){ _log.classList.add('undo-on'); }
     ensureUndoBar();
     /* v67：弹条前按当前页重算抬升量，避免切页后残留旧偏移 */
     syncUndoBarOffset();
@@ -3694,6 +3698,8 @@
   }
 
   function hideUndoBar(){
+    var _log = document.querySelector('.chat-log');
+    if(_log){ _log.classList.remove('undo-on'); }
     if(undoBar){ undoBar.classList.remove('show'); }
     if(window.CapsuleGuard){ CapsuleGuard.ping(); }
   }
