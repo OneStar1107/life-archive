@@ -487,10 +487,7 @@
     display:flex;gap:11px;padding:13px 0;border-bottom:1px solid var(--line);
   }
   .obs:last-child{border-bottom:none;}
-  .obs .ico{font-size:18px;flex-shrink:0;width:34px;height:34px;border-radius:var(--r-icon);
-    background:var(--glass-bg-2);border:1px solid var(--glass-border);
-    display:flex;align-items:center;justify-content:center;
-    -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);}
+
   .obs .t{font-size:14px;}
   .obs .src{font-size:11.5px;color:var(--text-faint);margin-top:3px;}
 
@@ -548,8 +545,9 @@
   .mem.asked{background:linear-gradient(150deg,var(--amber-soft),var(--glass-bg));border-color:var(--amber-line);}
   .mem.released{background:linear-gradient(150deg,var(--blue-soft),var(--glass-bg));border-color:var(--blue-line);}
   .mem .head{display:flex;align-items:center;gap:9px;}
-  .mem .emoji{font-size:19px;}
-  .mem .nm{font-size:14px;font-weight:600;}
+/* v114：我记得的事 · 图标与观察卡/状态卡同一套尺寸 */
+  /* v114：三处图标容器统一（观察卡 / 状态卡 / 我记得的事）＝ 40px 蓝调方块 */
+  .obs .ico, #stateList .signal .ico,   .mem .nm{font-size:14px;font-weight:600;}
   .mem .badge{font-size:10px;padding:2px 8px;border-radius:999px;margin-left:auto;white-space:nowrap;}
   .mem.asked .badge{background:var(--amber-soft);color:var(--amber);border:1px solid var(--amber-line);}
   .mem.released .badge{background:var(--blue-soft);color:var(--blue);border:1px solid var(--blue-line);}
@@ -1726,15 +1724,7 @@
   .jar-freq i.sage{background:var(--sage);}
 
   /* 最近的状态：信号行（滑动删除已于 v51 按需求移除） */
-  /* v112：状态卡与观察卡的图标容器统一（34px 圆角方块 + 玻璃底） */
-  #stateList .signal .ico{
-    font-size:18px;flex-shrink:0;width:34px;height:34px;border-radius:var(--r-icon);
-    background:var(--glass-bg-2);border:1px solid var(--glass-border);
-    display:flex;align-items:center;justify-content:center;
-    -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
-  }
-  #stateList .signal .ico .ic-ico{width:19px;height:19px;}
-  .obs .ico .ic-ico{width:19px;height:19px;}
+
   #stateList .signal{display:block;padding:0;position:relative;}
   #stateList .signal .sw-wrap{
     display:flex;align-items:center;gap:12px;padding:12px 0;
@@ -2172,6 +2162,24 @@
   .plus-txt{display:flex;flex-direction:column;line-height:1.3;}
   .plus-txt b{font-weight:500;}
   .plus-txt i{font-style:normal;font-size:10.5px;color:var(--text-faint);}
+
+  /* v114 · 三处图标容器统一（观察卡 / 状态卡 / 我记得的事）
+     后写覆盖前面零散定义：40px 蓝调方块 + 20px 图标 */
+  .obs .ico,
+  #stateList .signal .ico,
+  .mem .emoji{
+    width:40px !important;height:40px !important;
+    border-radius:var(--r-icon) !important;
+    display:flex !important;align-items:center !important;justify-content:center !important;
+    background:rgba(42,111,219,.12) !important;
+    border:1px solid rgba(42,111,219,.32) !important;
+    flex:none !important;
+    font-size:20px !important;
+  }
+  .obs .ico .ic-ico,
+  #stateList .signal .ico .ic-ico,
+  .mem .emoji .ic-ico{width:20px !important;height:20px !important;}
+
   /* v109 · 内联图标（Phosphor Duotone, MIT） */
   .ic-ico{display:inline-block;vertical-align:-0.16em;width:1em;height:1em;fill:currentColor;flex:none;}
   .c-blue{color:#2A6FDB;} .c-sage{color:#3E8B63;} .c-amber{color:#BE8636;} .c-ink{color:var(--text-dim);}
@@ -2915,7 +2923,7 @@
 
         <div class="mem asked" data-page-node-id="n3aAZUxZhbHfsDQtiiGdcS">
           <div class="head" data-page-node-id="0vlno0WbOhnFGntrSDxdc1">
-            <span class="emoji" data-page-node-id="kNbTBQV8L05R54NrD2dPkL"><svg class="ic-ico c-amber" viewBox="0 0 256 256" aria-hidden="true"><path d="M208,40V168H152S152,64,208,40Z" opacity="0.2"/><path d="M72,88V40a8,8,0,0,1,16,0V88a8,8,0,0,1-16,0ZM216,40V224a8,8,0,0,1-16,0V176H152a8,8,0,0,1-8-8,268.75,268.75,0,0,1,7.22-56.88c9.78-40.49,28.32-67.63,53.63-78.47A8,8,0,0,1,216,40ZM200,53.9c-32.17,24.57-38.47,84.42-39.7,106.1H200ZM119.89,38.69a8,8,0,1,0-15.78,2.63L112,88.63a32,32,0,0,1-64,0l7.88-47.31a8,8,0,1,0-15.78-2.63l-8,48A8.17,8.17,0,0,0,32,88a48.07,48.07,0,0,0,40,47.32V224a8,8,0,0,0,16,0V135.32A48.07,48.07,0,0,0,128,88a8.17,8.17,0,0,0-.11-1.31Z"/></svg></span><span class="nm" data-page-node-id="9Un84AgQuwQTxujppi7cif">夜跑</span>
+            <span class="emoji" data-page-node-id="kNbTBQV8L05R54NrD2dPkL"><svg class="ic-ico c-blue" viewBox="0 0 256 256" aria-hidden="true"><path d="M176,56a24,24,0,1,1-24-24A24,24,0,0,1,176,56Z" opacity="0.2"/><path d="M152,88a32,32,0,1,0-32-32A32,32,0,0,0,152,88Zm0-48a16,16,0,1,1-16,16A16,16,0,0,1,152,40Zm67.31,100.68c-.61.28-7.49,3.28-19.67,3.28-13.85,0-34.55-3.88-60.69-20a169.31,169.31,0,0,1-15.41,32.34,104.29,104.29,0,0,1,31.31,15.81C173.92,186.65,184,207.35,184,232a8,8,0,0,1-16,0c0-41.7-34.69-56.71-54.14-61.85-.55.7-1.12,1.41-1.69,2.1-19.64,23.8-44.25,36.18-71.63,36.18A92.29,92.29,0,0,1,31.2,208,8,8,0,0,1,32.8,192c25.92,2.59,48.47-7.49,67-30,12.49-15.14,21-33.61,25.25-47C86.13,92.34,61.27,111.63,61,111.84A8,8,0,1,1,51,99.36c1.5-1.2,37.22-29,89.51,6.57,45.47,30.91,71.93,20.31,72.18,20.19a8,8,0,1,1,6.63,14.56Z"/></svg></span><span class="nm" data-page-node-id="9Un84AgQuwQTxujppi7cif">夜跑</span>
             <span class="badge" data-page-node-id="YOFnNCMqCxGRulXkZed9lo">你说过重要</span>
           </div>
           <div class="quote" data-page-node-id="lzJyiF0pCDZXVBXP3JBUWy">「这是少数能让我清空脑子的事。」</div>
@@ -2927,7 +2935,7 @@
         </div>
         <div class="mem asked" data-page-node-id="JCDHn1MIrj92Pj9HoxLoSj">
           <div class="head" data-page-node-id="n1F9GeWjCKmpQPq6bXcCHx">
-            <span class="emoji" data-page-node-id="hxyEO4vDUbI5KrvfXknMt2"><svg class="ic-ico c-amber" viewBox="0 0 256 256" aria-hidden="true"><path d="M208,40V168H152S152,64,208,40Z" opacity="0.2"/><path d="M72,88V40a8,8,0,0,1,16,0V88a8,8,0,0,1-16,0ZM216,40V224a8,8,0,0,1-16,0V176H152a8,8,0,0,1-8-8,268.75,268.75,0,0,1,7.22-56.88c9.78-40.49,28.32-67.63,53.63-78.47A8,8,0,0,1,216,40ZM200,53.9c-32.17,24.57-38.47,84.42-39.7,106.1H200ZM119.89,38.69a8,8,0,1,0-15.78,2.63L112,88.63a32,32,0,0,1-64,0l7.88-47.31a8,8,0,1,0-15.78-2.63l-8,48A8.17,8.17,0,0,0,32,88a48.07,48.07,0,0,0,40,47.32V224a8,8,0,0,0,16,0V135.32A48.07,48.07,0,0,0,128,88a8.17,8.17,0,0,0-.11-1.31Z"/></svg></span><span class="nm" data-page-node-id="MMnCkzDKMM4VC38HiB1STU">学吉他</span>
+            <span class="emoji" data-page-node-id="hxyEO4vDUbI5KrvfXknMt2"><svg class="ic-ico c-blue" viewBox="0 0 256 256" aria-hidden="true"><path d="M155.2,100.8c-23-23-55.57-27.63-72.8-10.4a34.21,34.21,0,0,0-7.61,11.66,16.23,16.23,0,0,1-14.72,10C48,112.44,37,116.61,28.8,124.8,7.6,146,13.33,186.12,41.6,214.4s68.39,34,89.6,12.8C139.39,219,143.56,208,144,195.93a16.23,16.23,0,0,1,10-14.72,34.21,34.21,0,0,0,11.66-7.61C182.83,156.37,178.17,123.78,155.2,100.8ZM112,168a24,24,0,1,1,24-24A24,24,0,0,1,112,168Z" opacity="0.2"/><path d="M249.66,46.34l-40-40a8,8,0,0,0-11.31,11.32L200.69,20,140.52,80.16C117.73,68.3,92.21,69.29,76.75,84.74a42.27,42.27,0,0,0-9.39,14.37A8.24,8.24,0,0,1,59.81,104c-14.59.49-27.26,5.72-36.65,15.11C11.08,131.22,6,148.6,8.74,168.07,11.4,186.7,21.07,205.15,36,220s33.34,24.56,52,27.22A71.13,71.13,0,0,0,98.1,248c15.32,0,28.83-5.23,38.76-15.16,9.39-9.39,14.62-22.06,15.11-36.65a8.24,8.24,0,0,1,4.92-7.55,42.12,42.12,0,0,0,14.37-9.39c15.45-15.46,16.44-41,4.58-63.77L236,55.31l2.34,2.34a8,8,0,1,0,11.32-11.31ZM160,167.93a26.12,26.12,0,0,1-8.95,5.83,24.24,24.24,0,0,0-15,21.89c-.36,10.46-4,19.41-10.43,25.88-8.44,8.43-21,11.95-35.36,9.89C75,229.25,59.73,221.19,47.27,208.73S26.75,181,24.58,165.81c-2-14.37,1.46-26.92,9.89-35.36C40.94,124,49.89,120.37,60.35,120h0a24.22,24.22,0,0,0,21.89-15,26.12,26.12,0,0,1,5.83-9c5.49-5.49,13-8.13,21.38-8.13a49.38,49.38,0,0,1,19.13,4.19L108.5,112.19a32,32,0,1,0,35.31,35.31l20.08-20.08C170.41,142.71,169.47,158.41,160,167.93Zm-10.4-61.48a72.9,72.9,0,0,1,5.93,6.75l-15.42,15.42a32.22,32.22,0,0,0-12.68-12.68l15.42-15.43A73,73,0,0,1,149.55,106.45ZM112,128a16,16,0,0,1,16,16h0a16,16,0,1,1-16-16Zm48.85-32.85a86.94,86.94,0,0,0-6.68-6L176,67.31,188.69,80l-21.83,21.82A86.94,86.94,0,0,0,160.86,95.14ZM200,68.68,187.32,56,212,31.31,224.69,44ZM93.66,194.33a8,8,0,0,1-11.31,11.32l-32-32a8,8,0,0,1,11.32-11.31Z"/></svg></span><span class="nm" data-page-node-id="MMnCkzDKMM4VC38HiB1STU">学吉他</span>
             <span class="badge" data-page-node-id="PXdsNanTdSe3bXtSrEcZ6x">你说过重要</span>
           </div>
           <div class="quote" data-page-node-id="kOquQVTfr0i5lpgAaFBaiG">「想练到能弹一首完整的。」</div>
@@ -2951,7 +2959,7 @@
         </div>
         <div class="mem released" data-page-node-id="iQgtBq7qYY6FIoCqQnV2nD">
           <div class="head" data-page-node-id="mEaFVUGujZYBkXp15qDCaO">
-            <span class="emoji" data-page-node-id="VZD89Mkl1R3x2iDDy8Aj1q"><svg class="ic-ico c-blue" viewBox="0 0 256 256" aria-hidden="true"><path d="M208,64H176L160,40H96L80,64H48A16,16,0,0,0,32,80V192a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V80A16,16,0,0,0,208,64ZM128,168a36,36,0,1,1,36-36A36,36,0,0,1,128,168Z" opacity="0.2"/><path d="M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.71,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.43l13.63,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z"/></svg></span><span class="nm" data-page-node-id="BD1Xvhmc7YTvCgYBzFeY72">法语课</span>
+            <span class="emoji" data-page-node-id="VZD89Mkl1R3x2iDDy8Aj1q"><svg class="ic-ico c-sage" viewBox="0 0 256 256" aria-hidden="true"><path d="M232,56V200H160a32,32,0,0,0-32,32,32,32,0,0,0-32-32H24V56H96a32,32,0,0,1,32,32,32,32,0,0,1,32-32Z" opacity="0.2"/><path d="M232,48H160a40,40,0,0,0-32,16A40,40,0,0,0,96,48H24a8,8,0,0,0-8,8V200a8,8,0,0,0,8,8H96a24,24,0,0,1,24,24,8,8,0,0,0,16,0,24,24,0,0,1,24-24h72a8,8,0,0,0,8-8V56A8,8,0,0,0,232,48ZM96,192H32V64H96a24,24,0,0,1,24,24V200A39.81,39.81,0,0,0,96,192Zm128,0H160a39.81,39.81,0,0,0-24,8V88a24,24,0,0,1,24-24h64Z"/></svg></span><span class="nm" data-page-node-id="BD1Xvhmc7YTvCgYBzFeY72">法语课</span>
             <span class="badge" data-page-node-id="6E6YwqD2FtyJcsNYFpEt15">自然放下了</span>
           </div>
           <div class="quote" data-page-node-id="v54gVj2donUks0Ak3XJh1j">只记得你去过，不提醒、不催促。</div>
