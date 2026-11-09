@@ -1427,6 +1427,28 @@
   }
   .undo-bar.show{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0);}
   .undo-bar .undo-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* v118：回到底部胶囊——与撤回胶囊同一位置、同一高度、同一圆角 */
+  .to-bottom{
+    position:absolute;left:50%;
+    bottom:calc(var(--undo-lift, calc(var(--nav-h) + 24px)) + env(safe-area-inset-bottom));
+    transform:translateX(-50%) translateY(14px);
+    z-index:44;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    padding:0 18px;height:51px;box-sizing:border-box;
+    border-radius:999px;
+    border:1px solid var(--blue-line);
+    background:var(--menu-bg);
+    -webkit-backdrop-filter:var(--menu-blur);
+    backdrop-filter:var(--menu-blur);
+    box-shadow:inset 0 1px 0 var(--glass-hi), inset 0 -1px 0 var(--glass-lo), var(--shadow);
+    color:var(--blue);
+    font-size:13px;line-height:1.5;
+    opacity:0;pointer-events:none;
+    transition:opacity .22s ease, transform .22s ease;
+  }
+  .to-bottom.show{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0);}
+  .to-bottom .ic-ico{width:15px;height:15px;}
+
   .undo-btn{
     flex-shrink:0;
     padding:8px 13px;border-radius:999px;border:1px solid var(--blue-line);
@@ -3688,6 +3710,7 @@
   function showUndoBar(text){
     var _log = document.querySelector('.chat-log');
     if(_log){ _log.classList.add('undo-on'); }
+    if(window.ToBottom){ setTimeout(window.ToBottom.sync, 0); }
     ensureUndoBar();
     /* v67：弹条前按当前页重算抬升量，避免切页后残留旧偏移 */
     syncUndoBarOffset();
@@ -3701,6 +3724,7 @@
   function hideUndoBar(){
     var _log = document.querySelector('.chat-log');
     if(_log){ _log.classList.remove('undo-on'); }
+    if(window.ToBottom){ setTimeout(window.ToBottom.sync, 0); }
     if(undoBar){ undoBar.classList.remove('show'); }
     if(window.CapsuleGuard){ CapsuleGuard.ping(); }
   }
@@ -8298,6 +8322,71 @@
     if(document.readyState === 'loading'){
       document.addEventListener('DOMContentLoaded', function(){ setTimeout(function(){ window.QuakeWatch.start(); }, 3000); });
     } else { setTimeout(function(){ window.QuakeWatch.start(); }, 3000); }
+  })();
+
+  /* ==========================================================================
+     v118 · 回到底部胶囊
+     聊天区往上滚之后浮出一个「↓ 回到底」按钮，点一下平滑回底。
+     位置与高度和撤回胶囊完全一致（同一 --undo-lift、同 padding、同圆角）。
+     与撤回胶囊互斥：撤回出现时它让位；撤回消失后若仍需要，它再回来。
+     ========================================================================== */
+  (function(){
+    var btn = null;
+    var SCROLL_GAP = 80;   /* 离底部超过这个距离才出现 */
+    var ticking = false;
+
+    function logEl(){ return document.querySelector('.chat-log'); }
+    function undoVisible(){
+      var u = document.querySelector('.undo-bar');
+      return !!(u && u.classList.contains('show'));
+    }
+    function need(){
+      var l = logEl();
+      if(!l) return false;
+      return (l.scrollHeight - l.scrollTop - l.clientHeight) > SCROLL_GAP;
+    }
+    function ensure(){
+      if(btn) return btn;
+      btn = document.createElement('div');
+      btn.className = 'to-bottom';
+      btn.setAttribute('role','button');
+      btn.setAttribute('tabindex','0');
+      btn.setAttribute('aria-label','回到底部');
+      btn.innerHTML = '<svg class="ic-ico" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M120,8V198.06L55.56,133.61a8,8,0,0,0-11.32,11.32l72,72a8,8,0,0,0,11.32,0l72-72a8,8,0,0,0-11.32-11.32L136,198.06V8a8,8,0,0,0-16,0Z"/></svg><span>回到底部</span>';
+      btn.addEventListener('click', toBottom);
+      btn.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toBottom(); } });
+      var frame = document.querySelector('.frame');
+      (frame || document.body).appendChild(btn);
+      return btn;
+    }
+    function toBottom(){
+      var l = logEl();
+      if(!l) return;
+      try{ l.scrollTo({ top: l.scrollHeight, behavior: 'smooth' }); }
+      catch(e){ l.scrollTop = l.scrollHeight; }
+      sync();
+      setTimeout(sync, 380);
+    }
+    function sync(){
+      ensure();
+      var ok = need() && !undoVisible();
+      btn.classList.toggle('show', ok);
+    }
+    function onScroll(){
+      if(ticking) return;
+      ticking = true;
+      requestAnimationFrame(function(){ ticking = false; sync(); });
+    }
+    function bind(){
+      var l = logEl();
+      if(!l) return;
+      l.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', sync);
+      sync();
+    }
+    window.ToBottom = { sync: sync, toBottom: toBottom };
+    if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', function(){ setTimeout(bind, 300); }); }
+    else { setTimeout(bind, 300); }
   })();
 
 </script>
