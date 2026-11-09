@@ -1434,7 +1434,7 @@
     transform:translateX(-50%) translateY(14px);
     z-index:44;
     display:flex;align-items:center;justify-content:center;gap:8px;
-    padding:0 18px;height:51px;box-sizing:border-box;
+    width:51px;padding:0;height:51px;box-sizing:border-box;
     border-radius:999px;
     border:1px solid var(--blue-line);
     background:var(--menu-bg);
@@ -3709,7 +3709,12 @@
 
   function showUndoBar(text){
     var _log = document.querySelector('.chat-log');
-    if(_log){ _log.classList.add('undo-on'); }
+    /* v119：只有用户就在最底部时才让位上移；已经上滑看历史时不动，避免内容跳动 */
+    if(_log){
+      var nearBottom = (_log.scrollHeight - _log.scrollTop - _log.clientHeight) < 40;
+      if(nearBottom){ _log.classList.add('undo-on'); }
+      else { _log.classList.remove('undo-on'); }
+    }
     if(window.ToBottom){ setTimeout(window.ToBottom.sync, 0); }
     ensureUndoBar();
     /* v67：弹条前按当前页重算抬升量，避免切页后残留旧偏移 */
@@ -8343,6 +8348,9 @@
     function need(){
       var l = logEl();
       if(!l) return false;
+      /* v119：只在「旅途」页出现 */
+      var page = document.querySelector('.page.active');
+      if(!page || page.id !== 'pg0') return false;
       return (l.scrollHeight - l.scrollTop - l.clientHeight) > SCROLL_GAP;
     }
     function ensure(){
@@ -8352,7 +8360,7 @@
       btn.setAttribute('role','button');
       btn.setAttribute('tabindex','0');
       btn.setAttribute('aria-label','回到底部');
-      btn.innerHTML = '<svg class="ic-ico" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M120,8V198.06L55.56,133.61a8,8,0,0,0-11.32,11.32l72,72a8,8,0,0,0,11.32,0l72-72a8,8,0,0,0-11.32-11.32L136,198.06V8a8,8,0,0,0-16,0Z"/></svg><span>回到底部</span>';
+      btn.innerHTML = '<svg class="ic-ico" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M120,8V198.06L55.56,133.61a8,8,0,0,0-11.32,11.32l72,72a8,8,0,0,0,11.32,0l72-72a8,8,0,0,0-11.32-11.32L136,198.06V8a8,8,0,0,0-16,0Z"/></svg>';
       btn.addEventListener('click', toBottom);
       btn.addEventListener('keydown', function(e){ if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toBottom(); } });
       var frame = document.querySelector('.frame');
@@ -8362,6 +8370,9 @@
     function toBottom(){
       var l = logEl();
       if(!l) return;
+      /* v119：撤回条还在时，回底后补上让位，避免到底又被挡住 */
+      var u = document.querySelector('.undo-bar');
+      if(u && u.classList.contains('show')){ l.classList.add('undo-on'); }
       try{ l.scrollTo({ top: l.scrollHeight, behavior: 'smooth' }); }
       catch(e){ l.scrollTop = l.scrollHeight; }
       sync();
@@ -8369,6 +8380,8 @@
     }
     function sync(){
       ensure();
+      /* v119：先按输入框位置重算一次锚点，避免回落位把按钮压在气泡上 */
+      if(typeof syncUndoBarOffset === 'function'){ try{ syncUndoBarOffset(); }catch(e){} }
       var ok = need() && !undoVisible();
       btn.classList.toggle('show', ok);
     }
