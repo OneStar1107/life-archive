@@ -1178,8 +1178,11 @@
   /* 路途 · 聊天记录区 */
   /* v74：滚动限位 + 顶部渐隐——消息滑到天气卡下面时柔化淡出，不再硬切半个气泡 */
   .day-status{position:relative;z-index:4;}
+  /* v115：一条消息里可以有换行（多段合并用） */
+  .msg{white-space:pre-line;}
   .chat-log{
-    flex:1 1 auto;min-height:0;overflow-y:auto;padding:2px 2px 28px;
+    flex:1 1 auto;min-height:0;overflow-y:auto;padding:2px 2px 14px;
+    /* v115：底部留白 28→14，输入框上方的空白压掉一半 */
     /* v111：上边界提到天气卡下方，只留 10px 做顶部渐隐 */
     margin-top:-26px;
     overscroll-behavior:contain;                 /* 滚到头就停，不做橡皮筋回弹 */
@@ -1301,6 +1304,7 @@
   /* 路途 · 输入区：悬浮玻璃胶囊条（三个功能圆钮 + 输入框 + 圆形发送钮） */
   .chat-input{
     position:relative;
+    margin-top:0;
     flex-shrink:0;display:flex;align-items:center;gap:6px;
     padding:6px;border-radius:var(--r-card);
     background:var(--glass-bg);
@@ -5429,17 +5433,14 @@
     /* ③ 危机（最高优先级）→ 喊醒 + 弹窗确认，不直接甩号码 */
     if(CRISIS.re.test(v)){
       stageUp();
-      setTimeout(function(){ appendMsg('me', CRISIS.name); }, 600);
-      setTimeout(function(){ appendMsg('me', CRISIS.hold); }, 1800);
+      setTimeout(function(){ appendMsg('me', CRISIS.name + '\n' + CRISIS.hold); }, 600);
       setTimeout(function(){ openCrisisModal(); }, 3000);
       return;
     }
     /* 风险 → 温柔但明确地转介专业帮助 */
     if(RISK.re.test(v)){
       stageUp();
-      setTimeout(function(){ appendMsg('me', RISK.name); }, 600);
-      setTimeout(function(){ appendMsg('me', RISK.wake); }, 1800);
-      setTimeout(function(){ appendMsg('me', RISK.ask); }, 3400);
+      setTimeout(function(){ appendMsg('me', RISK.name + '\n' + RISK.wake + '\n' + RISK.ask); }, 600);
       return;
     }
 
@@ -5508,17 +5509,12 @@
       stageUp();
       /* 熟悉度决定第 2 句是「开放式引导」还是「具体呼应」 */
       var second = (PROFILE.stage >= 1) ? em.echo : em.ask;
-      setTimeout(function(){ appendMsg('me', em.name); }, 600);
-      setTimeout(function(){ appendMsg('me', second); }, 1800);
-      setTimeout(function(){ appendMsg('me', em.hold); }, 3000);
+      /* v115：一次只回一条（原来 5 条连发像刷屏）——先接住，再给一句引导 */
       setTimeout(function(){
-        appendMsg('me', em.guide);       /* 引导你继续把情绪倒出来 */
+        appendMsg('me', em.name + '\n' + second);
         addFeeling(em.view);             /* 我眼中的你：悄悄记一笔 */
         addState(em.signal);             /* 身体的信号：悄悄记一笔 */
-      }, 4200);
-      setTimeout(function(){
-        appendMsg('me', em.selfDist);    /* 自我距离化：拉远一步，用旁观者视角 */
-      }, 5400);
+      }, 600);
       return;
     }
 
